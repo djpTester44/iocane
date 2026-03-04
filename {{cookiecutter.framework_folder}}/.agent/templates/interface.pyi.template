@@ -1,0 +1,34 @@
+"""
+Protocol Contract: [Component Name]
+Target Implementation: [Target Implementation Path from Registry]
+"""
+
+from typing import Protocol, runtime_checkable
+
+# TODO: Import required domain primitives and types from interfaces.models
+# from interfaces.models import ...
+
+@runtime_checkable
+class [ProtocolName](Protocol):
+    """
+    Contract for [Component Name].
+    
+    CRC Trace:
+    - [Paste Responsibility 1 from project-spec.md]
+    - [Paste Responsibility 2 from project-spec.md]
+    """
+
+    def [method_name](self, [arg_name]: [Type]) -> [ReturnType]:
+        """
+        [Method description directly mapping to a CRC responsibility and Sequence Diagram execution step.]
+        
+        Args:
+            [arg_name]: [Strict type and constraint description]
+            
+        Returns:
+            [Strict return type description]
+            
+        Raises:
+            [Explicitly list domain-specific exceptions defined in the PRD error handling states]
+        """
+        ...
