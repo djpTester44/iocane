@@ -1,0 +1,1 @@
+Read and execute the workflow defined in `.agent/workflows/io-architect.md`. Follow every step in that file exactly, including the plan validation entry gate, debt-first priority ordering, CRC and sequence diagram generation, Protocol generation rules, and the hard prohibition against editing `.py` implementation files.

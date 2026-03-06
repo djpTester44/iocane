@@ -1,0 +1,1 @@
+Read and execute the workflow defined in `.agent/workflows/io-init.md`. Follow every step in that file exactly, including the clarification gate, layer mapping, and the required generation of both `plans/project-spec.md` and `plans/PLAN.md`.

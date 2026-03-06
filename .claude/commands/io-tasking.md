@@ -1,0 +1,1 @@
+Read and execute the workflow defined in `.agent/workflows/io-tasking.md`. Follow every step in that file exactly, including all hard gates, scope blinding rules, and the tasking stop-gate that forbids writing implementation code.

@@ -1,0 +1,1 @@
+Read and execute the workflow defined in `.agent/workflows/meta-gap-analysis.md`. Follow every step in that file exactly, including auditing tool usage, reasoning, and loop behavior for the current session, and appending new lessons to `AGENTS.md` without consolidating or deleting existing entries.

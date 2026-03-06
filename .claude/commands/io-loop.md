@@ -1,0 +1,1 @@
+Read and execute the workflow defined in `.agent/workflows/io-loop.md`. Follow every step in that file exactly, including the context loading constraints, the Red-Green-Refactor state machine, the stateless logging requirements, and the debt escalation halt conditions.

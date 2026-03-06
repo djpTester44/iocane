@@ -1,0 +1,1 @@
+Read and execute the workflow defined in `.agent/workflows/gap-analysis.md`. Follow every step in that file exactly, including the private-method exemption filter, running `check_design_anchors.py` and `check_di_compliance.py`, CRC arbitration logic, and the interactive user confirmation before routing any items to the backlog.

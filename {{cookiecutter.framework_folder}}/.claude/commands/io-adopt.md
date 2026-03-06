@@ -1,0 +1,1 @@
+Read and execute the workflow defined in `.agent/workflows/io-adopt.md`. Follow every step in that file exactly, including the token-protection constraint against bulk file reads, the use of `extract_structure.py`, and the mandatory user review halt before proceeding.

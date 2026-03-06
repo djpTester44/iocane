@@ -1,0 +1,219 @@
+# -----------------------------------------------------------------------------
+
+# Python runtime artifacts
+
+# -----------------------------------------------------------------------------
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# -----------------------------------------------------------------------------
+
+# Virtual environments & package installs
+
+# -----------------------------------------------------------------------------
+
+.venv/
+venv/
+env/
+.env/
+site-packages/
+
+# -----------------------------------------------------------------------------
+
+# Node / JS (if ever present)
+
+# -----------------------------------------------------------------------------
+
+node_modules/
+.npm/
+
+# -----------------------------------------------------------------------------
+
+# Rust artifacts (rtk, if co-located)
+
+# -----------------------------------------------------------------------------
+
+target/
+Cargo.lock
+
+# -----------------------------------------------------------------------------
+
+# General dev tooling state
+
+# -----------------------------------------------------------------------------
+
+.git/
+.gitignore
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.tmp
+*.bak
+*.log
+
+# -----------------------------------------------------------------------------
+
+# Test / coverage outputs
+
+# -----------------------------------------------------------------------------
+
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# -----------------------------------------------------------------------------
+
+# Iocane: skill-creator eval machinery
+
+# -----------------------------------------------------------------------------
+
+# These are only loaded explicitly when running skill evals. Indexing them
+
+# globally adds ~2000 tokens of noise to every session
+
+.agent/skills/skill-creator/scripts/
+.agent/skills/skill-creator/agents/
+.agent/skills/skill-creator/assets/
+.agent/skills/skill-creator/eval-viewer/
+.agent/skills/skill-creator/references/
+.agent/skills/skill-creator/LICENSE.txt
+
+# Keep: .agent/skills/skill-creator/SKILL.md
+
+# Rationale: the SKILL.md is the interface — Claude needs to know the skill
+
+# exists and how to invoke it. The implementation scripts do not need indexing
+
+# -----------------------------------------------------------------------------
+
+# Iocane: project-specific gap analysis script
+
+# -----------------------------------------------------------------------------
+
+# gap_analysis_gen.py contains hardcoded component-to-filepath mappings from
+
+# a specific project (CMAB). It is not a general harness tool and will confuse
+
+# Claude when working on unrelated projects
+
+.agent/scripts/gap_analysis_gen.py
+
+# -----------------------------------------------------------------------------
+
+# Iocane: sync utilities
+
+# -----------------------------------------------------------------------------
+
+# These scripts manage .github/ <-> .agent/ synchronization. Claude does not
+
+# need to read them to use or evolve the harness — they are maintenance tools
+
+# run manually or via CI
+
+.agent/scripts/github_to_agent_sync.py
+
+# -----------------------------------------------------------------------------
+
+# Iocane: walkthrough generation
+
+# -----------------------------------------------------------------------------
+
+# generate_walkthrough_context.py is a context-packaging utility, not a
+
+# harness component. It produces the digest files used for onboarding
+
+.agent/scripts/generate_walkthrough_context.py
+
+# -----------------------------------------------------------------------------
+
+# Iocane: templates directory
+
+# -----------------------------------------------------------------------------
+
+# Templates are loaded explicitly by workflows that need them (io-init loads
+
+# project-spec.md template, io-architect loads interface.pyi.template, etc.)
+
+# Indexing them globally causes Claude to treat forward-declaration stubs as
+
+# actual project state, which produces false gap analysis findings
+
+.agent/templates/
+
+# -----------------------------------------------------------------------------
+
+# Iocane: execution logs
+
+# -----------------------------------------------------------------------------
+
+# progress.md is an append-only ledger written by log_progress.sh. It can grow
+
+# very large over a long project. Claude writes to it via bash; it never needs
+
+# to read it during normal execution. Load explicitly only during /doc-sync
+
+# or /meta-gap-analysis if historical log review is needed
+
+plans/progress.md
+
+# -----------------------------------------------------------------------------
+
+# Iocane: walkthrough and digest artifacts
+
+# -----------------------------------------------------------------------------
+
+# These are packaging outputs, not source files. The digest.txt in particular
+
+# can be enormous and contains redundant copies of everything else
+
+*.digest.txt
+digest.txt
+walkthrough.md
+plans/walkthrough.md
+current-state.md
+plans/current-state.md
+
+# -----------------------------------------------------------------------------
+
+# Secrets and environment
+
+# -----------------------------------------------------------------------------
+
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+*.cert
+
+# -----------------------------------------------------------------------------
+
+# IDE and editor state
+
+# -----------------------------------------------------------------------------
+
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.iml
+
+# -----------------------------------------------------------------------------
+
+# CI/CD artifacts
+
+# -----------------------------------------------------------------------------
+
+.github/workflows/
