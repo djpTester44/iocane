@@ -10,19 +10,25 @@ Enforces the Dependency Injection rule from the Mini-Spec Skill:
 4. Parses plans/PLAN.md to build an active debt registry of components
    that carry a tracked [REFACTOR] or [CLEANUP] backlog ticket.
 5. Parses each implementation file's __init__ method via AST.
-6. Reports violations at three severity levels:
+6. **Sweeps tests/ directory** for bare component instantiations to
+   prevent dependency gaps during CI builds.  Any registry component
+   that has CRC collaborators MUST receive arguments when instantiated
+   in test code.  ``# noqa: DI-TEST`` on the call line exempts it.
+7. Reports violations at three severity levels:
    - [CRITICAL]: Collaborator instantiated inside __init__ body (bare class
                  call, not factory-mediated); OR a component uses # noqa: DI
                  without a matching active ticket in plans/PLAN.md; OR a
-                 registry entry resolves outside the src/ boundary.
+                 registry entry resolves outside the src/ boundary; OR a
+                 test file instantiates a component without passing required
+                 collaborators.
    - [WARNING]:  Collaborator not resolvable from any injected source.
                  Any WARNING causes a non-zero exit (strict gate mode).
    - [INFO]:     Tracked exemptions and factory-param heuristic notices.
 
 Exit codes (strict binary gate):
-  0 – All clean, OR every exemption has a matching PLAN.md debt ticket
+  0 -- All clean, OR every exemption has a matching PLAN.md debt ticket
       and no unresolved WARNINGs remain.
-  1 – Any CRITICAL or WARNING remains unresolved.
+  1 -- Any CRITICAL or WARNING remains unresolved.
 
 Injection patterns recognised (no false-positive for any of these):
   - Direct parameter type hints:            def __init__(self, dep: DepProtocol)
@@ -95,7 +101,7 @@ BUILDER_TERMINAL_RE = re.compile(r"^(build|create|construct|make|produce)$", re.
 #
 # Accepted formats:
 #   - [ ] [REFACTOR] DataLoader: migrate to protocol injection
-#   - [ ] [CLEANUP] ReportWriter – remove concrete dep
+#   - [ ] [CLEANUP] ReportWriter - remove concrete dep
 #   * [REFACTOR] SessionManager (tracked)
 #   - [CLEANUP] OrderProcessor
 #
@@ -322,7 +328,7 @@ def _is_builder_chain(call_node: ast.Call) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# InitVisitor – factory, kwargs, and provenance tracking
+# InitVisitor - factory, kwargs, and provenance tracking
 # ---------------------------------------------------------------------------
 
 
@@ -331,24 +337,24 @@ class InitVisitor(ast.NodeVisitor):
 
     After visiting, the following attributes are populated:
 
-    ``found_class``           – True if the target class was found in the AST.
-    ``is_exempt``             – True if the class or __init__ carries ``# noqa: DI``.
-    ``init_node``             – The FunctionDef AST node for __init__, or None.
+    ``found_class``           - True if the target class was found in the AST.
+    ``is_exempt``             - True if the class or __init__ carries ``# noqa: DI``.
+    ``init_node``             - The FunctionDef AST node for __init__, or None.
 
     *Injection-source tracking*
 
-    ``arg_types``             – Type names gathered from direct parameter annotations.
-    ``param_names``           – All non-self parameter names.
-    ``has_variadic_kwargs``   – True if __init__ accepts ``**kwargs`` / ``**deps``.
-    ``mapping_param_names``   – Params whose type annotation is a Mapping/dict type.
-    ``factory_param_names``   – Params whose name or type suggests a factory/builder.
-    ``container_param_names`` – Params that look like DI containers / locators.
-    ``mapping_key_types``     – Type-like strings accessed as keys from mapping params.
-    ``has_bulk_injection``    – True if ``__dict__.update`` / setattr loop is used.
+    ``arg_types``             - Type names gathered from direct parameter annotations.
+    ``param_names``           - All non-self parameter names.
+    ``has_variadic_kwargs``   - True if __init__ accepts ``**kwargs`` / ``**deps``.
+    ``mapping_param_names``   - Params whose type annotation is a Mapping/dict type.
+    ``factory_param_names``   - Params whose name or type suggests a factory/builder.
+    ``container_param_names`` - Params that look like DI containers / locators.
+    ``mapping_key_types``     - Type-like strings accessed as keys from mapping params.
+    ``has_bulk_injection``    - True if ``__dict__.update`` / setattr loop is used.
 
     *Violation tracking*
 
-    ``direct_instantiations`` – Names of PascalCase bare-call instantiations that
+    ``direct_instantiations`` - Names of PascalCase bare-call instantiations that
                                 are NOT factory-mediated and NOT from a
                                 param-derived receiver object.
     """
@@ -459,10 +465,10 @@ class InitVisitor(ast.NodeVisitor):
         """Return a mapping of local variable name -> provenance string.
 
         Provenance values:
-          ``'param'``   – assigned directly from a parameter or attribute thereof.
-          ``'factory'`` – assigned from a factory/container call on a param-derived obj.
-          ``'direct'``  – bare class instantiation (PascalCase call, not factory-mediated).
-          ``'other'``   – anything else.
+          ``'param'``   - assigned directly from a parameter or attribute thereof.
+          ``'factory'`` - assigned from a factory/container call on a param-derived obj.
+          ``'direct'``  - bare class instantiation (PascalCase call, not factory-mediated).
+          ``'other'``   - anything else.
         """
         provenance: dict[str, str] = dict.fromkeys(self.param_names, "param")
 
@@ -671,6 +677,121 @@ class InitVisitor(ast.NodeVisitor):
 
 
 # ---------------------------------------------------------------------------
+# TestInstantiationVisitor - test-file sweep for bare component calls
+# ---------------------------------------------------------------------------
+
+
+class TestInstantiationVisitor(ast.NodeVisitor):
+    """Walk a test file and find instantiations of registry components.
+
+    For each call matching a component name, checks whether the required
+    collaborators are supplied as positional or keyword arguments.
+
+    Attributes after visiting:
+
+    ``bare_calls`` - list of ``(comp_name, lineno)`` tuples where a
+                     component with required collaborators was called
+                     without passing any arguments that satisfy the
+                     collaborator requirement.
+    """
+
+    def __init__(
+        self,
+        component_collabs: dict[str, list[str]],
+        source_lines: list[str],
+    ) -> None:
+        self.component_collabs = component_collabs
+        self.source_lines = source_lines
+        self.bare_calls: list[tuple[str, int]] = []
+
+    # ------------------------------------------------------------------
+    # Visitor
+    # ------------------------------------------------------------------
+
+    def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
+        comp_name = self._called_component(node)
+        if comp_name is not None:
+            collabs = self.component_collabs.get(comp_name, [])
+            if collabs and not self._has_args(node, collabs):
+                lineno = node.lineno
+                if not self._has_exemption(lineno):
+                    self.bare_calls.append((comp_name, lineno))
+        self.generic_visit(node)
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _called_component(self, call: ast.Call) -> str | None:
+        """Return the component name if this call targets a registry component."""
+        func = call.func
+        if isinstance(func, ast.Name) and func.id in self.component_collabs:
+            return func.id
+        if isinstance(func, ast.Attribute) and func.attr in self.component_collabs:
+            return func.attr
+        return None
+
+    @staticmethod
+    def _has_args(call: ast.Call, collabs: list[str]) -> bool:
+        """Return True if positional or keyword args satisfy the collaborators.
+
+        Any of the following count as satisfying:
+          - At least one positional argument is provided.
+          - Any keyword argument is provided.
+          - The call uses ``**kwargs`` unpacking.
+        """
+        if call.args:
+            return True
+        if call.keywords:
+            return True
+        return False
+
+    def _has_exemption(self, lineno: int) -> bool:
+        """Check for ``# noqa: DI-TEST`` on the call line."""
+        if 0 < lineno <= len(self.source_lines):
+            return "# noqa: DI-TEST" in self.source_lines[lineno - 1]
+        return False
+
+
+def check_test_file(
+    path: Path,
+    component_collabs: dict[str, list[str]],
+) -> list[Violation]:
+    """Check a single test file for bare component instantiations.
+
+    Returns a list of ``Violation`` entries at CRITICAL severity for
+    every instantiation of a registry component that has required
+    collaborators but was called without any arguments.
+    """
+    try:
+        source_text = path.read_text(encoding="utf-8")
+        source_lines = source_text.splitlines()
+        tree = ast.parse(source_text)
+    except SyntaxError:
+        return [Violation("<test>", path, "WARNING", "Syntax error in test file")]
+
+    visitor = TestInstantiationVisitor(component_collabs, source_lines)
+    visitor.visit(tree)
+
+    violations: list[Violation] = []
+    for comp_name, lineno in visitor.bare_calls:
+        collabs = component_collabs[comp_name]
+        violations.append(
+            Violation(
+                comp_name,
+                path,
+                "CRITICAL",
+                (
+                    f"Test instantiates {comp_name}() at line {lineno} "
+                    f"without required collaborators: "
+                    f"{', '.join(collabs)}"
+                ),
+            )
+        )
+    return violations
+
+
+# ---------------------------------------------------------------------------
 # Collaborator matching helpers
 # ---------------------------------------------------------------------------
 
@@ -788,7 +909,7 @@ def check_component(
 
     # ------------------------------------------------------------------
     # CRITICAL: direct bare-class instantiation of a known collaborator
-    #   – factory-mediated and param-derived calls are filtered in the
+    #   - factory-mediated and param-derived calls are filtered in the
     #     visitor before they ever reach direct_instantiations.
     # ------------------------------------------------------------------
     for collab in collaborators:
@@ -905,7 +1026,7 @@ def main() -> None:
     else:
         tracked_debt = set()
         print(
-            "plans/PLAN.md not found – "
+            "plans/PLAN.md not found - "
             "all # noqa: DI suppressions will be escalated to CRITICAL."
         )
 
@@ -939,7 +1060,7 @@ def main() -> None:
         impl_path = registry[comp_name]
 
         if comp_name in boundary_components:
-            print(f"  SKIP  {comp_name} (boundary violation – path outside src/)")
+            print(f"  SKIP  {comp_name} (boundary violation - path outside src/)")
             continue
 
         if entrypoint_dir and entrypoint_dir in impl_path.as_posix():
@@ -956,6 +1077,41 @@ def main() -> None:
             status = worst.severity
 
         print(f"  {status:8s} {comp_name}")
+
+    # ------------------------------------------------------------------
+    # Test-file sweep: verify instantiations pass required collaborators
+    # ------------------------------------------------------------------
+    tests_dir = root_dir / "tests"
+    if tests_dir.is_dir():
+        # Build a map of only those components that have collaborators.
+        test_comp_collabs: dict[str, list[str]] = {
+            comp: collabs
+            for comp, collabs in designs.items()
+            if comp in registry and collabs
+        }
+
+        if test_comp_collabs:
+            test_files = sorted(tests_dir.rglob("*.py"))
+            print(f"\nTest DI sweep: {len(test_files)} files, "
+                  f"{len(test_comp_collabs)} components with collaborators")
+
+            for tf in test_files:
+                tf_violations = check_test_file(tf, test_comp_collabs)
+                all_violations.extend(tf_violations)
+
+                if not tf_violations:
+                    status = "PASS"
+                else:
+                    worst = min(
+                        tf_violations,
+                        key=lambda v: SEVERITY_ORDER.get(v.severity, 99),
+                    )
+                    status = worst.severity
+                print(f"  {status:8s} {tf.relative_to(root_dir).as_posix()}")
+        else:
+            print("\nTest DI sweep: no components with collaborators to check.")
+    else:
+        print("\nTest DI sweep: tests/ directory not found, skipping.")
 
     # ------------------------------------------------------------------
     # Final report
@@ -983,11 +1139,11 @@ def main() -> None:
     )
 
     # ------------------------------------------------------------------
-    # Exit code – strict binary gate for /io-tasking
+    # Exit code - strict binary gate for /io-tasking
     #
     # Exit 1 conditions:
     #   • Any CRITICAL  (hardcoded dep / untracked noqa / boundary breach)
-    #   • Any WARNING   (unresolvable collaborator – now treated equal to CRITICAL)
+    #   • Any WARNING   (unresolvable collaborator - now treated equal to CRITICAL)
     #
     # Exit 0 conditions:
     #   • Zero violations total
@@ -999,10 +1155,10 @@ def main() -> None:
             parts.append(f"{len(criticals)} critical")
         if warnings:
             parts.append(f"{len(warnings)} warning")
-        print(f"\nGATE FAIL – {', '.join(parts)}")
+        print(f"\nGATE FAIL - {', '.join(parts)}")
         sys.exit(1)
 
-    print("\nGATE PASS – all remaining items are tracked or factory-heuristic INFO.")
+    print("\nGATE PASS - all remaining items are tracked or factory-heuristic INFO.")
     sys.exit(0)
 
 
