@@ -1,10 +1,3 @@
-# CLAUDE.md — Iocane Harness Repo Constitution
-
-## System Context
-
-This is the **Iocane harness repo** — a [cookiecutter](https://cookiecutter.readthedocs.io/) template for Contract-Driven Development (CDD) workflows. The active template lives in `{{cookiecutter.framework_folder}}/`. Claude must treat that directory as a **template root**, not as a live project: files inside it are scaffolding artifacts destined for generated projects, not sources to execute, test, or evolve independently. The `.claude/` directory at the repo root contains hooks and slash commands that are **active for this harness repo only** and are separate from any generated project's runtime configuration.
-
----
 
 ## [CRITICAL] Rule #10 — The Helpfulness Ban
 
@@ -24,7 +17,7 @@ This is the **Iocane harness repo** — a [cookiecutter](https://cookiecutter.re
 2. NEVER hardcode secrets, API keys, or tokens.
 3. NEVER use emojis in output, plans, or documentation.
 4. NEVER use `view_file` without `StartLine` and `EndLine` arguments.
-5. NEVER use native `grep`, `find`, or `ls -R` — use dedicated search tools.
+5. Prefer dedicated search tools for broad repo searches. Direct grep/find is acceptable for simple, well-scoped queries. Use smart_search.sh for token-efficient broad searches and Claude Code's native semantic search for symbol lookups.
 6. NEVER use `os.environ`/`os.getenv` outside the Entrypoint Layer (`main.py`, `jobs/`, `config.py`); inject config via a typed `Settings` object.
 7. NEVER instantiate stateful dependencies (DB/API clients) at module level — no global state.
 8. NEVER import from a higher architectural layer (Layer 1 cannot import Layer 3, etc.).
@@ -32,15 +25,12 @@ This is the **Iocane harness repo** — a [cookiecutter](https://cookiecutter.re
 
 ---
 
-## Harness Evolution Protocol
+## Project Development Protocol
 
-These rules govern changes to the harness itself:
-
-- **(a) Template internals are off-limits by default.** Never modify files inside `{{cookiecutter.framework_folder}}/.agent/` without an explicit instruction to do so. Those files are the canonical source of truth for generated projects.
-- **(b) Evolve at the source.** When updating workflows, rules, skills, or scripts, edit the template source files directly — do not create parallel copies alongside the originals.
-- **(c) Repo-level tooling stays repo-level.** The slash commands in `.claude/commands/` and hooks in `.claude/hooks/` are active for this harness repo. Do not duplicate or shadow them inside the template.
+- **(a)** `.agent/` files govern this project's workflows and rules — never modify them without explicit instruction.
+- **(b)** `.claude/commands/` and `.claude/hooks/` are active for this project — do not duplicate them elsewhere.
 
 ---
 
 Full rules reference: `.agent/rules/AGENTS.md`
-Workflow reference: `{{cookiecutter.framework_folder}}/.agent/workflows/`
+Workflow reference: `./.agent/workflows/`

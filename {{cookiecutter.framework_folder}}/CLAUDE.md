@@ -24,7 +24,7 @@ This is **{{cookiecutter.project_name}}** — a project generated from the Iocan
 2. NEVER hardcode secrets, API keys, or tokens.
 3. NEVER use emojis in output, plans, or documentation.
 4. NEVER use `view_file` without `StartLine` and `EndLine` arguments.
-5. NEVER use native `grep`, `find`, or `ls -R` — use dedicated search tools.
+5. Prefer dedicated search tools for broad repo searches. Direct grep/find is acceptable for simple, well-scoped queries. Use smart_search.sh for token-efficient broad searches and Claude Code's native semantic search for symbol lookups.
 6. NEVER use `os.environ`/`os.getenv` outside the Entrypoint Layer (`main.py`, `jobs/`, `config.py`); inject config via a typed `Settings` object.
 7. NEVER instantiate stateful dependencies (DB/API clients) at module level — no global state.
 8. NEVER import from a higher architectural layer (Layer 1 cannot import Layer 3, etc.).

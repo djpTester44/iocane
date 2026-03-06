@@ -12,15 +12,18 @@ globs: **
 ## Document Hierarchy (Macro / Meso / Micro)
 
 **Macro (Strategic) -- Persistent:**
+
 - **`plans/PRD.md`:** The origin seed. Business requirements and high-level data flow.
 - **`plans/project-spec.md`:** **The Living Architecture.** Contains Interface Registry (Structure) and **Component Specifications (Behavioral Design/CRC)**. Single source of truth.
 - **`plans/PLAN.md`:** Strategic roadmap and high-level Checkpoints (Persistent).
 - **`interfaces/*.pyi`:** Protocol definitions, the binding contracts (Persistent, grows).
 
 **Meso (Session) -- Ephemeral:**
+
 - **`plans/execution-handoff-bundle.md`:** Bounded session scope for the next implementation phase (Ephemeral, overwritten per `/io-handoff`).
 
 **Micro (Execution) -- Mixed:**
+
 - **`plans/tasks.json`:** Current phase atomic work items (Ephemeral, overwritten per checkpoint).
 - **`plans/progress.md`:** Historical log of completed work (Append-only archive).
 
@@ -129,3 +132,11 @@ When working on this project, check these sources:
 2. **What contracts exist?** -> `interfaces/*.pyi`
 3. **What is the current session scope?** -> `plans/execution-handoff-bundle.md`
 4. **What's being worked on now?** -> `plans/tasks.json`
+
+## Claude Code Native Integration
+
+1. **Slash commands are the canonical workflow entry points.** All workflows are available as native slash commands in `.claude/commands/`. Invoke them directly (e.g. `/io-handoff`, `/gap-analysis`, `/review-plan`) rather than describing or manually executing the workflow steps.
+
+2. **PreToolUse hooks are the gate — do not duplicate their checks.** The write-gate, DI compliance gate, and forbidden-tools gate are enforced automatically by PreToolUse hooks before every relevant tool call. Do not manually verify these conditions before issuing a write; the hooks will block non-compliant actions without requiring a pre-flight check.
+
+3. **Use `/ide` to connect to VS Code when running from an external terminal.** When Claude Code is launched from a terminal outside VS Code, run `/ide` to establish the IDE connection. This enables diff viewing inside the editor and diagnostic sharing (errors, warnings) between the IDE and the agent.

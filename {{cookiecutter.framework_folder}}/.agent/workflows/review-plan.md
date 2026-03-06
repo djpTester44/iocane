@@ -12,6 +12,7 @@ description: Validate an implementation plan against CDD principles (CRC-Protoco
 **Objective:** Pre-execution validation that an implementation plan maintains CRC-Protocol symmetry and follows the Design Before Contract rule without requiring granular execution details.
 
 **Context:**
+
 * Scope: One implementation plan document
 * Output: Findings table with actionable recommendations
 * Trigger: Iterative pre-entry gate. Run before entering the canonical chain (`/io-architect` -> `/io-handoff` -> ...) to catch design violations early. Iterate until PASS.
@@ -78,7 +79,7 @@ description: Validate an implementation plan against CDD principles (CRC-Protoco
 
     * **Required Amendments:** Specific changes to the plan (as checkboxes).
 
-12. **SELF-HEALING LOOP** (max 3 iterations):
+12. **SELF-HEALING LOOP**:
 
     **Auto-Remediable Violations** (agent amends the plan directly):
 
@@ -102,32 +103,38 @@ description: Validate an implementation plan against CDD principles (CRC-Protoco
     **Loop Procedure:**
     1. If all VIOLATIONs are auto-remediable: amend the plan, mark each change with `[AUTO-AMENDED]`, and re-run checks 5-10.
     2. If any non-auto-remediable VIOLATION exists: stop immediately and escalate to user with the findings.
-    3. If still failing after 3 iterations: stop and escalate to user.
-    4. On success: proceed to step 13.
+    3. After each pass, compare the violation set to the previous pass. If no new violations appear, the loop has converged — proceed to step 13.
+    4. If the same violation recurs across two consecutive passes (auto-remediation did not resolve it): stop and escalate to the user.
+    5. On success: proceed to step 13.
 
 13. **STAMP RESULT:**
 
 **Severity Guide:**
+
 * **VIOLATION:** Blocks execution. Must be resolved (auto or manual) before proceeding.
 * **OBSERVATION:** Should fix. Plan may proceed but risk of drift.
 * **INFO:** Optional improvement. Does not block.
 
 **Gate Behavior:**
-* If all VIOLATIONs are auto-remediable, the agent fixes them and re-validates (up to 3 iterations).
+
+* If all VIOLATIONs are auto-remediable, the agent fixes them and re-validates until no new violations appear, or escalates if the same violation recurs across two consecutive passes.
 * If any non-auto-remediable VIOLATION exists, the plan **FAILS** and the user must intervene.
 * Only a **PASS** result (zero VIOLATIONs) allows downstream execution.
 
 **Gate Artifact:**
+
 * On **PASS**, stamp the plan document with: `**Plan Validated:** PASS (YYYY-MM-DD)`
 * On **FAIL**, stamp the plan document with: `**Plan Validated:** FAIL (YYYY-MM-DD)` and list the blocking violations.
 * `/io-architect` **MUST** check for a `**Plan Validated:** PASS` marker in the plan before modifying any CRC or Protocol artifacts. If the marker is missing or shows FAIL, halt and recommend `/review-plan`.
 
 **Self-Healing Log:**
+
 * All auto-amendments must be logged in the plan under a `## Self-Healing Log` section.
 * Each entry: `[AUTO-AMENDED] <iteration> | <flag> | <component> | <what was changed>`
 * This log provides an audit trail for the user to review what the agent changed.
 
 **Rules:**
+
 * Auto-amend only the violations classified as auto-remediable above.
 * Do not expand scope beyond what the plan proposes.
 * Do not route findings to the Remediation Backlog -- this is a pre-execution gate, not a post-implementation review.

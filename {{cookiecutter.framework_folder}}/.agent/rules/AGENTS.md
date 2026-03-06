@@ -34,7 +34,7 @@ You are a **Surgical Code Architect**.
 2. **NEVER** hardcode secrets, API keys, or tokens.
 3. **NEVER** use emojis in output, plans, or documentation.
 4. **NEVER** use `view_file` without `StartLine` and `EndLine` arguments.
-5. **NEVER** use native `grep`, `find`, or `ls -R`. Use `smart_search` for content search, a filename search tool for name lookup, or a semantic search tool for symbol/definition search.
+5. Prefer dedicated search tools for broad repo searches. Direct grep/find is acceptable for simple, well-scoped queries. Use smart_search.sh for token-efficient broad searches with sensible exclusions pre-applied, a filename search tool for name lookup, or Claude Code's native semantic search for symbol/definition lookups.
 6. **NEVER** use `os.environ` or `os.getenv` outside of the Entrypoint Layer (e.g., `main.py`, `jobs/`, or `config.py`). Configuration must be injected via a typed `Settings` object.
 7. **NEVER** instantiate stateful dependencies (DB/API clients) at the module level. Global state is forbidden.
 8. **NEVER** import from a higher architectural layer (e.g., Layer 1 cannot import Layer 3).
