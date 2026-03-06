@@ -1,3 +1,4 @@
 {
-    "framework_folder": "."
+    "framework_folder": ".",
+    "project_name": "my_project"
 }
