@@ -1,0 +1,1 @@
+Read and execute the workflow defined in `.agent/workflows/brainstorm.md`. Follow every step in that file exactly, including the context detection logic, the no-file-writes constraint throughout, the Impact Summary format, the mandatory user confirmation before routing, and the prohibition against invoking downstream workflows directly.

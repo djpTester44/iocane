@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PreToolUse hook: Edit | Write
-# Blocks writes to files outside the active task's context_files.
+# Blocks writes to files outside the active task's write_targets.
 #
 # NOTE: Designed to run from a generated project root where plans/ and src/ exist.
 # This script is a harness template artifact and will not function correctly
@@ -46,16 +46,22 @@ if pending is None:
     print('ALLOW')
     sys.exit(0)
 
-context_files = pending.get('context_files', [])
+write_targets = pending.get('write_targets', [])
 task_id = pending.get('id', pending.get('task_id', 'unknown'))
+
+# If write_targets is absent or empty, the task is command-only (verify/refactor).
+# Fall back to ALLOW — the write-gate has nothing to enforce.
+if not write_targets:
+    print('ALLOW')
+    sys.exit(0)
 
 def normalize(p):
     return os.path.normpath(p).replace('\\\\', '/')
 
 norm_target = normalize(file_path)
-for cf in context_files:
-    norm_cf = normalize(cf)
-    if norm_target == norm_cf or norm_target.endswith('/' + norm_cf) or norm_cf.endswith('/' + norm_target):
+for wt in write_targets:
+    norm_wt = normalize(wt)
+    if norm_target == norm_wt or norm_target.endswith('/' + norm_wt) or norm_wt.endswith('/' + norm_target):
         print('ALLOW')
         sys.exit(0)
 
@@ -64,7 +70,7 @@ print('BLOCKED:' + task_id)
 
 if [[ "$RESULT" == BLOCKED:* ]]; then
     TASK_ID="${RESULT#BLOCKED:}"
-    echo "BLOCKED: $FILE_PATH is not in context_files for task $TASK_ID. Update tasks.json or run /io-handoff."
+    echo "BLOCKED: $FILE_PATH is not in write_targets for task $TASK_ID. Update tasks.json or run /io-handoff."
     exit 2
 fi
 

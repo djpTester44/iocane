@@ -26,28 +26,30 @@ Before proceeding to Step 2, you must output the following metadata to confirm y
 
 ### Step A: [HARD GATE] SCOPE INGESTION
 
-* **Action:** Read `plans/execution-handoff-bundle.md`.
+- **Action:** Read `plans/execution-handoff-bundle.md`.
+
 - **Constraint:** You are strictly blinded to the macro `PLAN.md` and `project-spec.md`.
 - **Rule:** Any task generated outside the `Allowed Scope` is a critical failure.
 
 ### Step B: GENERATE TASKS
 
-* **Action:** Overwrite `plans/tasks.json` using the template.
+- **Action:** Overwrite `plans/tasks.json` using the template.
 - **Logic:** Map the goal into the 4-step TDD cycle: `setup`, `test`, `implement`, `refactor`.
 - **Task Decomposition Rules:**
     1. **Atomic Granularity:** Break implementation into the smallest executable steps.
-    2. **Context Locking:** The `context_files` array for EVERY task must be a strict subset of the `Preload Targets`.
-    3. **Autonomous Tooling:** Ensure tasks rely on `uv run pytest` or `uv run mypy`.
+    2. **Context Locking:** The `context_files` array for EVERY task must be a strict subset of the `Preload Targets`. List only the files the task needs to *read*.
+    3. **Write Targeting:** The `write_targets` array must list every file the task will *write*. Required and non-empty for `setup`, `test`, and `implement` tasks. May be empty for `refactor` and `verify` tasks (which are command-driven). `write_targets` must be a strict subset of `context_files`.
+    4. **Autonomous Tooling:** Ensure tasks rely on `uv run pytest` or `uv run mypy`.
 
 ### Step C: [HARD GATE] COMPLIANCE CHECK
 
-* **Action:** Verify `plans/tasks.json` against **ALL** `[HARD]` rules in `.agent/rules/planning.md`.
-- **Check:** Are tasks atomic? Is context locked? Is there an integration task if the critical path is modified?
-- **[HARD] Rejection Gate:** If ANY task has an empty `context_files` array, REJECT the output and add files before proceeding.
+- **Action:** Verify `plans/tasks.json` against **ALL** `[HARD]` rules in `.agent/rules/planning.md`.
+- **Check:** Are tasks atomic? Is `context_files` populated for every task? Does every `setup`, `test`, and `implement` task have a non-empty `write_targets`? Is every entry in `write_targets` also present in `context_files`? Is there an integration task if the critical path is modified?
+- **[HARD] Rejection Gate:** If ANY `setup`, `test`, or `implement` task has an empty `write_targets`, or if ANY task has an empty `context_files`, REJECT the output and populate the missing fields before proceeding.
 
 ---
 
 ## 3. [HARD] OUTPUT & STOP-GATE
 
-* Output: "TASKS READY. Run `/io-loop` to execute."
-* **[HARD] Tasking Stop-Gate:** You MUST STOP after writing `plans/tasks.json`. You are FORBIDDEN from writing implementation code (`.py` files). Explicit handoff to `/io-loop` is required.
+- Output: "TASKS READY. Run `/io-loop` to execute."
+- **[HARD] Tasking Stop-Gate:** You MUST STOP after writing `plans/tasks.json`. You are FORBIDDEN from writing implementation code (`.py` files). Explicit handoff to `/io-loop` is required.
