@@ -1,0 +1,1 @@
+Read and execute the workflow defined in `.agent/workflows/io-specify.md`. Follow every step exactly, including the clarification gate, the plan mode proposal sequence (dependency map → roadmap.md content), the mandatory human approval gate before any file is written, and the constraint that this workflow produces only `plans/roadmap.md`.

@@ -1,35 +1,86 @@
-# Execution Plan & Roadmap
+# Plan
 
-## 1. Active Checkpoints
-[This section contains the high-level sequential milestones required to complete the PRD. Each Checkpoint (CP) must define the deliverable, not the atomic tasks. Mark as `[x]` when the entire CP is fully validated by `io-loop`.]
+**Generated from:** plans/roadmap.md + plans/project-spec.md
+**Plan Validated:** FAIL
 
-* [ ] **CP1: [Foundation/Setup]**
-    * Deliverable: Scaffold the `src/core` configuration, define primary Pydantic domain models, and configure the `uv` environment.
-* [ ] **CP2: [Core Component A]**
-    * Deliverable: Implement the primary interface and logic for [Core Component], routing through `src/domain`.
-* [ ] **CP3: [Integration / Component B]**
-    * Deliverable: Implement the secondary services in `src/lib` and integrate with external dependencies defined in the PRD.
-* [ ] **CP4: [Entrypoint & E2E Verification]**
-    * Deliverable: Wire the entrypoint (`src/main.py` or `src/jobs`), finalize dependency injection, and execute full end-to-end tests.
+---
 
-## 2. Macro Milestones & Dependencies
-[Track cross-cutting concerns, external API access approvals, or infrastructure provisioning states that block specific Checkpoints.]
+## Checkpoints
 
-* **Upstream Blocker 1:** [e.g., Awaiting staging database credentials. Blocks CP3.]
-* **Upstream Blocker 2:** [e.g., Required `uv` package update for Polars integration. Blocks CP2.]
+### CP-01: [Checkpoint Name]
+**Feature:** F-[NN] — [Feature name from roadmap.md]
+**Description:** [One sentence — what is built and testable when this checkpoint is complete]
+**Status:** [ ] pending
 
-## 3. Remediation Backlog
-[CRITICAL: This section is the primary state-driver for `/io-architect` and `/io-handoff`. Any technical debt, architectural shifts, or cleanup tasks discovered during the `io-loop` execution must be logged here. The pipeline will strictly halt sequential CP progress until active backlog items are resolved.]
+**Scope:**
+- Component: [ComponentName] (`src/[path]/[module].py`)
+- Protocol: `interfaces/[protocol].pyi`
+- Methods implemented: `[method_name]`, `[method_name]`
 
-**Tagging Rules:**
-* `[DESIGN]` - Requires `/io-architect` to update `project-spec.md` and generate a new `.pyi` contract.
-* `[REFACTOR]` - Requires `/io-architect` to modify existing `.pyi` contracts or architecture graphs.
-* `[CLEANUP]` - Handled directly by `/io-handoff` to generate a refactoring task bundle for the `io-loop`.
-* `[DEFERRED]` - Explicitly skipped by the pipeline until a later phase.
+**Write targets:**
+- `src/[path]/[module].py`
+- `tests/[path]/test_[module].py`
 
-**Pending Items:**
-* [ ] `[TAG]` [Description of the required remediation. e.g., Update the StateStore protocol to handle async connection drops.]
-* [ ] `[TAG]` [Description of the required remediation.]
+**Context files (read-only):**
+- `interfaces/[protocol].pyi`
+- `plans/project-spec.md` (CRC card for [ComponentName] only)
 
-**Resolved Items:**
-* [x] `[TAG]` [Description of completed remediation.]
+**Gate command:** `pytest tests/[path]/test_[module].py`
+
+**Depends on:** none
+**Parallelizable with:** none
+
+---
+
+### CP-02: [Checkpoint Name]
+**Feature:** F-[NN] — [Feature name from roadmap.md]
+**Description:** [One sentence — what is built and testable when this checkpoint is complete]
+**Status:** [ ] pending
+
+**Scope:**
+- Component: [ComponentName] (`src/[path]/[module].py`)
+- Protocol: `interfaces/[protocol].pyi`
+- Methods implemented: `[method_name]`, `[method_name]`
+
+**Write targets:**
+- `src/[path]/[module].py`
+- `tests/[path]/test_[module].py`
+
+**Context files (read-only):**
+- `interfaces/[protocol].pyi`
+- `plans/project-spec.md` (CRC card for [ComponentName] only)
+
+**Gate command:** `pytest tests/[path]/test_[module].py`
+
+**Depends on:** CP-01
+**Parallelizable with:** none
+
+---
+
+## Connectivity Tests
+
+### CT-001: CP-01 → CP-02
+
+```
+test_id: CT-001
+function: test_[descriptive_name]
+file: tests/connectivity/test_cp01_cp02.py
+fixture_deps: [[fixture_name]]
+contract_under_test: interfaces/[protocol].pyi :: [ProtocolName].[method_name]
+assertion: [What must be true about the return value — type, shape, invariants]
+gate: pytest tests/connectivity/test_cp01_cp02.py::test_[descriptive_name]
+```
+
+---
+
+## Feature Completion Map
+
+| Feature | Checkpoints | Status |
+|---------|-------------|--------|
+| F-01: [name] | CP-01, CP-02 | [ ] |
+
+---
+
+## Self-Healing Log
+
+[Populated by /validate-plan during auto-remediation passes]

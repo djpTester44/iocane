@@ -3,140 +3,140 @@ trigger: always_on
 globs: **
 ---
 
-# PROJECT WORKFLOW AWARENESS
+# WORKFLOW AWARENESS
 
-> This file provides ambient awareness of the project framework. It does NOT enforce workflows - it informs the agent what exists so it can SUGGEST appropriately.
+## Three-Tier Architecture
 
----
+Iocane operates across three tiers. Each tier has distinct ownership, tooling, and autonomy level.
 
-## Document Hierarchy (Macro / Meso / Micro)
+| Tier | Owner | Mode | Artifacts |
+|------|-------|------|-----------|
+| Tier 1 — Strategic | Human + Claude | Plan mode | `PRD.md`, `roadmap.md`, `project-spec.md`, `interfaces/*.pyi`, `plan.md` |
+| Tier 2 — Orchestration | Harness autonomous | No plan mode | `plans/tasks/[CP-ID].md`, `plans/tasks/run.sh` |
+| Tier 3 — Execution | Sub-agents | No plan mode | `src/`, `tests/`, `plans/tasks/[CP-ID].status` |
 
-**Macro (Strategic) -- Persistent:**
-
-- **`plans/PRD.md`:** The origin seed. Business requirements and high-level data flow.
-- **`plans/project-spec.md`:** **The Living Architecture.** Contains Interface Registry (Structure) and **Component Specifications (Behavioral Design/CRC)**. Single source of truth.
-- **`plans/PLAN.md`:** Strategic roadmap and high-level Checkpoints (Persistent).
-- **`interfaces/*.pyi`:** Protocol definitions, the binding contracts (Persistent, grows).
-
-**Meso (Session) -- Ephemeral:**
-
-- **`plans/execution-handoff-bundle.md`:** Bounded session scope for the next implementation phase (Ephemeral, overwritten per `/io-handoff`).
-
-**Micro (Execution) -- Mixed:**
-
-- **`plans/tasks.json`:** Current phase atomic work items (Ephemeral, overwritten per checkpoint).
-- **`plans/progress.md`:** Historical log of completed work (Append-only archive).
-
-**Flow:** Requirements (`plans/PRD.md`) -> **Design (`plans/project-spec.md` CRC)** -> Contracts (`interfaces/*.pyi`) -> **Handoff (`plans/execution-handoff-bundle.md`)** -> Tasks (`plans/tasks.json`) -> Implementation (Target paths defined in `plans/project-spec.md`).
+Human owns all Tier 1 decisions. Nothing in Tier 2 or Tier 3 executes until the human approves the Tier 1 artifacts.
 
 ---
 
-## Core Methodology: Contract-Driven Development (CDD)
+## Artifact Registry
 
-This project strictly follows **Contract-Driven Development**.
-
-1. **Design First**: Behavior is defined in `plans/project-spec.md` (CRC Cards) before code.
-2. **Contracts Second**: Interfaces are defined in `interfaces/*.pyi` (Pure Static Stubs) before implementation.
-3. **Implementation Last**: Code implements the interfaces.
-
-### [CRITICAL] STATIC TYPING RULES
-
-1. **Pure Static Stubs**: `.pyi` files in `interfaces/` are for static analysis ONLY. NEVER rename them to `.py`.
-2. **No Runtime Imports**: Python code (`.py`) must NEVER import from `.pyi` files at runtime (except inside `if TYPE_CHECKING:`).
-3. **No Inheritance**: Implementation classes must NOT inherit from `.pyi` Protocols at runtime. Use structural subtyping (implicit implementation).
-
-### [HARD] Protocol-Typed Injection Pattern
-
-When a class receives a Protocol-typed collaborator via `__init__`:
-
-1. Add `from __future__ import annotations` at the top of the module.
-2. Import the Protocol inside `if TYPE_CHECKING:` only.
-3. Use the Protocol name (not the concrete class) in the `__init__` signature.
-4. The concrete class import is ONLY permitted in test fixtures and entrypoint wiring (Layer 4).
+| Artifact | Location | Owner | Purpose |
+|----------|----------|-------|---------|
+| PRD | `plans/PRD.md` | Human | Requirements, user stories, stack decisions |
+| Roadmap | `plans/roadmap.md` | Human (via /io-specify) | Feature sequence, dependency order |
+| Architecture Spec | `plans/project-spec.md` | Human (via /io-architect) | CRC cards, Interface Registry — current codebase state only |
+| Contracts | `interfaces/*.pyi` | Human (via /io-architect) | Binding Protocol definitions |
+| Checkpoint Plan | `plans/plan.md` | Human (via /io-checkpoint) | Atomic checkpoints, connectivity test signatures |
+| Task Files | `plans/tasks/[CP-ID].md` | Orchestrator | Per-checkpoint sub-agent work packages |
+| Dispatch Script | `plans/tasks/run.sh` | Orchestrator | Worktree setup and sub-agent invocation |
+| Status Files | `plans/tasks/[CP-ID].status` | Sub-agent | PASS/FAIL per checkpoint |
+| Backlog | `plans/backlog.md` | Review workflows | Bugs, issues, enhancements from /review and /gap-analysis |
+| Escalation Log | `.iocane/escalation.log` | Hook | Sub-agent failure records |
+| Progress Log | `plans/progress.md` | Append-only | Historical task completion ledger |
 
 ---
 
-## Available Workflows
-
-When user needs structured work, **SUGGEST** the appropriate prompt (never auto-invoke):
-
-- **"Validate my plan", "Check this plan for CDD compliance"** -> `/review-plan`
-- **"Start new project", "Initialize from PRD"** -> `/io-init`
-- **"Design the interface", "Update architecture"** -> `/io-architect`
-- **"Scope the next session", "Build handoff bundle"** -> `/io-handoff`
-- **"Plan the next sprint", "Break down CP2"** -> `/io-tasking`
-- **"Build feature", "Execute tasks"** -> `/io-loop`
-- **"Review code", "Check this module"** -> `/review`
-- **"Check for drift", "Compare code vs design"** -> `/gap-analysis`
-- **"Sync the docs", "Update README"** -> `/doc-sync`
-- **"PRD changed", "Propagate requirements"** -> `/io-replan`
-
-## [HARD] Workflow Sequencing
-
-When recommending or selecting the next workflow, follow this decision tree. Do NOT use informal reasoning about item complexity.
-
-### Canonical Chain
+## Canonical Workflow Sequence
 
 ```
-[Pre-Entry Gate: /review-plan (iterate until PASS)]
-    -> /io-architect -> /io-handoff -> /io-tasking -> /io-loop
-    -> /review -> /gap-analysis -> /doc-sync
+[Tier 1 — Human + Plan Mode]
+
+/brainstorm         — optional ideation before PRD exists
+/io-clarify         — resolve PRD ambiguities, stamp Clarified: True
+/io-specify         — PLAN MODE — propose roadmap.md, human approves
+/io-architect       — PLAN MODE — propose CRC + Protocols + Interface Registry, human approves
+                      ^ CONTRACT LOCK — Tier 1 / Tier 2 boundary
+/io-checkpoint      — PLAN MODE — propose plan.md + connectivity test signatures, human approves
+
+[Tier 2 — Harness Autonomous]
+
+/io-orchestrate     — read plan.md, score confidence rubric, generate task files + run.sh
+                    — human runs: bash plans/tasks/run.sh
+
+[Tier 3 — Sub-agents]
+
+(sub-agents execute via run.sh in isolated git worktrees)
+(status files written to plans/tasks/[CP-ID].status)
+
+[Tier 1 — Human Review]
+
+/review             — per-checkpoint behavioral + connectivity review, findings → backlog.md
+/io-orchestrate     — next checkpoint batch (loop)
+
+[Full-system, after all checkpoints]
+
+/gap-analysis       — integration correctness, findings → backlog.md
+/doc-sync           — reconcile project-spec.md + roadmap.md with codebase state
 ```
-
-`/review-plan` is an iterative pre-entry gate run *before* the canonical chain. It is read-only and mutates no artifacts. Each workflow's output names the next step. Never skip links in the chain.
-
-### Recommendation Gate (Pre-Invocation)
-
-Before suggesting a workflow, read the Remediation Backlog in `plans/PLAN.md`:
-
-1. **If an implementation plan exists and has not been validated** -> Recommend `/review-plan`.
-2. **If open `[DESIGN]` or `[REFACTOR]` items exist** -> Recommend `/io-architect`.
-3. **If only `[CLEANUP]`, `[TEST]`, or no backlog items** -> Recommend `/io-handoff`.
-4. **If `execution-handoff-bundle.md` is current and `tasks.json` is empty** -> Recommend `/io-tasking`.
-5. **If `tasks.json` has pending tasks** -> Recommend `/io-loop`.
-
-The backlog tags are machine-readable gates, not suggestions. Never bypass step 2 based on informal assessment of item complexity.
-
-## Workflow Constraints
-
-> Stop-gates and enforcement rules are inlined into each workflow's `.md` file (e.g., `io-architect.md`, `io-tasking.md`, `io-handoff.md`). Ticket routing rules live in `.agent/rules/ticket-taxonomy.md`. This file provides awareness only.
 
 ---
 
-## Default Behavior (No Workflow Invoked)
+## Plan Mode Usage
 
-1. **Respond directly** to questions and requests
-2. **Reference documents** when relevant (check plans/PLAN.md for requirements, interfaces/*.pyi for contracts)
-3. **Suggest prompts** if structured output would help - phrase as a question, not an action
-4. **Never assume** the user wants a formal workflow unless they invoke one
+| Workflow | Plan Mode | Reason |
+|----------|-----------|--------|
+| `/io-specify` | YES | Proposes roadmap.md — human must approve before write |
+| `/io-architect` | YES | Proposes CRC + Protocols — highest-value gate, contract lock |
+| `/io-checkpoint` | YES | Proposes plan.md — human must approve checkpoint boundaries |
+| `/io-orchestrate` | NO | Autonomous — reads approved artifacts, generates task files |
+| `/io-execute` | NO | Autonomous — executes single checkpoint, terminates |
+| `/review` | NO | Read-only analysis |
+| `/gap-analysis` | NO | Read-only analysis |
+| `/doc-sync` | NO | Reconciliation against approved artifacts |
+
+---
+
+## Workflow Recommendations
+
+When no workflow is invoked, recommend based on project state:
+
+1. No `plans/PRD.md` → suggest `/brainstorm` or manual PRD creation
+2. PRD exists, `Clarified: False` → suggest `/io-clarify`
+3. PRD clarified, no `roadmap.md` → suggest `/io-specify`
+4. Roadmap present, no `interfaces/*.pyi` → suggest `/io-architect`
+5. Contracts locked, no `plan.md` → suggest `/io-checkpoint`
+6. `plan.md` present, `.iocane/escalation.flag` exists → instruct human to review escalation log
+7. `plan.md` present, open `[DESIGN]` backlog items → suggest `/io-architect` before orchestrating
+8. Unblocked checkpoints available → suggest `/io-orchestrate`
+9. `plans/tasks/run.sh` written but not executed → instruct: `bash plans/tasks/run.sh`
+10. All checkpoints complete → suggest `/review`, then `/gap-analysis`, then `/doc-sync`
 
 ---
 
 ## Edit Permissions
 
-- **`plans/PRD.md`:** Only with explicit approval (user-owned seed doc)
-- **`plans/PLAN.md`:** Only with explicit approval (user-owned strategic doc)
-- **`interfaces/*.pyi`:** Yes, when adding Protocols via io-architect
-- **`plans/project-spec.md`:** Yes, when adding Protocol references or updating architecture
-- **`plans/tasks.json`:** Yes, when planning phases or marking complete
-- **`plans/progress.md`:** Append only, when tasks complete
-- **Implementation files, `tests/**`:** Yes, during implementation work
+| Artifact | Permission |
+|----------|------------|
+| `plans/PRD.md` | Only with explicit human approval |
+| `plans/roadmap.md` | Only via `/io-specify` with human approval |
+| `plans/project-spec.md` | Via `/io-architect` (design) or `/doc-sync` (reconciliation only) |
+| `interfaces/*.pyi` | Only via `/io-architect` with human approval — never during execution |
+| `plans/plan.md` | Only via `/io-checkpoint` with human approval |
+| `plans/tasks/[CP-ID].md` | Written by `/io-orchestrate` — not edited manually |
+| `plans/tasks/run.sh` | Written by `/io-orchestrate` — not edited manually |
+| `plans/backlog.md` | Append via `/review-capture` — never delete entries |
+| `plans/progress.md` | Append only — never read into context during execution |
+| `src/`, `tests/` | Only during execution, scoped to checkpoint write_targets |
 
 ---
 
 ## Context Gathering
 
-When working on this project, check these sources:
+When working on a project, check these sources in order:
 
-1. **What is the system design and where does code live?** -> `plans/project-spec.md`
-2. **What contracts exist?** -> `interfaces/*.pyi`
-3. **What is the current session scope?** -> `plans/execution-handoff-bundle.md`
-4. **What's being worked on now?** -> `plans/tasks.json`
+1. What is the system design? → `plans/project-spec.md`
+2. What contracts exist? → `interfaces/*.pyi`
+3. What checkpoints are planned? → `plans/plan.md`
+4. What is being worked on now? → `plans/tasks/[CP-ID].md` (current checkpoint)
+5. What needs fixing? → `plans/backlog.md`
+
+---
 
 ## Claude Code Native Integration
 
-1. **Slash commands are the canonical workflow entry points.** All workflows are available as native slash commands in `.claude/commands/`. Invoke them directly (e.g. `/io-handoff`, `/gap-analysis`, `/review-plan`) rather than describing or manually executing the workflow steps.
+1. **Slash commands are the canonical entry points.** All workflows are available as slash commands in `.claude/commands/`. Invoke directly — do not manually execute workflow steps.
 
-2. **PreToolUse hooks are the gate — do not duplicate their checks.** The write-gate, DI compliance gate, and forbidden-tools gate are enforced automatically by PreToolUse hooks before every relevant tool call. Do not manually verify these conditions before issuing a write; the hooks will block non-compliant actions without requiring a pre-flight check.
+2. **PreToolUse hooks enforce gates automatically.** The write-gate, DI compliance gate, and forbidden-tools gate fire before every relevant tool call. Do not duplicate these checks manually.
 
-3. **Use `/ide` to connect to VS Code when running from an external terminal.** When Claude Code is launched from a terminal outside VS Code, run `/ide` to establish the IDE connection. This enables diff viewing inside the editor and diagnostic sharing (errors, warnings) between the IDE and the agent.
+3. **Sub-agents run headless via `bash plans/tasks/run.sh`.** Do not attempt to invoke sub-agents directly from an interactive session. The orchestrator generates `run.sh` for this purpose.

@@ -1,5 +1,7 @@
 # System Architecture Specification
 
+**Approved:** False
+
 ## 1. Foundation Layer Definitions
 
 ### 1.1 Configuration Schema
@@ -36,29 +38,32 @@ graph TD
 ```
 
 ## 5. Component Specifications
-[This section is populated and iteratively maintained by the `/io-architect` workflow. It contains the behavioral design for each contract.]
+[Populated by `/io-architect`. One subsection per registered component.]
 
-### 5.1 [Component Name]
+### [ComponentName]
+**Layer:** [1-Foundation | 2-Utility | 3-Domain | 4-Entrypoint]
+**File:** `src/[path]/[module].py`
+**Protocol:** `interfaces/[protocol].pyi`
 
-**CRC Card:**
-* **Class/Protocol:** `[ProtocolName]`
-* **Responsibilities:**
-    * [Responsibility 1: e.g., Validate incoming payload against Domain Primitives.]
-    * [Responsibility 2: e.g., Route valid payload to the appropriate execution handler.]
-* **Collaborators:**
-    * [Collaborator 1: e.g., `interfaces.storage.StateStoreProtocol`]
+**Responsibilities:**
+- [Observable behavior — maps to at least one Protocol method]
+- [Each responsibility is testable in isolation]
 
-**Critical Sequence Diagram:**
+**Collaborators:**
+- [ComponentName] via [ProtocolName] — [why needed]
+
+**Must NOT:**
+- [Explicit negative constraint — what this component must never do]
+
+**Sequence Diagram** (non-trivial flows only):
 ```mermaid
 sequenceDiagram
-    %% Map the exact execution flow required to satisfy the CRC responsibilities.
     participant Caller
     participant Component
     participant Collaborator
-    
-    Caller->>Component: execute(payload)
-    Component->>Component: validate(payload)
-    Component->>Collaborator: fetch_state(payload.id)
-    Collaborator-->>Component: state_data
-    Component-->>Caller: Result
+
+    Caller->>Component: method_name(params)
+    Component->>Collaborator: collaborator_method(args)
+    Collaborator-->>Component: result
+    Component-->>Caller: ReturnType
 ```

@@ -7,68 +7,75 @@ description: Generates CRC cards and Sequence Diagrams to anchor behavioral logi
 
 > **Purpose:** To prevent "Unanchored Code" by defining the internal behavior (Design) of a component before the Type Signature (Contract) is written.
 
-## 1. The Macro / Meso / Micro Hierarchy
-1.  **Macro (Strategic):**
-    *   **Specs (PRD):** What the user wants.
-    *   **Design (Mini-Spec):** How the system behaves (CRC + Sequences).
-        **<-- YOU ARE HERE (Design layer)**
-    *   **Contracts (.pyi):** Structural interface definitions.
-2.  **Meso (Session):** Scoped execution boundary (`execution-handoff-bundle.md`).
-3.  **Micro (Execution):** Tasks (`tasks.json`) and Implementation (`.py` files).
+## 1. Position in the Workflow
+
+```
+PRD -> /io-clarify -> /io-specify -> [/io-architect uses mini-spec] -> /io-checkpoint -> /io-orchestrate
+```
+
+This skill is invoked by `/io-architect` during the CRC card and Protocol design steps. It defines what a component does (Design) before the `.pyi` contract is written (Contract).
 
 ## 2. CRC Card Standard
-Class-Responsibility-Collaboration (CRC) cards map the component's internal soul.
+
+Class-Responsibility-Collaboration (CRC) cards map the observable behavior of a component.
 
 **Format:**
-```text
-### [Component Name]
-**Responsibilities (CRC):**
-* **Primary Goal:** [One sentence summary]
-* **State:** [Stateless | Stateful (describe persistence)]
-* **Collaborators (Dependency Injection):**
-    * [Collaborator 1]: [Injected via `__init__`]
-    * [Collaborator 2]: [Injected via method arg]
-    > **Rule:** Do NOT instantiate these inside the class. Receive them as arguments.
-* **Key Responsibilities:**
-    1.  [Behavior 1] (e.g., "Validates input schema against X")
-    2.  [Behavior 2] (e.g., "Transform data using Y strategy")
-    3.  [Behavior 3] (e.g., "Emit audit metric Z")
+
+```markdown
+### [ComponentName]
+**Layer:** [1-Foundation | 2-Utility | 3-Domain | 4-Entrypoint]
+**File:** `src/[path]/[module].py`
+**Protocol:** `interfaces/[protocol].pyi`
+
+**Responsibilities:**
+- [Observable behavior — maps to at least one Protocol method]
+- [Each responsibility is testable in isolation]
+
+**Collaborators:**
+- [ComponentName] via [ProtocolName] — [why needed]
+
+**Must NOT:**
+- [Explicit negative constraint — what this component must never do]
 ```
 
 **Heuristics:**
-* **No Implementation Details:** Do not mention specific libraries (e.g., "pandas") unless they are structural constraints. Focus on the *flow*.
-* **One Card, One Concept:** If a card has >7 responsibilities, break it down.
-* **Traceability:** Every responsibility listed here MUST eventually map to a method in the `.pyi` interface.
-* **No Private Methods:** `_`-prefixed methods are internal implementation details and must NEVER appear in Key Responsibilities. Only public-facing behaviors belong in a CRC card.
+
+- **Observable behaviors only:** Responsibilities describe outcomes, not implementation steps. "Validates payload against domain model" not "calls `.model_validate()` on input dict".
+- **One card, one concept:** If a card has more than 7 responsibilities, break it into two components.
+- **Traceability:** Every responsibility must map to at least one public method in the Protocol. Private helpers (`_`-prefixed) do not appear in CRC cards.
+- **Must NOT is mandatory:** At least one negative constraint per card. Derive from the layer rules in `pyproject.toml` import-linter config (e.g., "Must NOT import from `src/domain/`").
 
 ## 3. Sequence Diagram Standard
-Use Mermaid to lock down the critical execution path, specifically side effects and external calls.
+
+Use Mermaid to lock down the critical execution path — side effects, external calls, and error branches.
 
 **Format:**
+
 ```mermaid
 sequenceDiagram
     participant Caller
-    participant [Component]
-    participant [Collaborator]
+    participant Component
+    participant Collaborator
 
-    Caller->>[Component]: method_call(args)
-    [Component]->>[Component]: validate_internal_state()
-    [Component]->>[Collaborator]: fetch_data()
-    [Collaborator]-->>[Component]: data
-    loop Processing
-        [Component]->>[Component]: transform_chunk()
-    end
-    [Component]-->>Caller: result
+    Caller->>Component: method_name(params)
+    Component->>Collaborator: collaborator_method(args)
+    Collaborator-->>Component: result
+    Component-->>Caller: ReturnType
 ```
 
 **Heuristics:**
-* **Happy Path + 1 Edge Case:** Diagram the primary success flow and the most critical failure mode (e.g., Stale Data).
-* **Explicit Data Flow:** Show what data moves between participants.
+
+- **Happy path + primary failure mode:** Always diagram the success flow. Add a failure branch if the error responsibility is non-obvious (e.g., who raises `UserNotFoundError` when the repo returns `None`).
+- **Show data at boundaries:** Label arrows with the type or shape of data crossing each seam — not variable names.
+- **Non-trivial flows only:** Simple pass-through components do not need a sequence diagram.
 
 ## 4. Gap Analysis Rules
-When auditing Code vs. Design:
-1.  **Unanchored Code:** If the implementation code (at the path defined in `project-spec.md`) contains logic NOT in the CRC, it is "Unanchored."
-    -> **Action:** Add to Design OR Remove from Code.
-    > **[HARD] Exemption:** Private methods (`_`-prefixed) in the implementation are exempt. Filter them out before comparison. Do not flag as "Unanchored Code."
-2.  **Missing Implementation:** If CRC lists a Responsibility NOT in the implementation code, it is "Missing."
-    -> **Action:** Implement it.
+
+When auditing code against design:
+
+1. **Unanchored Code:** Implementation contains logic NOT in the CRC.
+   - Action: Add the behavior to the CRC, or remove it from the code.
+   - Exemption: `_`-prefixed methods are internal implementation details. Do not flag them.
+
+2. **Missing Implementation:** CRC lists a responsibility NOT in the implementation.
+   - Action: Implement it.

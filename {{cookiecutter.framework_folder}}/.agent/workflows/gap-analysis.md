@@ -1,62 +1,156 @@
 ---
-description: Identify gaps between requirements, behavioral design (CRC), contracts, and implementation.
+description: Full-system integration correctness analysis after all checkpoints complete. Findings route to backlog.md.
 ---
 
+> **[NO PLAN MODE]**
+> Read-only analysis. No file writes except via /review-capture at the end.
+
 > **[CRITICAL] CONTEXT LOADING**
-> 1. Load the planning rules: `view_file .agent/rules/planning.md`
-> 2. Load the Design Skill (Gap Analysis Rules): `view_file .agent/skills/mini-spec/SKILL.md`
+> 1. Load planning rules: `view_file .agent/rules/planning.md`
+> 2. Load the Architecture Spec: `view_file plans/project-spec.md`
+> 3. Load all contracts: `view_file interfaces/*.pyi`
 
 # WORKFLOW: GAP ANALYSIS
 
-**Objective:** Identify gaps between requirements, behavioral design (CRC), defined contracts, and actual implementations.
+**Objective:** Verify integration correctness across the entire codebase after all checkpoints in a feature (or full project) are complete. Confirm all contracts are satisfied, all connectivity tests are green, and no architectural drift has occurred.
 
-**Context:**
-* Input: `plans/PLAN.md` (Requirements), `plans/project-spec.md` (Design/CRC), `interfaces/*.pyi` (Contracts)
-* Output: Gap Analysis Report with prioritized action items
+**Scope:** Full system — all components in the Interface Registry.
 
-**Procedure:**
+**Position in chain:**
+```
+/review (all checkpoints) -> [/gap-analysis] -> /doc-sync
+```
 
-1. **READ REQUIREMENTS:**
-   * Parse `plans/PLAN.md` for goals, milestones, feature requirements, and non-functional requirements.
+---
 
-2. **READ DESIGN (Behavioral Anchor):**
-   * Parse `plans/project-spec.md`.
-   * Extract **Component Specifications (CRC)** and **Sequence Diagrams**.
-   * *Goal:* Understand the intended behavior and collaborators for each component.
+## 1. STATE INITIALIZATION
 
-3.  **READ CONTRACTS:**
-    * Scan `interfaces/*.pyi`.
-    * Verify that every CRC Responsibility maps to at least one Protocol method.
-    * **[HARD] Private Method Exemption:** Private methods (`_`-prefixed) are internal implementation details and must NOT be expected in `.pyi` Protocols. Do not flag a missing Protocol for any `_`-prefixed method. Sequence Diagrams are exempt for data containers. *(See also: Step 5 private-method filter.)*
-    * **Anchor Verification:** Run `uv run python .agent/scripts/check_design_anchors.py` to detect Unanchored Protocols (Protocols without a corresponding CRC card).
-    * *Gap Type:* **"Missing Contract"** (CRC exists, but no Protocol method defines it).
+Before proceeding, output:
 
-4.  **SCAN IMPLEMENTATION:**
-    * Identify the **Target Implementation** path for each component from the Interface Registry.
-    * Check if the resolved file path sits strictly inside the `src/` boundary.
-    * *Gap Type:* **"Missing Implementation"** (Registry entry exists, but file does not).
+- **Scope:** [Feature F-XX / Full project]
+- **Checkpoints covered:** [list from plan.md with PASS/FAIL status]
+- **Interface Registry entries:** [N components]
+- **Connectivity tests defined:** [N total in plan.md]
 
-5.  **EXTRACT & COMPARE:**
-    * For existing implementations, run `uv run python .agent/scripts/extract_structure.py <file>` to get a surgical view of the implementation skeleton.
-    * **[CRITICAL] Filter Private Methods:** Before any comparison, remove all `_`-prefixed methods (single or double underscore) from the extracted skeleton. Private methods are internal implementation details and are **strictly exempt** from CRC Key Responsibilities and `.pyi` Protocol anchors. Only public methods (no leading underscore) participate in the comparison.
-    * **Action:** Compare the **filtered** (public-only) signatures against the CRC Responsibilities.
-    * **Apply Skill Rules (.agent/skills/mini-spec/SKILL.md):**
-        * *Gap Type:* **"Unanchored Code"** -> A **public** method exists in skeleton but is NOT defined in CRC. (Action: Add to Design OR Remove from Code).
-            > **[!CAUTION] Negative Example -- Do NOT Flag Private Methods**
-            > A private helper such as `_wire_strategies_from_config` must NEVER be reported as "Unanchored Code". It is an internal implementation detail, not a public contract. If it appears in the skeleton, it should have been filtered out in the previous step.
-        * *Gap Type:* **"Missing Implementation"** -> Responsibility listed in CRC but NOT found in skeleton. (Action: Implement it).
-    * **DI Compliance Check:**
-        * Run `uv run python .agent/scripts/check_di_compliance.py`.
-        * Review `[CRITICAL]` findings (internal instantiation of collaborators, untracked `# noqa: DI` technical debt, or `src/` layout boundary violations).
-        * Review `[WARNING]` findings (missing injection args). These now yield non-zero exit codes and represent hard structural gaps where collaborators are completely unresolvable.
-        * **CRC Arbitration:** Cross-reference each finding against the CRC. If implementation matches the CRC, classify as a `[DESIGN]` gap (CRC self-contradiction), not an implementation error.
+---
 
-6.  **REPORT & INTERACTIVE CAPTURE:**
-    * **Action:** Generate a Gap Analysis Report categorized by:
-        * **Structural Gaps:** Missing Protocols/Files or layout boundary violations.
-        * **Behavioral Gaps:** Logic missing from CRC Responsibilities.
-        * **Compliance Gaps:** DI violations, untracked escape hatches, or unresolvable collaborators.
-    * **User Decision:** Ask: "Which of these gaps should be added to the Remediation Backlog? Please list the items you'd like me to send to `/review-capture`."
-    * **Logic (Upon Selection):**
-        * Invoke `/review-capture` only for the selected items.
-        * The agent must then suggest the appropriate Routing Tag (`[DESIGN]`, `[REFACTOR]`, or `[CLEANUP]`) for the backlog entry according to `.agent/rules/ticket-taxonomy.md`.
+## 2. PROCEDURE
+
+### Step A: ALL-GATES VERIFICATION
+
+* **Action:** For every checkpoint in `plans/plan.md`, verify `tasks/[CP-ID].status` is `PASS`.
+* **Action:** Run every connectivity test gate command listed in `plans/plan.md`.
+* **Output:** Full pass/fail table.
+
+If any checkpoint gate or connectivity test is failing, output a warning and continue — do not halt. Surface all failures in the findings report.
+
+---
+
+### Step B: CONTRACT SATISFACTION AUDIT
+
+For every entry in the Interface Registry (`plans/project-spec.md`):
+
+* **Action:** Run `uv run python .agent/scripts/extract_structure.py <implementation_file>` to map the public surface area.
+* **Check:** Does the implementation surface match the Protocol signature exactly?
+  * Missing methods → HIGH finding
+  * Signature mismatch (wrong types, wrong return) → HIGH finding
+  * Extra public methods not in Protocol → MEDIUM finding (scope creep)
+* **Check:** Run `uv run python .agent/scripts/check_design_anchors.py` to verify CRC-to-Protocol alignment.
+
+---
+
+### Step C: LAYER COMPLIANCE AUDIT
+
+* **Action:** Run `uv run lint-imports` across the full codebase.
+* **Output:** Any layer violations as HIGH findings.
+* **Check:** Review `ignore_imports` list in `pyproject.toml`. Are all tracked deferrals still justified? Flag any that appear resolvable.
+
+---
+
+### Step D: DI COMPLIANCE AUDIT
+
+* **Action:** Run `uv run python .agent/scripts/check_di_compliance.py` across the full codebase.
+* **Check:** Any untracked `# noqa: DI` suppressions → HIGH finding.
+* **Check:** Any `[CRITICAL]` or `[WARNING]` findings not already in `plans/backlog.md` → new findings.
+
+---
+
+### Step E: TYPE CORRECTNESS AUDIT
+
+* **Action:** Run `uv run mypy .` across the full codebase.
+* **Output:** Any type errors not caught during per-checkpoint review → MEDIUM findings.
+
+---
+
+### Step F: INTEGRATION CORRECTNESS
+
+Verify cross-component wiring:
+
+* Do components that depend on each other (per CRC Collaborators) actually use the correct Protocol-typed injection?
+* Are there any concrete class imports in non-entrypoint layers (should only be Protocol names)?
+* Are there any circular dependencies not already in `ignore_imports`?
+
+---
+
+### Step G: OUTPUT FINDINGS REPORT
+
+```markdown
+## Gap Analysis Report
+
+**Scope:** [Feature / Full project]
+**Date:** [YYYY-MM-DD]
+
+### Summary
+[One paragraph overall integration health assessment]
+
+### Gate Status
+| Checkpoint | Gate | Connectivity Tests |
+|------------|------|--------------------|
+| CP-01 | PASS/FAIL | N/N passing |
+
+### Findings
+
+| Severity | Component | Issue | Recommendation |
+|----------|-----------|-------|----------------|
+| HIGH | [ComponentName] | [issue] | [fix] |
+
+### Contract Coverage
+- Interface Registry entries: [N]
+- Fully satisfied: [N]
+- Gaps: [N]
+
+### Architectural Health
+- Layer violations: [N]
+- DI violations: [N]
+- Untracked suppressions: [N]
+```
+
+---
+
+### Step H: ROUTE FINDINGS
+
+* **Action:** Run `/review-capture` to classify and log all HIGH and MEDIUM findings to `plans/backlog.md`.
+* **Rule:** Findings not in `backlog.md` are invisible to subsequent planning. This step is mandatory if any findings exist.
+
+---
+
+### Step I: OUTPUT
+
+```
+GAP ANALYSIS COMPLETE.
+
+Contracts satisfied: [N/N]
+Connectivity tests: [N/N passing]
+Findings routed to backlog.md: [N]
+
+Next step: Run /doc-sync to reconcile project-spec.md and roadmap.md with current codebase state.
+```
+
+---
+
+## 3. CONSTRAINTS
+
+- Read-only — no fixes, no file writes beyond `/review-capture`
+- Findings route to `plans/backlog.md` only — never to `plans/plan.md` or `plans/roadmap.md`
+- Do not modify `interfaces/*.pyi` — if a contract gap is found, it goes to backlog as a `[DESIGN]` item
+- No git operations

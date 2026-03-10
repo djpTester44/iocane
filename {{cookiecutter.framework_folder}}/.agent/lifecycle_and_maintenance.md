@@ -1,79 +1,190 @@
 # Project Lifecycle and Maintenance
 
-This artifact defines the workflows for bootstrapping projects, executing atomic tasks using the Iocane Loop, and maintaining the codebase through cleanup and refactoring.
+This artifact defines the workflows for bootstrapping projects, executing atomic tasks via the Iocane three-tier architecture, and maintaining the codebase through review, backlog management, and documentation sync.
 
 ---
 
 ## 1. Project Lifecycle (Strategic Management)
 
-Execution follows a strict chronology to ensure code is designed before being implemented.
-1. **Strategic Selection**: Bootstrap a project via **/io-init** (greenfield) or **/io-adopt** (brownfield).
-2. **Behavioral Design**: Anchor components in [plans/project-spec.md](cci:7://file:///c:/Users/danny/projects/agy/cMab_013126/plans/project-spec.md:0:0-0:0) using CRC cards and Mermaid diagrams.
-3. **Structural Contract**: Define [.pyi](cci:7://file:///c:/Users/danny/projects/agy/cMab_013126/interfaces/orchestrator.pyi:0:0-0:0) protocols using **/io-architect**.
-4. **Execution Handoff**: Scope a bounded execution session via **/io-handoff**. Enforces the backlog gate (`[DESIGN]`/`[REFACTOR]` items block new CP work).
-5. **Tactical Tasking**: Decompose designs into atomic TDD tasks in [plans/tasks.json](cci:7://file:///c:/Users/danny/projects/agy/cMab_013126/plans/tasks.json:0:0-0:0) via **/io-tasking**.
-6. **Atomic Execution**: Execute tasks via **/io-loop**.
-7. **Gap Analysis**: Compare current state against architectural designs via **/gap-analysis** to verify implementation fidelity and identify drift.
+Execution follows a strict chronology. Design is locked before any code is written. Sub-agents execute against pre-verified contracts.
 
-**Pre-Entry Gate:** **/review-plan** is an iterative validation gate run *before* steps 2-3. Plans are iterated until they receive a `**Plan Validated:** PASS` marker, which `/io-architect` checks before modifying any CRC or Protocol artifacts.
+### Canonical Sequence
+
+```
+[Tier 1 — Human + Plan Mode]
+  1. /io-clarify      — resolve PRD ambiguities, stamp Clarified: True
+  2. /io-specify      — PLAN MODE — propose roadmap.md, human approves
+  3. /io-architect    — PLAN MODE — propose CRC + Protocols, human approves (contract lock)
+  4. /io-checkpoint   — PLAN MODE — propose plan.md + connectivity test signatures, human approves
+
+[Tier 2 — Harness Autonomous]
+  5. /io-orchestrate  — score confidence rubric, generate task files + run.sh
+  6. bash plans/tasks/run.sh  — human executes; sub-agents run in git worktrees
+
+[Tier 1 — Human Review]
+  7. /review          — per-checkpoint behavioral + connectivity review
+  8. repeat /io-orchestrate → run.sh → /review for each checkpoint batch
+
+[Full-system close]
+  9. /gap-analysis    — integration correctness across entire codebase
+ 10. /doc-sync        — reconcile project-spec.md + roadmap.md with codebase state
+```
+
+### Human Attention Contract
+
+The human is required at these moments and only these:
+
+| Moment | Workflow | Action |
+|--------|----------|--------|
+| PRD ambiguities | `/io-clarify` | Answer questions, approve stamp |
+| Roadmap proposal | `/io-specify` | Approve or correct `roadmap.md` |
+| Design proposal | `/io-architect` | Approve CRC + Protocols — contract lock |
+| Checkpoint boundaries | `/io-checkpoint` | Approve `plan.md` + connectivity signatures |
+| Run sub-agents | post `/io-orchestrate` | `bash plans/tasks/run.sh` |
+| Checkpoint review | `/review` | Approve or route findings to backlog |
+| Escalation | session start | Review `.iocane/escalation.log`, clear flag |
+| Replanning | `/io-replan` | Approve PRD delta propagation |
 
 ---
 
-## 2. Atomic Execution: The Iocane Loop
+## 2. Atomic Execution: The Iocane Loop (Tier 3)
 
-The Iocane Loop prevents "Context Overload" by forcing a STOP and verification after every operation.
+Sub-agents execute one checkpoint at a time in isolated git worktrees. Each sub-agent receives a self-contained task file and terminates after writing a status file. The loop is the per-checkpoint orchestration cycle — not a single continuous session.
 
-| State | Goal | Action | Stop Condition |
-| :--- | :--- | :--- | :--- |
-| **SETUP (Scaffold)** | Map architectural surface area. | Create/Update target files and stubs. | Complete. |
-| **RED (Test)** | Create a failing test. | Write unit tests using `pytest` and mocks. | Verify test fails. |
-| **GREEN (Implement)**| Pass the test. | Implement minimal logic. | Verify test passes. |
-| **REFACTOR (Blue)** | Clean the code. | Run `ruff`, `mypy`, and `lint-imports`. | Complete. |
-| **VERIFY (Observe)** | Confirm integration. | Execute verification commands. | Complete. |
+### Red-Green-Refactor State Machine
 
-### 3.1 State Management (LOOP)
-- **Mark Task Complete**: Update `tasks.json`.
-- **Append Log**: Add a log entry to [plans/progress.md](cci:7://file:///c:/Users/danny/projects/agy/cMab_013126/plans/progress.md:0:0-0:0).
-- **Drift Guard**: If implementation deviates from the spec, STOP and update the spec before continuing.
+| State | Goal | Gate |
+|-------|------|------|
+| **RED** | Write a failing test | `pytest` MUST fail — if it passes, the test is invalid |
+| **GREEN** | Write minimum implementation to pass the test | `pytest` passes |
+| **GATE** | Run the checkpoint's acceptance gate command | Must pass cleanly |
+| **REFACTOR** | DI compliance, type correctness, lint | `check_di_compliance.py`, `mypy`, `ruff`, `lint-imports` all pass |
+
+### Status Reporting
+
+On completion, the sub-agent writes one of:
+
+- `plans/tasks/[CP-ID].status` → `PASS`
+- `plans/tasks/[CP-ID].status` → `FAIL: [one-line reason]`
+
+The orchestrator reads status files — never logs.
+
+### Escalation Triggers
+
+Sub-agents do not attempt autonomous remediation for these conditions — they write FAIL and terminate:
+
+- Gate failing after 3 attempts
+- Connectivity test goes red
+- `# noqa: DI` required with no backlog entry
+- Layer violation detected
+
+The `PostToolUse` hook captures failures to `.iocane/escalation.log`. Session start surfaces the flag.
 
 ---
 
-## 3. Fresh Workspace Scaffolding (CDD)
+## 3. Worktree Isolation
 
-Used for new projects to ensure all architectural rules and hooks are correctly placed.
-- **Scaffold Runner**: Use `python C:\Users\danny\.gemini\scripts\scaffold_runner_CDD.py`.
-- **Primary Setup**: Injects `.agent/` rules, templates, and initializes `interfaces/`.
-- **Verification**: `uv sync`, `ruff check`, `mypy`, `pytest`.
+Sub-agents run in dedicated git worktrees to prevent filesystem collisions during concurrent execution.
+
+```
+.worktrees/
+  CP-01/    ← branch: iocane/CP-01
+  CP-02/    ← branch: iocane/CP-02
+```
+
+Each worktree is a full checkout. Two checkpoints can run concurrently only if their `write_targets` are completely disjoint — this is enforced at `/io-checkpoint` time, not at runtime.
+
+After a checkpoint batch completes and `/review` approves:
+
+- Merge `iocane/[CP-ID]` branches to main
+- Remove worktrees
+
+The merge is a human action at the `/review` boundary. The orchestrator does not perform merges.
 
 ---
 
 ## 4. Maintenance: Dead Code Deletion Protocol
 
-When removing redundant or dead code, prove it is unused before deletion.
+When removing redundant or dead code, prove unused status before deletion.
 
-1. **PROVE Dead Status**:
-   - `grep -r "from src.path.to.module" src/`
-   - `grep -r "import src.path.to.module" src/`
-   - Verify zero integration test usage.
-2. **DELETE Code**: Remove the [.py](cci:7://file:///c:/Users/danny/projects/agy/cMab_013126/src/core/config.py:0:0-0:0) and corresponding [.pyi](cci:7://file:///c:/Users/danny/projects/agy/cMab_013126/interfaces/orchestrator.pyi:0:0-0:0).
-3. **Verify Integrity**:
-   - `uv run lint-imports` (Broken internal references).
-   - `uv run mypy .` (Type signature drift).
-   - `uv run pytest` (Broken and behavioral regressions).
-4. **Cleanup Spec**: Prune the Interface Registry or Architecture Map in [plans/project-spec.md](cci:7://file:///c:/Users/danny/projects/agy/cMab_013126/plans/project-spec.md:0:0-0:0).
+1. **Prove dead status:**
+
+   ```bash
+   grep -r "from src.path.to.module" src/
+   grep -r "import src.path.to.module" src/
+   ```
+
+   Verify zero integration test usage.
+
+2. **Delete code:** Remove the `.py` file and corresponding `.pyi` if no other component depends on the Protocol.
+
+3. **Verify integrity:**
+
+   ```bash
+   uv run lint-imports       # broken internal references
+   uv run mypy .             # type signature drift
+   uv run pytest             # behavioral regressions
+   ```
+
+4. **Cleanup spec:** Remove the entry from the Interface Registry in `plans/project-spec.md`. Run `/doc-sync` to reconcile.
 
 ---
 
-## 5. Document Synchronization (/doc-sync)
+## 5. Backlog Lifecycle
 
-The **Doc-Sync** workflow reconciles the **Macro/Meso/Micro Hierarchy** (Design > Contracts > Code) after completing a phase or making significant architectural changes.
+`plans/backlog.md` is the formal tracking record for all `/review` and `/gap-analysis` findings. It is append-only and survives across all sessions.
 
-**Objective**: Ensure that documentation is not just a historical log, but an active, accurate reflection of the current codebase state.
+```
+/review or /gap-analysis  --> surfaces findings
+/review-capture           --> appends [ ] items to plans/backlog.md with taxonomy tags
+/io-orchestrate           --> reads backlog.md, warns on [DESIGN]/[REFACTOR] conflicts
+/doc-sync                 --> human marks resolved items [x] after verification
+```
 
-### 5.1 Verification Checklist
-1.  **Identity Sync**: Update [README.md](cci:7://file:///c:/Users/danny/projects/agy/cMab_013126/README.md:0:0-0:0) to match the current structural template ([.agent/templates/README.md](cci:7://file:///c:/Users/danny/projects/agy/cMab_013126/.agent/templates/README.md:0:0-0:0)) while preserving project identity and instructions.
-2.  **Constraint Integrity**: Ensure `project-spec.md` reflects the actual layer mappings and core stack.
-3.  **Anchor Check**: Run the automated **Design Anchor Audit** (`check_design_anchors.py`) to verify Spec-to-Code alignment. Use `extract_structure.py` to map files to registry entries.
-4.  **Backlog Reconciliation**: Read the `Remediation Backlog` in [PLAN.md](cci:7://file:///c:/Users/danny/projects/agy/cMab_013126/plans/PLAN.md:0:0-0:0). For each pending item, verify if the fix exists in the codebase and mark `[x]` if confirmed.
-5.  **Strategic Doc Review**: Any updates to strategic roadmaps (e.g., [PLAN.md](cci:7://file:///c:/Users/danny/projects/agy/cMab_013126/plans/PLAN.md:0:0-0:0) checkpoints or `PRD.md`) require **explicit user approval**. Present proposed changes as a diff before applying.
-6.  **Link Integrity**: Verify that all `file:///` and relative markdown links are valid using link checker tools or manual searches across `plans/` and `README.md`.
+**Tags:**
+
+| Tag | Meaning | Blocks orchestration? |
+|-----|---------|----------------------|
+| `[DESIGN]` | CRC or Protocol gap — requires `/io-architect` | Yes (warning) |
+| `[REFACTOR]` | DI, layer, or SOLID violation | Yes (warning) |
+| `[CLEANUP]` | Minor improvement | No |
+| `[TEST]` | Missing test coverage | No |
+| `[DEFERRED]` | Acknowledged, intentionally postponed | No |
+
+**Rules:**
+
+- Items are never deleted — the backlog is a permanent audit trail.
+- `[x]` items = resolved history. `[ ]` items = active work queue.
+
+---
+
+## 6. Migration: tasks.json → tasks/[CP-ID].md
+
+Projects created before Session 3 used `plans/tasks.json`. The converter script migrates to the new per-checkpoint format:
+
+```bash
+uv run python .agent/scripts/tasks_json_to_md.py --dry-run   # preview
+uv run python .agent/scripts/tasks_json_to_md.py             # write
+```
+
+After conversion, review each generated `plans/tasks/[CP-ID].md` and fill in `[REQUIRED: fill in]` placeholders:
+
+- Protocol contract path
+- Connectivity test signatures
+- Gate command (if not inferrable from write targets)
+
+---
+
+## 7. Documentation Synchronization (/doc-sync)
+
+Doc-sync reconciles `project-spec.md` and `roadmap.md` with actual codebase state. It runs after gap analysis closes a feature or full project.
+
+### Verification Checklist
+
+1. **README sync:** Update `README.md` against `.agent/templates/README.md` — identity and quick start only, no checkpoint lists.
+2. **Interface Registry reconciliation:** Verify every entry points to an existing file. Remove stale entries. Add entries for new implementations.
+3. **CRC card reconciliation:** Verify responsibilities match implementation. Flag unanchored behavior as MEDIUM backlog items.
+4. **Roadmap status:** Propose feature status updates (`[COMPLETE]` or `[COMPLETE - PENDING REMEDIATION]`) — human approval required.
+5. **Link integrity:** Scan for broken markdown links, auto-fix where target exists at a new path.
+
+**Constraint:** `project-spec.md` reflects current codebase state only. No future-state items, no debt tracking artifacts.

@@ -20,7 +20,41 @@ description: Clarify the PRD before Init to ensure testable, autonomous executio
    - Provide binary or categorical options (e.g., "For API timeout errors, should the system implement exponential backoff, or fail immediately and alert?").
 4. **Halt Execution:** Do not proceed to architecture or planning. Present the questions to the user and wait for explicit answers. Ensure the `**Clarified:**` field in `plans/PRD.md` remains `False`.
 5. **Update PRD:** Once the user answers all questions, update `plans/PRD.md` with the new constraints.
-6. **Pass Gate:** When all ambiguities are resolved (or if none were found initially), update the `plans/PRD.md` doc header to set `**Clarified:** True` before exiting.
+6. **Critique PRD:** After all ambiguities are resolved, critique the full `plans/PRD.md` against the following rubric. Score each criterion and produce an overall PASS/FAIL:
+
+   | Criterion | Description |
+   |-----------|-------------|
+   | Testability | All success metrics are expressible as concrete `pytest` assertions |
+   | External dependency completeness | All APIs, databases, and services are named with version targets |
+   | Performance constraints | Latency and throughput requirements are defined where relevant |
+   | Error handling coverage | Failure states for all external integrations are specified |
+   | Constraint specificity | No vague requirements (e.g. "fast", "reliable", "scalable") without measurable definition |
+
+   Present findings in this format:
+
+   ```markdown
+   ### PRD Critique
+
+   | Criterion | Result | Notes |
+   |-----------|--------|-------|
+   | Testability | PASS/FAIL | ... |
+   | External dependency completeness | PASS/FAIL | ... |
+   | Performance constraints | PASS/FAIL | ... |
+   | Error handling coverage | PASS/FAIL | ... |
+   | Constraint specificity | PASS/FAIL | ... |
+
+   **Overall: PASS / FAIL**
+
+   [If FAIL: list specific gaps with actionable questions to resolve them]
+   ```
+
+   If FAIL: present gaps to the user, wait for responses, update `plans/PRD.md`, and re-run the critique. Iterate until all criteria PASS.
+
+7. **Pass Gate:** When the critique returns an overall PASS, write the `**Clarified:** True` stamp to `plans/PRD.md` using the following strictly sequential steps:
+   - **Step 7-pre:** `bash: mkdir -p .iocane && touch .iocane/validating`
+   - **Step 7:** Edit `plans/PRD.md` to set `**Clarified:** True` in the doc header.
+
+   The sentinel prevents `reset-on-prd-write.sh` from immediately resetting the stamp. The hook auto-deletes the sentinel when it detects the `**Clarified:** True` stamp write — no explicit cleanup step required. Steps must NOT be parallelized — create sentinel first, then write.
 
 ## Output Format
 
@@ -35,7 +69,7 @@ The PRD cannot pass to the `io-init` phase until the following constraints are d
 2. **[Missing Category]**: [Specific question with options]
 ```
 
-If no ambiguities are found, update the PRD header to `**Clarified:** True` and output:
+If no ambiguities are found and the critique returns an overall PASS, update the PRD header to `**Clarified:** True` and output:
 
 ```markdown
 ### PRD Clarification Complete

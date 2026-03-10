@@ -33,6 +33,38 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/reset-on-prd-write.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/reset-on-project-spec-write.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/reset-on-plan-write.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/reset-on-pyi-write.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/escalation-gate.sh"
+          }
+        ]
+      }
     ]
   }
 }

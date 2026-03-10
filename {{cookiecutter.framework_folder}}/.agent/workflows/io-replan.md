@@ -1,67 +1,123 @@
 ---
-description: Propagate PRD changes to PLAN.md and project-spec.md without destroying existing work.
+description: Propagate PRD changes to roadmap.md and project-spec.md without destroying existing work.
 ---
+
+> **[CRITICAL] PLAN MODE**
+> All proposed changes to `roadmap.md` and `project-spec.md` require human approval before write.
 
 > **[CRITICAL] CONTEXT LOADING**
-> 1. Load the planning rules: `view_file .agent/rules/planning.md`
-> 2. Load the Design Skill (CRC/Sequence Format): `view_file .agent/skills/mini-spec/SKILL.md`
+> 1. Load planning rules: `view_file .agent/rules/planning.md`
+> 2. Load the Design Skill: `view_file .agent/skills/mini-spec/SKILL.md`
 > 3. Load the Architecture Template: `view_file .agent/templates/project-spec.md`
 
-# WORKFLOW: IOCANE REPLAN
+# WORKFLOW: IO-REPLAN
 
-**Objective:** Propagate changes from an updated `plans/PRD.md` into `plans/PLAN.md` (Roadmap) and `plans/project-spec.md` (Architecture), preserving all completed work and routing necessary codebase changes to the Remediation Backlog.
+**Objective:** Propagate changes from an updated `plans/PRD.md` into `plans/roadmap.md` and `plans/project-spec.md`, preserving all completed work and routing necessary codebase changes to `plans/backlog.md`.
 
-**Context Manifest:**
-1.  `plans/PRD.md` (Updated Source of Truth)
-2.  `plans/PLAN.md` (Existing Roadmap -- to be updated)
-3.  `plans/project-spec.md` (Existing Architecture -- to be updated)
-4.  `interfaces/*.pyi` (Existing Contracts -- read-only in this workflow)
+**When to use:** Only when `plans/PRD.md` itself has changed. This is not part of the linear execution chain — it is triggered on-demand when requirements shift.
+
+**Context manifest:**
+1. `plans/PRD.md` — updated source of truth
+2. `plans/roadmap.md` — existing feature sequence (to be updated)
+3. `plans/project-spec.md` — existing architecture (to be updated)
+4. `interfaces/*.pyi` — existing contracts (read-only in this workflow)
+5. `plans/plan.md` — existing checkpoint plan (read-only — checkpoints are not replanned here)
+6. `plans/backlog.md` — existing backlog (append target for regressions)
 
 ---
 
-## Procedure
+## 1. PROCEDURE
 
-### 1. [CRITICAL] CLARIFICATION GATE
+### Step A: [CRITICAL] CLARIFICATION GATE
 
-* **Action:** Read the doc header of `plans/PRD.md`.
+* **Action:** Read the document header of `plans/PRD.md`.
 * **Check:** Locate the `**Clarified:**` field.
-* **Rule:** If the field is missing, or if it is set to `False`, you MUST immediately HALT execution.
-* **Output:** "HALT: The PRD has not been clarified. You must run `/io-clarify` and resolve all new ambiguities before replanning can begin."
+* **Rule:** If missing or `False`, HALT immediately.
+* **Output:** "HALT: PRD has not been clarified. Run `/io-clarify` and resolve all new ambiguities before replanning."
 
-### 2. DIFF ANALYSIS (Requirements Delta)
+---
 
-* **Action:** Read `plans/PRD.md`, `plans/PLAN.md`, and `plans/project-spec.md` (Architecture Overview, Protocol Interfaces, Domain Models, and CRC sections).
-* **Output:** Produce a structured **Change Report** with three categories:
+### Step B: DIFF ANALYSIS (Requirements Delta)
+
+* **Action:** Read `plans/PRD.md`, `plans/roadmap.md`, and `plans/project-spec.md`.
+* **Output:** A structured Change Report:
 
 | Category | Description |
 |----------|-------------|
-| **NEW** | Requirements, components, or data models in PRD that have no match in PLAN or Spec. |
-| **MODIFIED** | Requirements that exist in PLAN/Spec but whose definition has changed. |
-| **REMOVED** | Items in PLAN/Spec that are no longer referenced by the PRD. |
+| **NEW** | Requirements, features, or components in the PRD that have no match in roadmap or spec |
+| **MODIFIED** | Features or components that exist but whose definition has changed |
+| **REMOVED** | Items in roadmap or spec no longer referenced by the PRD |
 
-* **Constraint:** Present the Change Report to the user for confirmation before proceeding. 
+Present the Change Report to the human for confirmation before proceeding.
 
-### 3. UPDATE ROADMAP (`plans/PLAN.md`)
+---
 
-> **Permission:** Requires explicit user approval (user-owned strategic doc).
+### Step C: [PLAN MODE] PROPOSE ROADMAP.MD UPDATES
 
-* **Action:** For **NEW** items, propose a new Checkpoint (or subtask).
-* **Action:** For **REMOVED** items, propose marking the Checkpoint or deliverable as `[DEPRECATED]` with a note. Do not delete historical entries.
-* **Action (Backlog Routing):** If a **MODIFIED** or **REMOVED** requirement corresponds to code that has *already been implemented*, you MUST append a specific ticket to the `## 3. Remediation Backlog` section according to the definitions in `.agent/rules/ticket-taxonomy.md`. This ensures the execution pipeline will safely modify or delete the orphaned code later.
-* **Constraint:** Every new or modified deliverable MUST cite the PRD section it traces to (e.g., `(PRD 3.4)`). 
+For each change in the delta:
 
-### 4. UPDATE ARCHITECTURE (`plans/project-spec.md`)
+* **NEW items:** Propose new feature entries in `roadmap.md` using the standard format. Assign dependency order.
+* **MODIFIED items:** Propose updated acceptance criteria or description. Flag if the change invalidates any completed checkpoint — this becomes a `[DESIGN]` backlog item.
+* **REMOVED items:** Propose marking the feature `[DEPRECATED]` with a note. Do not delete historical entries.
 
-* **Action:** For **NEW** components, add rows to Protocol Interfaces/Domain Models, update the Mermaid graph, and generate a new **CRC Card** and **Sequence Diagram**.
-* **Action:** For **MODIFIED** components, update the existing CRC Card responsibilities and Sequence Diagrams to match the new logic.
-* **Action:** For **REMOVED** components, mark the Protocol Interfaces row as `[DEPRECATED]` and add `> [!WARNING] Deprecated by PRD vX.X` to the CRC Card. 
-* **Constraint:** This workflow does NOT generate `.pyi` files.
+**Rule:** Every new or modified feature must cite the PRD section it traces to (e.g., `PRD §3.4`).
 
-### 5. VERIFY CONSISTENCY
+Present proposed roadmap changes. Wait for human approval before write.
 
-* **Action:** Cross-check that every component referenced in `PLAN.md` has a matching entry in the `project-spec.md` Interface Registry.
-* **Action:** Cross-check that every CRC Card maps to a Checkpoint. Flag orphans as warnings.
+---
 
-### 6. OUTPUT
+### Step D: [PLAN MODE] PROPOSE PROJECT-SPEC.MD UPDATES
 
-* Output: `"REPLAN COMPLETE. plans/PLAN.md and plans/project-spec.md updated. Run /io-architect to update Protocol Interfaces (.pyi), or /io-handoff to process the Remediation Backlog."`
+For each change in the delta:
+
+* **NEW components:** Propose new CRC card and Interface Registry entry. Do not write `.pyi` — that is `/io-architect`'s job.
+* **MODIFIED components:** Propose updated CRC responsibilities and sequence diagrams.
+* **REMOVED components:** Propose marking the Protocol Interfaces row `[DEPRECATED]` and adding a deprecation warning to the CRC card.
+
+Present proposed spec changes. Wait for human approval before write.
+
+---
+
+### Step E: BACKLOG ROUTING
+
+If any MODIFIED or REMOVED item corresponds to already-implemented code:
+
+* Append a `[DESIGN]` or `[REFACTOR]` item to `plans/backlog.md` via `/review-capture`.
+* This ensures the execution pipeline will safely update or remove the orphaned code.
+
+---
+
+### Step F: VERIFY CONSISTENCY
+
+* Cross-check: every feature in `roadmap.md` has a corresponding entry in `project-spec.md` Interface Registry.
+* Cross-check: every CRC card maps to a feature. Flag orphans as warnings.
+* Cross-check: `plans/plan.md` — identify any checkpoints that are now invalidated by the PRD delta. Flag them for human decision (re-run, deprecate, or keep).
+
+---
+
+### Step G: OUTPUT
+
+```
+REPLAN COMPLETE.
+
+roadmap.md: [N] features added, [N] modified, [N] deprecated
+project-spec.md: [N] CRC cards updated, [N] deprecated
+backlog.md: [N] items appended
+
+plan.md checkpoint impact: [N checkpoints flagged for review]
+
+Next steps:
+- Run /io-architect to update or add Protocol contracts (.pyi files)
+- Run /io-checkpoint if new checkpoints are needed for new features
+- Review flagged checkpoints in plan.md before next /io-orchestrate
+```
+
+---
+
+## 2. CONSTRAINTS
+
+- Does not generate `.pyi` files — that is `/io-architect`'s job
+- Does not modify `plans/plan.md` directly — checkpoint replanning is a separate `/io-checkpoint` invocation
+- Does not delete any existing entries in `roadmap.md`, `project-spec.md`, or `backlog.md`
+- All writes require human approval via plan mode
+- `backlog.md` appends go via `/review-capture` — not written directly

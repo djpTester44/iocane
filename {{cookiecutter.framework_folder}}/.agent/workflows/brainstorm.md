@@ -6,10 +6,10 @@ description: Collaborative ideation for developing or amending a PRD. Optional u
 
 **Purpose:** Structured ideation for two scenarios:
 
-- **Pre-PRD:** Developing a new PRD before `/io-init`.
+- **Pre-PRD:** Developing a new PRD before the canonical chain begins.
 - **PRD Amendment:** Scoping a requirements change before `/io-replan`.
 
-This workflow produces no implementation artifacts. Its output is either a ready-to-draft PRD, or a scoped amendment ready for `/io-clarify` → `/io-replan`.
+This workflow produces no implementation artifacts. Its output is either a ready-to-draft PRD, or a scoped amendment ready for `/io-clarify` → `/io-specify` (new project) or `/io-clarify` → `/io-replan` (amendment).
 
 > **When the agent should suggest this workflow:**
 >
@@ -62,8 +62,8 @@ Assess what the idea implies for the existing project state.
 
 **PRD Amendment:**
 
-- Read `plans/PRD.md` and `plans/PLAN.md`.
-- Identify which existing requirements are affected (modified, removed, or superseded).
+- Read `plans/PRD.md` and `plans/roadmap.md`.
+- Identify which existing features are affected (modified, removed, or superseded).
 - Identify which completed checkpoints would be invalidated.
 - Flag any `[DESIGN]` or `[REFACTOR]` backlog items the change would generate.
 
@@ -76,7 +76,7 @@ Output a concise **Impact Summary**:
 - [Requirement or capability being added/modified/removed]
 
 ### What is affected
-- [Checkpoints, contracts, or implementations touched]
+- [Features, checkpoints, or contracts touched]
 
 ### Open questions
 - [Ambiguities that must be resolved before proceeding]
@@ -84,7 +84,7 @@ Output a concise **Impact Summary**:
 
 ---
 
-### Step 4: PRESENT & CONFIRM
+### Step 4: PRESENT AND CONFIRM
 
 Present the Impact Summary to the user. Ask:
 
@@ -99,13 +99,13 @@ Do not proceed until the user confirms. Adjust and re-present if needed.
 Based on the confirmed Impact Summary:
 
 **Pre-PRD:**
-> "Ready to draft `plans/PRD.md`. Run `/io-clarify` after drafting to resolve any remaining ambiguities, then `/io-init` to generate the architecture."
+> "Ready to draft `plans/PRD.md`. Run `/io-clarify` after drafting to resolve any remaining ambiguities, then `/io-specify` to generate `roadmap.md` and begin the architecture phase."
 
 **PRD Amendment:**
-> "Scope confirmed. Update `plans/PRD.md` to reflect these changes, then run `/io-clarify` to resolve open questions, followed by `/io-replan` to propagate the changes to the architecture and roadmap."
+> "Scope confirmed. Update `plans/PRD.md` to reflect these changes, then run `/io-clarify` to resolve open questions, followed by `/io-replan` to propagate the changes to `roadmap.md` and `project-spec.md`."
 
 **Rules:**
 
 - Do not draft the PRD or edit any files in this workflow.
-- Do not invoke `/io-clarify`, `/io-replan`, or `/io-init` — instruct the user to do so.
-- No task creation, no backlog entries. Those are the responsibility of downstream workflows.
+- Do not invoke `/io-clarify`, `/io-specify`, or `/io-replan` — instruct the user to do so.
+- No task creation, no backlog entries.

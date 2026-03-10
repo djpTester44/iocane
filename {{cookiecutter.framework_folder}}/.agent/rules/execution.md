@@ -1,6 +1,6 @@
 ---
 trigger: glob
-description: Execution constraints. Loaded automatically by /io-loop.
+description: Execution constraints for sub-agents implementing checkpoints.
 globs: **/*.py
 ---
 
@@ -12,10 +12,10 @@ globs: **/*.py
 ## [HARD] Context & Navigation Constraints
 
 1. **Context Hygiene (Reads)**: You are **FORBIDDEN** from reading files outside the scope of your current task.
-    You must only read the files explicitly listed in the `context_files` array for the active task in `plans/tasks.json`.
-2. **Write Hygiene**: You are **FORBIDDEN** from writing to files not listed in the `write_targets` array for the active task.
-    The `write-gate.sh` PreToolUse hook enforces this automatically. Do not attempt to work around it by editing `tasks.json` mid-task — request a tasking update instead.
-3. **Task Log**: You must read `plans/tasks.json` to identify your current objective.
+    You must only read the files listed in `## Context Files` in your task file (`plans/tasks/CP-XX.md`).
+2. **Write Hygiene**: You are **FORBIDDEN** from writing to files not listed in `## Write Targets` in your task file.
+    The `write-gate.sh` PreToolUse hook enforces this automatically.
+3. **Task Source**: Your objective, write targets, gate command, and context files are all in your task file. Read it completely before taking any action.
 4. **State Verification**: Never trust cached line numbers or file contents across session boundaries. When external tools (formatters, linters) modify files, you **MUST** re-read them before editing. For test regressions: `git stash` + run + `git stash pop` before investigating.
 
 ## [HARD] Architectural Guidance
@@ -79,6 +79,22 @@ globs: **/*.py
 - Use `pathlib.Path` for ALL path manipulation.
 - **NEVER** concatenate strings to build paths.
 
+### Module Docstrings
+
+Every `.py` file you create **MUST** begin with a module-level docstring as the first statement, before any imports. One sentence stating what this module owns — not what it does step-by-step.
+
+```python
+"""Owns the inference routing logic. Routes validated payloads to the correct handler via InferenceRouterProtocol."""
+
+from __future__ import annotations
+```
+
+The docstring must state:
+- What the module is responsible for (ownership)
+- Which Protocol it implements or collaborates with, if any
+
+Do not describe implementation mechanics. The docstring is a navigation aid, not a tutorial.
+
 ### Naming Conventions
 
 - **Functions/Variables**: `snake_case`
@@ -87,5 +103,5 @@ globs: **/*.py
 
 ## VERIFICATION REQUIREMENTS
 
-1. **State Management**: Upon completing a task's verification, you must update `plans/tasks.json` to mark it complete and append a log entry to `plans/progress.md`.
-2. **Proof**: You **MUST** provide evidence (logs or test outputs) that the code works before moving to the next task.
+1. **Status File**: Upon completing your gate command successfully, write `PASS` to `../../plans/tasks/[CP-ID].status`. On any escalation trigger, write `FAIL: [reason]` instead.
+2. **Proof**: You **MUST** provide the gate command output as evidence before writing the status file.

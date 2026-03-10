@@ -80,7 +80,6 @@ htmlcov/
 # -----------------------------------------------------------------------------
 
 # These are only loaded explicitly when running skill evals. Indexing them
-
 # globally adds ~2000 tokens of noise to every session
 
 .agent/skills/skill-creator/scripts/
@@ -93,7 +92,6 @@ htmlcov/
 # Keep: .agent/skills/skill-creator/SKILL.md
 
 # Rationale: the SKILL.md is the interface — Claude needs to know the skill
-
 # exists and how to invoke it. The implementation scripts do not need indexing
 
 # -----------------------------------------------------------------------------
@@ -103,9 +101,7 @@ htmlcov/
 # -----------------------------------------------------------------------------
 
 # gap_analysis_gen.py contains hardcoded component-to-filepath mappings from
-
 # a specific project (CMAB). It is not a general harness tool and will confuse
-
 # Claude when working on unrelated projects
 
 .agent/scripts/gap_analysis_gen.py
@@ -117,9 +113,7 @@ htmlcov/
 # -----------------------------------------------------------------------------
 
 # These scripts manage .github/ <-> .agent/ synchronization. Claude does not
-
 # need to read them to use or evolve the harness — they are maintenance tools
-
 # run manually or via CI
 
 .agent/scripts/github_to_agent_sync.py
@@ -130,9 +124,9 @@ htmlcov/
 
 # -----------------------------------------------------------------------------
 
-# generate_walkthrough_context.py is a context-packaging utility, not a
-
-# harness component. It produces the digest files used for onboarding
+# generate_walkthrough_context.py extracts Protocol definitions, src structure,
+# and layer map into a JSON blob. Sub-agents invoke it via Bash as a preamble
+# step in io-execute — they run it, not read it. Source kept out of context.
 
 .agent/scripts/generate_walkthrough_context.py
 
@@ -143,11 +137,8 @@ htmlcov/
 # -----------------------------------------------------------------------------
 
 # Templates are loaded explicitly by workflows that need them (io-init loads
-
 # project-spec.md template, io-architect loads interface.pyi.template, etc.)
-
 # Indexing them globally causes Claude to treat forward-declaration stubs as
-
 # actual project state, which produces false gap analysis findings
 
 .agent/templates/
@@ -158,15 +149,48 @@ htmlcov/
 
 # -----------------------------------------------------------------------------
 
-# progress.md is an append-only ledger written by log_progress.sh. It can grow
-
-# very large over a long project. Claude writes to it via bash; it never needs
-
-# to read it during normal execution. Load explicitly only during /doc-sync
-
-# or /meta-gap-analysis if historical log review is needed
+# plans/progress.md is retired (io-loop era) — no workflow creates it.
+# Entry kept to prevent accidental creation from being auto-indexed.
 
 plans/progress.md
+
+# -----------------------------------------------------------------------------
+
+# Iocane: task execution artifacts (per-checkpoint logs, exit codes, status)
+
+# -----------------------------------------------------------------------------
+
+# .log and .exit files are written by sub-agents during execution.
+# They can be large and are only needed for post-mortem analysis — not for
+# normal orchestration or review workflows. Load explicitly when needed.
+
+plans/tasks/*.log
+plans/tasks/*.exit
+
+# -----------------------------------------------------------------------------
+
+# Iocane: git worktrees
+
+# -----------------------------------------------------------------------------
+
+# .worktrees/ contains full repo checkouts for each concurrent sub-agent.
+# These are large and ephemeral — never index them. Sub-agents operate inside
+# worktrees and should not read the parent .worktrees/ directory.
+
+.worktrees/
+
+# -----------------------------------------------------------------------------
+
+# Iocane: escalation state
+
+# -----------------------------------------------------------------------------
+
+# .iocane/ contains escalation.log and escalation.flag. The log can grow large
+# over a multi-session project. session-start.sh and /io-orchestrate read only
+# escalation.flag (a tiny sentinel). The log is read explicitly by the human
+# after an escalation event — it must never be indexed globally.
+
+.iocane/
 
 # -----------------------------------------------------------------------------
 
@@ -175,7 +199,6 @@ plans/progress.md
 # -----------------------------------------------------------------------------
 
 # These are packaging outputs, not source files. The digest.txt in particular
-
 # can be enormous and contains redundant copies of everything else
 
 *.digest.txt

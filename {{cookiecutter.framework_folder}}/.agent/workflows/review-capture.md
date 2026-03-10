@@ -1,38 +1,108 @@
 ---
-description: Capture /review findings into plans/PLAN.md Remediation Backlog with routing tags.
+description: Classify review findings and append them to plans/backlog.md. Called by /review and /gap-analysis.
 ---
 
-# WORKFLOW: REVIEW CAPTURE
+> **[NO PLAN MODE]**
+> Append-only. Never deletes or modifies existing backlog entries.
 
-**Objective:** Classify findings from the most recent `/review` and append them to the `## 3. Remediation Backlog` section of `plans/PLAN.md` with routing tags that drive subsequent workflow decisions.
+> **[CRITICAL] CONTEXT LOADING**
+> 1. Load ticket taxonomy: `view_file .agent/rules/ticket-taxonomy.md`
+> 2. Load current backlog: `view_file plans/backlog.md` (if exists)
 
-**Trigger:** Run immediately after `/review` completes.
+# WORKFLOW: REVIEW-CAPTURE
 
-**Procedure:**
+**Objective:** Take findings from `/review` or `/gap-analysis` and append them to `plans/backlog.md` with correct taxonomy tags. Findings not in `backlog.md` are invisible to subsequent planning workflows.
 
-1. **LOAD CONTEXT:**
-    * Read `plans/PLAN.md` to locate the `## 3. Remediation Backlog` section (create it if absent).
-    * Identify the source checkpoint and review date for attribution.
+---
 
-2. **CLASSIFY EACH FINDING:**
-    > **[HARD] Private Method Gate:** If a finding references a `_`-prefixed method, DROP it entirely. Private methods are internal implementation details and must never receive `[DESIGN]` or `[REFACTOR]` tags. Do not append them to the backlog.
+## 1. PROCEDURE
 
-    Assign exactly one routing tag per finding according to the definitions and decision tree in `.agent/rules/ticket-taxonomy.md`.
+### Step A: RECEIVE FINDINGS
 
-3. **APPEND TO PLAN.MD:**
-    For each finding, append a structured entry to `## 3. Remediation Backlog`:
+* Accept the findings table from the calling workflow (`/review` or `/gap-analysis`).
+* Filter: include only HIGH and MEDIUM severity findings.
+* LOW and INFO findings are not captured unless explicitly requested by the human.
 
-    ```markdown
-    - [ ] **[TAG]** `file.py`: <one-line description of the fix required>.
-      - Source: <CP_ID> /review · <YYYY-MM-DD>
-      - Severity: <HIGH | MEDIUM | LOW | INFO>
-    ```
+---
 
-    ```
+### Step B: CLASSIFY EACH FINDING
 
-    * Group entries by tag (`[DESIGN]` first, then `[REFACTOR]`, then `[CLEANUP]`, then `[DEFERRED]`).
-    * Do NOT modify any other section of `PLAN.md`.
+Apply routing tags from `.agent/rules/ticket-taxonomy.md`:
 
-4. **OUTPUT:**
-    * Print a summary table of items added, grouped by tag.
-    * Output: "BACKLOG UPDATED. If `[DESIGN]` or `[REFACTOR]` items were added, run `/io-architect` first. Otherwise run `/io-handoff` to build the execution bundle."
+| Tag | When to apply |
+|-----|--------------|
+| `[DESIGN]` | Finding reveals a gap or error in the CRC or Protocol — requires `/io-architect` |
+| `[REFACTOR]` | Implementation violates DI, layer boundaries, or SOLID — requires code change |
+| `[CLEANUP]` | Minor improvement — naming, docstrings, test coverage — does not block execution |
+| `[TEST]` | Missing or inadequate test coverage — does not block execution |
+| `[DEFERRED]` | Acknowledged but intentionally postponed — must include a reason |
+
+**Private method gate:** Do not capture findings for `_`-prefixed methods unless they represent a DI or layer violation. Internal implementation details are not backlog items.
+
+---
+
+### Step C: FORMAT ENTRIES
+
+Each finding becomes one backlog entry in this format:
+
+```markdown
+- [ ] [TAG] [ComponentName] — [one line description of the issue]
+  - Source: /review CP-[ID] | /gap-analysis [date]
+  - Severity: HIGH | MEDIUM
+  - Detail: [one sentence of context — what to fix and why]
+```
+
+---
+
+### Step D: APPEND TO BACKLOG.MD
+
+* **If `plans/backlog.md` does not exist:** Create it with this header, then append:
+
+```markdown
+# Backlog
+
+Findings from /review and /gap-analysis. Append-only — never delete entries.
+Items marked [x] are resolved. Items marked [ ] are active.
+
+---
+```
+
+* **Append** a new group under a heading:
+
+```markdown
+### From [CP-ID | gap-analysis] — [YYYY-MM-DD]
+
+- [ ] [TAG] [ComponentName] — [description]
+  - Source: ...
+  - Severity: ...
+  - Detail: ...
+```
+
+* **Never** modify existing entries.
+* **Never** delete resolved `[x]` entries — they are the audit trail.
+
+---
+
+### Step E: OUTPUT
+
+```
+CAPTURE COMPLETE.
+
+Items appended to plans/backlog.md: [N]
+  [DESIGN]: [N]
+  [REFACTOR]: [N]
+  [CLEANUP]: [N]
+  [TEST]: [N]
+
+[If DESIGN items captured:]
+Note: [DESIGN] items require /io-architect before next orchestration cycle.
+```
+
+---
+
+## 2. CONSTRAINTS
+
+- Append only — no edits to existing entries under any circumstance
+- Does not route findings to `plans/plan.md`, `plans/roadmap.md`, or any other artifact
+- Does not create tasks — backlog items are pulled by `/io-orchestrate` as inputs to the next cycle
+- `[DEFERRED]` items must include a human-provided reason — do not defer autonomously

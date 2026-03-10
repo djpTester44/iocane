@@ -32,12 +32,48 @@ This is **{{cookiecutter.project_name}}** — a project generated from the Iocan
 
 ---
 
+## Three-Tier Architecture
+
+Iocane uses a three-tier model to keep correctness guarantees early and execution cheap:
+
+**Tier 1 — Strategic (Human + Plan Mode)**
+Human owns all design decisions. Claude uses plan mode at every Tier 1 stage — proposes before writing. Nothing commits until the human approves. Tier 1 workflows: `/io-clarify`, `/io-specify`, `/io-architect`, `/io-checkpoint`, `/review`.
+
+**Tier 2 — Orchestration (Harness Autonomous)**
+Orchestrator reads approved Tier 1 artifacts, generates task files, scores the confidence rubric, and writes `tasks/run.sh`. Human runs the script. Tier 2 workflow: `/io-orchestrate`.
+
+**Tier 3 — Execution (Sub-agents)**
+Sub-agents execute one checkpoint each in isolated git worktrees. They have no awareness of the broader plan. Human sees only pass/fail summaries unless escalation is triggered. Tier 3 workflow: `/io-execute`.
+
+---
+
+## Human Attention Contract
+
+The human is required at these moments — and only these:
+
+| Moment | Workflow | Action required |
+|--------|----------|-----------------|
+| PRD ambiguities | `/io-clarify` | Answer questions, approve stamp |
+| Roadmap proposal | `/io-specify` | Approve or correct `roadmap.md` |
+| Design proposal | `/io-architect` | Approve CRC + Protocols — this is the contract lock |
+| Checkpoint boundaries | `/io-checkpoint` | Approve `plan.md` + connectivity test signatures |
+| Run sub-agents | post `/io-orchestrate` | `bash tasks/run.sh` |
+| Checkpoint review | `/review` | Review findings, approve or route to backlog |
+| Escalation | session start | Review `.iocane/escalation.log`, clear flag |
+| Replan | `/io-replan` | Approve PRD delta propagation |
+
+The human is NOT required during orchestration scoring, task file generation, or sub-agent execution.
+
+---
+
 ## Project Development Protocol
 
 - **(a)** `.agent/` files govern this project's workflows and rules — never modify them without explicit instruction.
 - **(b)** `.claude/commands/` and `.claude/hooks/` are active for this project — do not duplicate them elsewhere.
+- **(c)** `interfaces/*.pyi` are binding contracts — never modify during execution. Changes require `/io-architect` with human approval.
+- **(d)** `plans/backlog.md` is append-only — never delete entries. It is the audit trail for all review findings.
 
 ---
 
 Full rules reference: `.agent/rules/AGENTS.md`
-Workflow reference: `./.agent/workflows/`
+Workflow reference: `.agent/workflows/`

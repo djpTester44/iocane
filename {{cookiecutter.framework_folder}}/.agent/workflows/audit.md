@@ -31,7 +31,7 @@ Before scanning, you must output the following metadata:
     * **Remediation Plan:** Prioritized immediate/short-term/long-term actions.
 
 ## 3. ROUTING
-- **Action:** Append all High/Medium findings to `plans/PLAN.md` using the `[DESIGN]` or `[REFACTOR]` tags.
+- **Action:** Append all High/Medium findings to `plans/backlog.md` using the `[DESIGN]` or `[REFACTOR]` tags.
 - **Output:** "AUDIT COMPLETE. Review findings in the Remediation Backlog."
 
 4. **REPORT & INTERACTIVE CAPTURE:**
@@ -40,4 +40,4 @@ Before scanning, you must output the following metadata:
    * **Logic:**
        * **If Selected:** Execute `/review-capture` for chosen items.
    * **Tagging:** Suggest the appropriate Routing Tag (`[DESIGN]`, `[REFACTOR]`, or `[CLEANUP]`) according to the definitions in `.agent/rules/ticket-taxonomy.md`.
-   * **Constraint:** Never recommend implementation tasks directly; all work must be "pulled" from the backlog via `/io-handoff`.
+   * **Constraint:** Never recommend implementation tasks directly; all work must be "pulled" from the backlog via `/io-plan-batch`.

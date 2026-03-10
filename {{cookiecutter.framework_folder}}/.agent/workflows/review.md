@@ -1,54 +1,170 @@
 ---
-description: Systematic code review with structured output against Design Anchors and Contracts.
+description: Per-checkpoint behavioral review and connectivity verification. Findings route to backlog.md.
 ---
 
+> **[NO PLAN MODE]**
+> Read-only analysis. No file writes except via /review-capture at the end.
+
 > **[CRITICAL] CONTEXT LOADING**
-> Load the analysis constraints:
-> `view_file .agent/rules/planning.md`
+> 1. Load planning rules: `view_file .agent/rules/planning.md`
+> 2. Load the checkpoint being reviewed from `plans/plan.md`
+> 3. Load CRC cards for checkpoint components from `plans/project-spec.md`
+> 4. Load relevant Protocol contracts from `interfaces/*.pyi`
 
-# WORKFLOW: CODE REVIEW
+# WORKFLOW: REVIEW
 
-**Objective:** Systematic code review verifying that code matches both the Structural Contract (`.pyi`) and Behavioral Design (`CRC`).
+**Objective:** Verify that a completed checkpoint's implementation matches its CRC behavioral contract and that all connectivity tests at its seams are green.
 
-**Context:**
-* Scope: Single module, file, or feature area
-* Output: Findings table with actionable recommendations
+**Scope:** Single checkpoint. Do not review components outside the current checkpoint's boundaries.
 
-**Procedure:**
-1. **IDENTIFY SCOPE:** Ask if not clear - which files/modules to review? Any specific concerns (performance, security, readability)?
-2. **LOAD ANCHORS:**
-    * Read the **Protocol** (`interfaces/*.pyi`) to establish the Contract.
-    * Read the **CRC Card** in `plans/project-spec.md` to establish the Intent.
-3.  **ANALYZE CODE:** For each file in scope:
-    * **Pre-Scan (Structure):** Run `uv run python .agent/scripts/extract_structure.py <file>` to map the surface area (methods/classes).
-    * **Pre-Scan (Coupling):** Run `uv run lint-imports` to see incoming/outgoing dependencies and contract compliance.
-    * **Pre-Scan (DI):** Run `uv run python .agent/scripts/check_di_compliance.py` to verify collaborators are injected, not instantiated. Cross-reference any `[WARNING]` findings against the CRC before classifying as implementation errors -- if implementation matches the CRC, tag as `[DESIGN]` gap.
-    * **Behavior (Crucial):** Does the internal logic match the **Responsibilities** and **Collaborators** defined in the CRC?
-        * *Flag:* Side effects not in CRC.
-        * *Flag:* Logic that contradicts the Sequence Diagram.
-    * **Correctness:** Logic errors, edge cases, error handling.
-    * **Types:** Full hints, proper generics, adherence to Protocol signature.
-    * **Style:** Naming, docstrings, line length, imports.
-    * **SOLID:** Single responsibility, interface segregation.
-    * **DRY:** Duplicated logic, extraction opportunities.
-    * **Security:** Input validation, injection risks, secrets.
-    * **Tests:** Coverage, edge cases, assertions.
-4.  **OUTPUT FINDINGS:** Generate Code Review report with: Summary (one paragraph assessment), Findings table (Severity/Location/Issue/Recommendation), Strengths (what's done well), Action Items (specific fixes needed as checkboxes).
+**Position in chain:**
+```
+(sub-agents complete) -> [/review] -> /io-orchestrate (next batch) | /gap-analysis (full system)
+```
 
-5.  **CAPTURE FINDINGS:** Run `/review-capture` to classify and log all findings to `plans/PLAN.md ## 3. Remediation Backlog`. This is mandatory findings not captured in PLAN.md are invisible to subsequent planning workflows.
+---
 
-**Severity Guide:**
-* HIGH: **Unanchored Behavior** (Contradicts CRC), Bug, security issue.
-* MEDIUM: Should fix, affects maintainability.
-* LOW: Nice to fix, minor improvement.
-* INFO: Observation, optional suggestion.
+## 1. STATE INITIALIZATION
 
-**Skills:**
-* `security-warden`: Check for vulnerabilities
-* `context-auditor`: Check architectural compliance
-* `refactor-guru`: Identify SOLID/DRY violations
+Before proceeding, output:
 
-**Rules:**
-* No automatic fixes - output findings, user decides what to fix.
-* No PR submission - review only, no git operations.
-* No scope creep - stay within requested review area.
+- **Checkpoint under review:** [CP-ID and name]
+- **Components in scope:** [list from plan.md]
+- **Protocols in scope:** [list from plan.md]
+- **Gate command status:** [PASS / FAIL — run gate command to verify]
+- **Connectivity tests in scope:** [list CT-IDs at this checkpoint's seams]
+
+---
+
+## 2. PROCEDURE
+
+### Step A: GATE VERIFICATION
+
+* **Action:** Run the checkpoint's gate command from `plans/plan.md`.
+* **Rule:** If gate is not passing, the checkpoint is not complete. Stop.
+* **Output:** "GATE: [PASS/FAIL] — [gate command]"
+
+---
+
+### Step B: CONNECTIVITY TEST VERIFICATION
+
+* **Action:** For each connectivity test listed in `plans/plan.md` at this checkpoint's output seams, run the gate command.
+* **Rule:** Every connectivity test must be green before this checkpoint is considered approved.
+* **Output:** For each CT: "CT-[NNN]: [PASS/FAIL] — [test file::function]"
+
+---
+
+### Step C: LOAD BEHAVIORAL ANCHORS
+
+* **Action:** Read the CRC card for each component in scope from `plans/project-spec.md`.
+* **Action:** Read the Protocol contract for each component from `interfaces/*.pyi`.
+* **Goal:** Establish the behavioral intent before reading implementation.
+
+---
+
+### Step D: STRUCTURAL PRE-SCAN
+
+For each implementation file in the checkpoint's write targets:
+
+* Run `uv run python .agent/scripts/extract_structure.py <file>` — map public surface area
+* Run `uv run lint-imports` — verify layer compliance
+* Run `uv run python .agent/scripts/check_di_compliance.py` — verify DI compliance
+* Run `uv run mypy <file>` — verify type correctness
+
+Flag any violations. Do not fix — record for findings.
+
+---
+
+### Step E: BEHAVIORAL REVIEW
+
+For each component in scope, verify:
+
+* **CRC Responsibilities:** Does the implementation fulfill every responsibility listed in the CRC card? Flag any responsibility with no corresponding implementation.
+* **CRC Must-Nots:** Does the implementation violate any explicit constraint in the CRC card?
+* **Protocol compliance:** Does every public method match its Protocol signature exactly? Flag any signature deviation.
+* **Collaborators:** Are all collaborators received via `__init__`? Flag any that are instantiated internally.
+* **Sequence diagrams:** If a sequence diagram exists in `project-spec.md` for this component's flows, does the implementation follow it?
+* **Side effects:** Are there any observable side effects not described in the CRC?
+
+---
+
+### Step F: CORRECTNESS REVIEW
+
+* Logic errors, edge cases not covered by tests
+* Error handling — are failure modes handled or silently swallowed?
+* Type correctness beyond what mypy catches (semantic type misuse)
+* Test quality — do tests assert meaningful behavior, or just "does not raise"?
+
+---
+
+### Step G: OUTPUT FINDINGS
+
+Generate a findings report:
+
+```markdown
+## Review: [CP-ID] — [Checkpoint Name]
+
+### Summary
+[One paragraph overall assessment]
+
+### Gate Status
+- Gate: PASS/FAIL
+- Connectivity tests: [N/N passing]
+
+### Findings
+
+| Severity | Location | Issue | Recommendation |
+|----------|----------|-------|----------------|
+| HIGH | `src/[path]:[line]` | [issue] | [fix] |
+| MEDIUM | ... | ... | ... |
+
+### Strengths
+- [What was done well]
+
+### Action Items
+- [ ] [Specific fix needed]
+```
+
+**Severity guide:**
+- HIGH: Unanchored behavior (contradicts CRC), broken connectivity test, DI violation, layer violation
+- MEDIUM: Should fix — affects maintainability or contract completeness
+- LOW: Nice to fix — minor improvement
+- INFO: Observation only
+
+---
+
+### Step H: ROUTE FINDINGS
+
+* **Action:** Run `/review-capture` to classify and log all HIGH and MEDIUM findings to `plans/backlog.md`.
+* **Rule:** Findings not captured in `backlog.md` are invisible to subsequent workflows. This step is mandatory if any HIGH or MEDIUM findings exist.
+
+---
+
+### Step I: CHECKPOINT APPROVAL DECISION
+
+Present to the human:
+
+```
+REVIEW COMPLETE: [CP-ID]
+
+Gate: PASS/FAIL
+Connectivity tests: [N/N]
+Findings: [N HIGH], [N MEDIUM], [N LOW]
+
+Options:
+1. Approve checkpoint — proceed to /io-orchestrate for next batch
+2. Route findings to backlog — re-execute checkpoint after remediation
+3. Escalate to /io-architect — finding reveals a design gap
+```
+
+* **Human decides.** Do not auto-approve.
+
+---
+
+## 3. CONSTRAINTS
+
+- Scope is strictly limited to the current checkpoint's components
+- Do not review components from other checkpoints even if they appear in the same files
+- Do not make fixes — output findings only
+- Do not route findings to `plans/plan.md` — backlog goes to `plans/backlog.md` only
+- No git operations
