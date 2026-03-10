@@ -2,7 +2,8 @@
     "framework_folder": ".",
     "project_name": "my_project",
     "_copy_without_render": [
-        ".agent/scripts/run_connectivity_tests.sh",
-        ".agent/scripts/*"
+        ".agent/scripts/*",
+        ".claude/scripts/*",
+        ".claude/hooks/*",
     ]
 }
