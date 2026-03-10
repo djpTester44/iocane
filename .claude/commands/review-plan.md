@@ -1,1 +1,0 @@
-Read and execute the workflow defined in `.agent/workflows/review-plan.md`. Follow every step in that file exactly, including all compliance checks, the self-healing loop (max 3 iterations), the auto-remediable vs non-auto-remediable violation rules, and the PASS/FAIL stamping requirement.

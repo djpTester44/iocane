@@ -1,7 +1,7 @@
 ---
-name: find-dead-code
 description: Systematically scan the codebase for orphaned implementation files, classes, and .pyi contracts while adhering to CDD principles.
 ---
+
 > **[CRITICAL] CONTEXT LOADING**
 > Load the analysis constraints:
 > `view_file .agent/rules/planning.md`
@@ -16,6 +16,7 @@ description: Systematically scan the codebase for orphaned implementation files,
 * Architecture: Contract-Driven Development (CDD).
   * `.pyi` files are strictly for static analysis and are never imported at runtime.
   * Ghost Anchors (types defined in `.pyi` or `project-spec.md` with no runtime implementation) are Valid Forward Declarations, not dead code.
+  * `TYPE_CHECKING` blocks and their `else` runtime fallbacks (e.g., `Protocol = object`) are structural CDD elements, not dead code.
 * Input: `settings.yaml`, `plans/project-spec.md`, and Python source files.
 
 **Procedure:**

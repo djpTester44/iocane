@@ -4,6 +4,7 @@
 
 ```
 /io-clarify -> /io-specify -> /io-architect -> /io-checkpoint -> /validate-plan -> /io-plan-batch -> /io-orchestrate (or direct dispatch)
+                                   └── [.pyi OOB change] -> /validate-spec ───────────> /io-checkpoint
 ```
 
 ---
@@ -53,8 +54,10 @@ Tier 1 artifacts carry validation stamps that gate downstream workflows. Any sub
 | Artifact | Stamp | Gating Workflow | Gates |
 |----------|-------|-----------------|-------|
 | `plans/PRD.md` | `**Clarified:** True/False` | `/io-clarify` | `/io-architect` |
-| `plans/project-spec.md` | `**Approved:** True/False` | `/io-architect` | `/io-checkpoint` |
+| `plans/project-spec.md` | `**Approved:** True/False` | `/io-architect` (primary) or `/validate-spec` (recovery) | `/io-checkpoint` |
 | `plans/plan.md` | `**Plan Validated:** PASS/FAIL` | `/validate-plan` | `/io-plan-batch` |
+
+Note: `/io-architect` writes `**Approved:** True` on the primary path. `/validate-spec` is the recovery path — it re-earns the stamp after an out-of-band `.pyi` change resets it, without requiring a full redesign.
 
 ### Exempting a write from stamp reset
 
@@ -84,12 +87,46 @@ The sentinel is automatically cleared on session start. If it is unexpectedly pr
 | `/validate-plan` | Validate `plan.md` CDD compliance before batch composition | `plans/plan.md` (stamp only) |
 | `/io-plan-batch` | Compose dispatch batch, score confidence, get human approval | `plans/tasks/CP-XX.md` (on acceptance) |
 | `/io-orchestrate` | Dispatch agents (alias for `dispatch-agents.sh`) | none |
+| `/validate-spec` | Detect CRC-Protocol drift and re-earn `**Approved:** True` (recovery path) | `plans/project-spec.md` (stamp only) |
 | `/doc-sync` | Reconcile docs with codebase after feature completion | `plans/project-spec.md`, `plans/roadmap.md`, `README.md` |
 | `/review` | Post-implementation review | `plans/backlog.md` |
 | `/gap-analysis` | Identify gaps between implementation and spec | `plans/backlog.md` |
 
 ---
 
+---
+
+## Model Allocation
+
+Model assignments are defined in `.claude/iocane.config.yaml` under the `models` key:
+
+```yaml
+models:
+  tier1: claude-opus-4-6           # Strategic: io-clarify, io-architect, io-checkpoint, review
+  tier2: claude-sonnet-4-6         # Orchestration: io-plan-batch, validate-plan, validate-spec
+  tier3: claude-haiku-4-5-20251001 # Execution: io-execute sub-agents (dispatch-agents.sh)
+```
+
+- **Tier 1 (interactive workflows):** `models.tier1` is documented guidance only. The user selects the active model in their Claude Code session; the config entry communicates intent.
+- **Tier 2 (orchestration workflows):** `models.tier2` is documented guidance only. `/io-plan-batch`, `/validate-plan`, and `/validate-spec` run interactively in the user's session.
+- **Tier 3 (sub-agents):** `models.tier3` is the value `dispatch-agents.sh` passes to `claude -p --model`. This is the only model setting that is programmatically enforced.
+- **Override:** The `IOCANE_MODEL` environment variable overrides `models.tier3` for ad-hoc runs when the config is absent or unreadable.
+
+---
+
+## Workflows that never run as sub-agents (Tier 1 — interactive only)
+
+The following workflows require human interaction and must never be dispatched headlessly:
+
+- `/io-clarify`
+- `/io-specify`
+- `/io-architect`
+- `/io-checkpoint`
+- `/validate-spec`
+- `/review`
+
+---
+
 ## Notes
 
-- `.pyi` writes (out-of-band, outside `/io-architect`) reset both `project-spec.md` approval and `plan.md` validation. Always use `/io-architect` to modify contracts.
+- `.pyi` writes (out-of-band, outside `/io-architect`) reset both `project-spec.md` approval and `plan.md` validation. Always use `/io-architect` to modify contracts. If a `.pyi` change is unavoidable, run `/validate-spec` to recover the `**Approved:** True` stamp before proceeding to `/io-checkpoint`.

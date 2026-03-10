@@ -27,15 +27,21 @@ try:
     # exit_code may be in tool_response or at top level depending on Claude Code version
     resp = d.get('tool_response', {})
     code = resp.get('exit_code', d.get('exit_code', None))
-    print(code if code is not None else '0')
+    print(code if code is not None else '')
 except Exception:
-    print('0')
-" 2>/dev/null || echo "0")
+    print('')
+" 2>/dev/null || echo "")
+
+if [ -z "$EXIT_CODE" ] || [ "$EXIT_CODE" = "null" ]; then
+    echo "[escalation-gate] WARNING: could not extract exit code from payload. Known variance: payload shape may differ by Claude Code version. Logging as exit_code=UNKNOWN." >&2
+    EXIT_CODE="UNKNOWN"
+fi
 
 # --- Only act on non-zero exits ---
 if [ "$EXIT_CODE" -eq 0 ] 2>/dev/null; then
     exit 0
 fi
+# UNKNOWN cannot be compared numerically — treat as non-zero and log it
 
 # --- Extract useful fields for the log record ---
 TOOL_NAME=$(echo "$INPUT" | python3 -c "

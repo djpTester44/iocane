@@ -3,7 +3,7 @@
 #
 # Owns the full batch lifecycle for sub-agent execution:
 #   1. Scans plans/tasks/ for pending CP-XX.md files (no matching .status)
-#   2. Enforces IOCANE_PARALLEL_LIMIT as a safety cap
+#   2. Enforces parallel.limit from .claude/iocane.config.yaml as a safety cap
 #   3. Sets up an isolated git worktree per checkpoint via setup-worktree.sh
 #   4. Dispatches each sub-agent headlessly via claude -p
 #   5. Waits for all agents to complete
@@ -13,9 +13,9 @@
 # Usage:
 #   bash .claude/scripts/dispatch-agents.sh
 #
-# Environment (all optional, override via env):
-#   IOCANE_PARALLEL_LIMIT  -- max concurrent agents (default: 4)
-#   IOCANE_MODEL           -- claude model string (default: claude-haiku-4-5-20251001)
+# Environment (all optional, override config when config is absent):
+#   IOCANE_PARALLEL_LIMIT  -- max concurrent agents (fallback when config unreadable)
+#   IOCANE_MODEL           -- claude model string (fallback when config unreadable)
 #   IOCANE_TIMEOUT         -- per-agent timeout (default: 10m)
 #   IOCANE_MAX_TURNS       -- max agent turns (default: 20)
 #   REPO_ROOT              -- auto-detected via git if not set
@@ -26,10 +26,44 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- Configuration ---
 REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null)}"
-PARALLEL_LIMIT="${IOCANE_PARALLEL_LIMIT:-4}"
-MODEL="${IOCANE_MODEL:-claude-haiku-4-5-20251001}"
+CONFIG_FILE="$REPO_ROOT/.claude/iocane.config.yaml"
 AGENT_TIMEOUT="${IOCANE_TIMEOUT:-10m}"
 MAX_TURNS="${IOCANE_MAX_TURNS:-20}"
+
+# _cfg_read: extract section.key value from YAML config (awk-based, no external deps)
+# Usage: _cfg_read "parallel.limit"
+# Handles multi-key sections and strips inline comments.
+_cfg_read() {
+    local key="$1"
+    local section="${key%%.*}"
+    local subkey="${key#*.}"
+    awk "/^${section}:/{found=1; next} found && /^[^ ]/{exit} found && /^  ${subkey}:/{print; exit}" "$CONFIG_FILE" 2>/dev/null \
+        | sed 's/^[^:]*:[[:space:]]*//' \
+        | sed 's/[[:space:]]*#.*//' \
+        | tr -d '\r' \
+        | head -1
+}
+
+# Read parallel.limit: config -> IOCANE_PARALLEL_LIMIT env -> default 1
+_cfg_parallel=$(_cfg_read "parallel.limit")
+if [ -n "$_cfg_parallel" ] && [ "$_cfg_parallel" != "null" ]; then
+    PARALLEL_LIMIT="$_cfg_parallel"
+    PARALLEL_SOURCE="config"
+elif [ -n "${IOCANE_PARALLEL_LIMIT:-}" ]; then
+    PARALLEL_LIMIT="$IOCANE_PARALLEL_LIMIT"
+    PARALLEL_SOURCE="env"
+else
+    PARALLEL_LIMIT="1"
+    PARALLEL_SOURCE="default"
+fi
+
+# Read models.tier3: config -> IOCANE_MODEL env -> hard default
+_cfg_model=$(_cfg_read "models.tier3")
+if [ -n "$_cfg_model" ] && [ "$_cfg_model" != "null" ]; then
+    MODEL="${IOCANE_MODEL:-$_cfg_model}"
+else
+    MODEL="${IOCANE_MODEL:-claude-haiku-4-5-20251001}"
+fi
 
 TASKS_DIR="$REPO_ROOT/plans/tasks"
 
@@ -58,13 +92,13 @@ if [ ${#PENDING[@]} -eq 0 ]; then
 fi
 
 echo "Pending checkpoints: ${PENDING[*]}"
-echo "Parallel limit: $PARALLEL_LIMIT"
+echo "Parallel limit: $PARALLEL_LIMIT (source: $PARALLEL_SOURCE)"
 
 # --- Enforce parallel limit ---
 BATCH=("${PENDING[@]:0:$PARALLEL_LIMIT}")
 
 if [ ${#PENDING[@]} -gt "$PARALLEL_LIMIT" ]; then
-    echo "NOTE: ${#PENDING[@]} pending checkpoints found, dispatching first $PARALLEL_LIMIT per IOCANE_PARALLEL_LIMIT."
+    echo "NOTE: ${#PENDING[@]} pending checkpoints found, dispatching first $PARALLEL_LIMIT per parallel.limit in .claude/iocane.config.yaml."
     echo "Remaining: ${PENDING[@]:$PARALLEL_LIMIT}"
 fi
 

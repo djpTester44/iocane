@@ -13,7 +13,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, Dict, List, Set, Tuple, NamedTuple
 
 import yaml
 
@@ -174,6 +174,44 @@ def is_autouse_fixture(finding: VultureFinding) -> bool:
     return False
 
 
+def is_type_checking_block_or_fallback(finding: VultureFinding) -> Tuple[bool, str]:
+    """
+    Checks if the reported code is part of an 'if TYPE_CHECKING:' block
+    or its corresponding 'else:' runtime fallback (e.g., `Protocol = object`).
+
+    This is critical for Contract-Driven Development (CDD) where interfaces
+    are imported for static analysis but avoided at runtime.
+    """
+    try:
+        with open(finding.file_path, encoding="utf-8") as f:
+            lines = f.readlines()
+            # Check the line itself and a few lines above/below for context
+            start_line = max(0, finding.line_number - 5)
+            end_line = min(len(lines), finding.line_number + 5)
+            context = "".join(lines[start_line:end_line])
+
+            if "if TYPE_CHECKING:" in context:
+                return True, "Code is inside a TYPE_CHECKING block (used for static analysis)."
+
+            if "unused import" in finding.message.lower() and "Protocol" in context:
+                # Vulture sometimes flags the import itself if it's only used in TYPE_CHECKING
+                return True, "Import is a Protocol likely used only during static analysis (CDD)."
+
+            # Check for runtime fallback like `MyProtocol = object`
+            # This is a heuristic, might need refinement
+            if "Protocol" in finding.message and "= object" in context:
+                # More specific check: look for `Name = object` where Name is the reported unused item
+                match = re.search(r"'([^']+)'", finding.message)
+                if match:
+                    imported_name = match.group(1)
+                    if f"{imported_name} = object" in context:
+                        return True, "Code is a runtime fallback assignment for a Protocol (e.g., Protocol = object)."
+
+    except Exception:
+        pass
+    return False, ""
+
+
 def is_io_protocol(finding: VultureFinding) -> bool:
     """Check if the finding is a structural protocol requirement (e.g. io.RawIOBase)."""
     structural_methods = ["writable", "readable", "seekable", "fileno", "isatty"]
@@ -199,7 +237,19 @@ def categorize_findings(findings: list[VultureFinding], report: ReportItems) -> 
             )
             continue
 
-        # 2. String Type Annotations False Positives
+        # 2. TYPE_CHECKING blocks and fallbacks
+        is_type_checking, reason = is_type_checking_block_or_fallback(f)
+        if is_type_checking:
+            report.tier4_verified.append(
+                {
+                    "id": f_id,
+                    "target": f"{f.file_path}:{f.line_number}",
+                    "reason": reason,
+                }
+            )
+            continue
+
+        # 3. String Type Annotations False Positives
         if is_string_annotation(f):
             report.tier4_verified.append(
                 {

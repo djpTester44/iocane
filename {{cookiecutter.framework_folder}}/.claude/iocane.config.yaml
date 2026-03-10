@@ -1,0 +1,9 @@
+# Iocane project configuration
+
+parallel:
+  limit: 1  # Maximum concurrent sub-agents per dispatch batch
+
+models:
+  tier1: claude-opus-4-6           # Strategic: io-clarify, io-architect, io-checkpoint, review
+  tier2: claude-sonnet-4-6         # Orchestration: io-plan-batch, validate-plan, validate-spec
+  tier3: claude-haiku-4-5-20251001 # Execution: io-execute sub-agents (dispatch-agents.sh)
