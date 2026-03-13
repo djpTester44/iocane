@@ -4,8 +4,8 @@ Extracts Protocol definitions, settings keys, layer mapping, and source
 structure into a JSON blob that the /walkthrough-sync workflow consumes.
 
 Usage:
-    uv run python .agent/scripts/generate_walkthrough_context.py
-    uv run python .agent/scripts/generate_walkthrough_context.py --output context.json
+    uv run rtk python .agent/scripts/generate_walkthrough_context.py
+    uv run rtk python .agent/scripts/generate_walkthrough_context.py --output context.json
 """
 
 from __future__ import annotations

@@ -31,7 +31,7 @@ Human owns all Tier 1 decisions. Nothing in Tier 2 or Tier 3 executes until the 
 | Task Files | `plans/tasks/[CP-ID].md` | Orchestrator | Per-checkpoint sub-agent work packages |
 | Dispatch Script | `plans/tasks/run.sh` | Orchestrator | Worktree setup and sub-agent invocation |
 | Status Files | `plans/tasks/[CP-ID].status` | Sub-agent | PASS/FAIL per checkpoint |
-| Backlog | `plans/backlog.md` | Review workflows | Bugs, issues, enhancements from /review and /gap-analysis |
+| Backlog | `plans/backlog.md` | Review workflows | Bugs, issues, enhancements from /io-review and /gap-analysis |
 | Escalation Log | `.iocane/escalation.log` | Hook | Sub-agent failure records |
 | Progress Log | `plans/progress.md` | Append-only | Historical task completion ledger |
 
@@ -61,7 +61,7 @@ Human owns all Tier 1 decisions. Nothing in Tier 2 or Tier 3 executes until the 
 
 [Tier 1 — Human Review]
 
-/review             — per-checkpoint behavioral + connectivity review, findings → backlog.md
+/io-review             — per-checkpoint behavioral + connectivity review, findings → backlog.md
 /io-orchestrate     — next checkpoint batch (loop)
 
 [Full-system, after all checkpoints]
@@ -81,7 +81,7 @@ Human owns all Tier 1 decisions. Nothing in Tier 2 or Tier 3 executes until the 
 | `/io-checkpoint` | YES | Proposes plan.md — human must approve checkpoint boundaries |
 | `/io-orchestrate` | NO | Autonomous — reads approved artifacts, generates task files |
 | `/io-execute` | NO | Autonomous — executes single checkpoint, terminates |
-| `/review` | NO | Read-only analysis |
+| `/io-review` | NO | Read-only analysis |
 | `/gap-analysis` | NO | Read-only analysis |
 | `/doc-sync` | NO | Reconciliation against approved artifacts |
 
@@ -100,7 +100,7 @@ When no workflow is invoked, recommend based on project state:
 7. `plan.md` present, open `[DESIGN]` backlog items → suggest `/io-architect` before orchestrating
 8. Unblocked checkpoints available → suggest `/io-orchestrate`
 9. `plans/tasks/run.sh` written but not executed → instruct: `bash plans/tasks/run.sh`
-10. All checkpoints complete → suggest `/review`, then `/gap-analysis`, then `/doc-sync`
+10. All checkpoints complete → suggest `/io-review`, then `/gap-analysis`, then `/doc-sync`
 
 ---
 

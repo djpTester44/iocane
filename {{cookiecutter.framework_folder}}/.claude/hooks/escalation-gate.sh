@@ -5,7 +5,7 @@
 # .iocane/escalation.flag to signal the orchestrator.
 #
 # SCOPING: Only fires when IOCANE_SUBAGENT=1 is set in the environment.
-# run.sh sets this variable before invoking each `claude -p` sub-agent.
+# dispatch-agents.sh sets this variable before invoking each `claude -p` sub-agent.
 # Interactive sessions never set it, so this hook is a no-op in plan mode.
 #
 # NOTE: Designed to run from a generated project root.
@@ -18,74 +18,65 @@ fi
 
 INPUT=$(cat)
 
-# --- Extract exit_code and tool metadata from hook payload ---
-EXIT_CODE=$(echo "$INPUT" | python3 -c "
-import sys, json
-try:
-    d = json.load(sys.stdin)
-    # PostToolUse payload shape: {tool_name, tool_input, tool_response}
-    # exit_code may be in tool_response or at top level depending on Claude Code version
-    resp = d.get('tool_response', {})
-    code = resp.get('exit_code', d.get('exit_code', None))
-    print(code if code is not None else '')
-except Exception:
-    print('')
-" 2>/dev/null || echo "")
+# --- Extract all fields in a single Python call ---
+# NUL-delimited to survive newlines in command/stderr values.
+# On any parse failure the raw payload is written so there is always
+# something useful in the log.
+PARSED=$(printf '%s' "$INPUT" | uv run rtk python -c "
+import sys, json, os
 
-if [ -z "$EXIT_CODE" ] || [ "$EXIT_CODE" = "null" ]; then
-    echo "[escalation-gate] WARNING: could not extract exit code from payload. Known variance: payload shape may differ by Claude Code version. Logging as exit_code=UNKNOWN." >&2
-    EXIT_CODE="UNKNOWN"
-fi
+raw = sys.stdin.read()
+NUL = chr(0)
+try:
+    d = json.loads(raw)
+    resp = d.get('tool_response', {})
+    code = resp.get('exit_code', d.get('exit_code', 'UNKNOWN'))
+    tool = d.get('tool_name', 'Bash')
+    cmd  = d.get('tool_input', {}).get('command', '(unknown command)')
+    err  = resp.get('stderr', '') or resp.get('output', '') or ''
+    print(str(code) + NUL + tool + NUL + cmd[:500] + NUL + err[:3000].strip())
+except Exception as e:
+    print('PARSE_ERROR' + NUL + 'Bash' + NUL + '(parse failed: ' + str(e) + ')' + NUL + raw[:2000])
+" 2>/dev/null || printf 'EXEC_ERROR\0Bash\0(uv run rtk python failed in hook)\0%s' "$INPUT")
+
+EXIT_CODE=$(printf '%s' "$PARSED" | cut -d$'\0' -f1)
+TOOL_NAME=$(printf '%s' "$PARSED" | cut -d$'\0' -f2)
+COMMAND=$(printf '%s'   "$PARSED" | cut -d$'\0' -f3)
+STDERR_SNIPPET=$(printf '%s' "$PARSED" | cut -d$'\0' -f4-)
+
+[ -z "$EXIT_CODE" ] && EXIT_CODE="UNKNOWN"
+[ -z "$TOOL_NAME" ] && TOOL_NAME="Bash"
+[ -z "$COMMAND"   ] && COMMAND="(unknown command)"
 
 # --- Only act on non-zero exits ---
 if [ "$EXIT_CODE" -eq 0 ] 2>/dev/null; then
     exit 0
 fi
-# UNKNOWN cannot be compared numerically — treat as non-zero and log it
+# UNKNOWN / PARSE_ERROR / EXEC_ERROR cannot be compared numerically — treat as non-zero and log it
 
-# --- Extract useful fields for the log record ---
-TOOL_NAME=$(echo "$INPUT" | python3 -c "
-import sys, json
-try:
-    d = json.load(sys.stdin)
-    print(d.get('tool_name', 'Bash'))
-except Exception:
-    print('Bash')
-" 2>/dev/null || echo "Bash")
-
-COMMAND=$(echo "$INPUT" | python3 -c "
-import sys, json
-try:
-    d = json.load(sys.stdin)
-    cmd = d.get('tool_input', {}).get('command', '')
-    # Truncate long commands for log readability
-    print(cmd[:200] + ('...' if len(cmd) > 200 else ''))
-except Exception:
-    print('(unknown command)')
-" 2>/dev/null || echo "(unknown command)")
-
-STDERR_SNIPPET=$(echo "$INPUT" | python3 -c "
-import sys, json
-try:
-    d = json.load(sys.stdin)
-    resp = d.get('tool_response', {})
-    # Capture first 300 chars of stderr for the error summary
-    err = resp.get('stderr', '') or resp.get('output', '')
-    print(err[:300].strip())
-except Exception:
-    print('')
-" 2>/dev/null || echo "")
-
-# CP-ID is injected by run.sh into the sub-agent environment
+# CP-ID is injected by dispatch-agents.sh into the sub-agent environment
 CP_ID="${IOCANE_CP_ID:-unknown}"
 ATTEMPT="${IOCANE_ATTEMPT:-1}"
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
 
-# --- Ensure .iocane/ directory exists ---
-mkdir -p .iocane
+# --- Write to parent repo .iocane/, not the worktree ---
+# IOCANE_REPO_ROOT is exported by dispatch-agents.sh so the escalation
+# log and flag land in the same place session-start.sh reads them from.
+PARENT_ROOT="${IOCANE_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null)}"
+mkdir -p "$PARENT_ROOT/.iocane"
 
-LOG_FILE=".iocane/escalation.log"
-FLAG_FILE=".iocane/escalation.flag"
+# --- Dump raw payload for schema inspection on every invocation ---
+printf '%s' "$INPUT" > "$PARENT_ROOT/.iocane/hook-debug-last-payload.json"
+
+LOG_FILE="$PARENT_ROOT/.iocane/escalation.log"
+FLAG_FILE="$PARENT_ROOT/.iocane/escalation.flag"
+DEBUG_LOG="$PARENT_ROOT/.iocane/hook-debug.log"
+
+# --- Route non-numeric / non-positive exit codes to debug log only ---
+if ! printf '%s' "$EXIT_CODE" | grep -qE '^[1-9][0-9]*$'; then
+    printf '%s exit_code=%s tool=%s command=%s\n' "$TIMESTAMP" "$EXIT_CODE" "$TOOL_NAME" "$COMMAND" >> "$DEBUG_LOG"
+    exit 0
+fi
 
 # --- Append structured failure record (append-only, never truncated) ---
 cat >> "$LOG_FILE" << EOF
@@ -95,14 +86,13 @@ cp_id: $CP_ID
 attempt: $ATTEMPT
 tool: $TOOL_NAME
 exit_code: $EXIT_CODE
+full_log: ${IOCANE_LOG_FILE:-unknown}
 command: $COMMAND
 error_summary: |
-$(echo "$STDERR_SNIPPET" | sed 's/^/  /')
+$(printf '%s' "$STDERR_SNIPPET" | sed 's/^/  /')
 EOF
 
-# --- Write sentinel flag (orchestrator and session-start.sh read this only) ---
-# The flag is a simple marker file. Its content is not read by the harness.
-# The human clears it manually after reviewing escalation.log.
+# --- Write sentinel flag only when escalation log received a real entry ---
 echo "$TIMESTAMP" > "$FLAG_FILE"
 
 exit 0

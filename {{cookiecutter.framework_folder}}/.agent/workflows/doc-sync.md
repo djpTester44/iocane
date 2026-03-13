@@ -97,7 +97,20 @@ Present proposed changes. Wait for approval.
 
 ---
 
-### Step E: VERIFY FILE LINKS
+### Step E: RECONCILE BACKLOG
+
+For each `[ ]` item in `plans/backlog.md`:
+
+* Read the named component's current implementation.
+* Determine whether the fix described in the `Detail` field has been applied.
+* If resolved: mark the item `[x]` in-place (checkbox state change only — do not alter any other text).
+* If still open: leave `[ ]` and include the item in the Step F output as still-active.
+
+**Rule:** Only checkbox state changes are permitted. Do not edit descriptions, severity, or source fields.
+
+---
+
+### Step F: VERIFY FILE LINKS
 
 * Scan all markdown docs for broken file links.
 * Flag broken links as LOW findings.
@@ -113,6 +126,7 @@ DOC-SYNC COMPLETE.
 README.md: updated
 project-spec.md: [N] reconciliation updates applied
 roadmap.md: [N] status updates [pending approval / applied]
+backlog.md: [N] items closed [x], [N] still open
 Broken links fixed: [N]
 
 [If any CRC drift found:]
@@ -125,7 +139,7 @@ Unanchored behavior flagged: [N items] — run /review-capture to add to backlog
 
 - Does not touch `plans/plan.md` — plan.md is owned by `/io-checkpoint`
 - Does not touch `interfaces/*.pyi` — contracts are owned by `/io-architect`
-- Does not touch `plans/backlog.md` directly — findings go via `/review-capture`
+- Does not **add new findings** to `plans/backlog.md` — new findings go via `/review-capture`. Closing resolved items (`[ ]` → `[x]`) is permitted in Step E.
 - `project-spec.md` changes that alter CRC meaning require human approval
 - `roadmap.md` status updates require human approval
 - No implementation code written in this workflow

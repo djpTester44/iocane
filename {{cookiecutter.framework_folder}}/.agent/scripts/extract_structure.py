@@ -1,75 +1,153 @@
+import argparse
 import ast
 import contextlib
+import json
 import sys
 from pathlib import Path
 
 
-def extract_structure(file_path: str):
+def extract_structure(file_path: str, as_json: bool = False):
     path = Path(file_path)
     if not path.exists():
-        print(f"Error: Path {file_path} not found.")
+        if as_json:
+            print(json.dumps({"error": f"Path not found: {file_path}"}))
+        else:
+            print(f"Error: Path {file_path} not found.")
         return
 
+    results = []
     if path.is_dir():
-        for file in path.rglob("*.py"):
-            print_file_structure(file)
+        for file in sorted(path.rglob("*.py")):
+            results.append(get_file_structure(file))
     else:
-        print_file_structure(path)
+        results.append(get_file_structure(path))
+
+    if as_json:
+        print(json.dumps(results if path.is_dir() else results[0], indent=2))
+    else:
+        for r in results:
+            print_file_structure_from_data(r)
 
 
-def print_file_structure(path: Path):
+# ---------------------------------------------------------------------------
+# Data extraction (shared by both output modes)
+# ---------------------------------------------------------------------------
+
+def get_file_structure(path: Path) -> dict:
+    """Parse a Python file and return a structured dict of its skeleton."""
     try:
         source = path.read_text(encoding="utf-8")
         tree = ast.parse(source)
     except Exception as e:
-        print(f"Error parsing {path}: {e}")
-        return
+        return {"file": path.as_posix(), "error": str(e), "classes": [], "functions": []}
 
-    print(f"# Skeleton for {path.as_posix()}\n")
+    classes = []
+    functions = []
 
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            print_function(node)
+            functions.append(_function_data(node))
         elif isinstance(node, ast.ClassDef):
-            print_class(node)
+            classes.append(_class_data(node))
+
+    return {
+        "file": path.as_posix(),
+        "classes": classes,
+        "functions": functions,
+    }
 
 
-def print_function(node, indent=0):
-    prefix = "  " * indent
-    # Reconstruct signature basics
-    args = ast.unparse(node.args)
-    returns = f" -> {ast.unparse(node.returns)}" if node.returns else ""
-    decorator = (
-        f"@{ast.unparse(node.decorator_list[0])}\n{prefix}"
-        if node.decorator_list
-        else ""
-    )
-
-    print(f"{prefix}{decorator}def {node.name}({args}){returns}:")
-    doc = ast.get_docstring(node)
-    if doc:
-        print(f'{prefix}    """{doc}"""')
-    print(f"{prefix}    ...\n")
+def _function_data(node: ast.FunctionDef | ast.AsyncFunctionDef, indent: int = 0) -> dict:
+    return {
+        "name": node.name,
+        "args": ast.unparse(node.args),
+        "returns": ast.unparse(node.returns) if node.returns else None,
+        "decorators": [ast.unparse(d) for d in node.decorator_list],
+        "docstring": ast.get_docstring(node),
+    }
 
 
-def print_class(node):
-    bases = f"({', '.join(ast.unparse(b) for b in node.bases)})" if node.bases else ""
-    print(f"class {node.name}{bases}:")
-    doc = ast.get_docstring(node)
-    if doc:
-        print(f'    """{doc}"""')
+def _class_data(node: ast.ClassDef) -> dict:
+    bases = [ast.unparse(b) for b in node.bases]
+    methods = []
+    assignments = []
 
     for item in node.body:
         if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            print_function(item, indent=1)
+            methods.append(_function_data(item))
         elif isinstance(item, ast.Assign):
-            # Show class-level assignments if they look like constants/types
             with contextlib.suppress(Exception):
-                print(f"    {ast.unparse(item)}")
+                assignments.append(ast.unparse(item))
+
+    return {
+        "name": node.name,
+        "bases": bases,
+        "docstring": ast.get_docstring(node),
+        "methods": methods,
+        "assignments": assignments,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Human-readable output (original behaviour)
+# ---------------------------------------------------------------------------
+
+def print_file_structure_from_data(data: dict):
+    if "error" in data:
+        print(f"Error parsing {data['file']}: {data['error']}")
+        return
+
+    print(f"# Skeleton for {data['file']}\n")
+
+    for func in data["functions"]:
+        _print_function_human(func)
+
+    for cls in data["classes"]:
+        _print_class_human(cls)
+
+
+def _print_function_human(func: dict, indent: int = 0):
+    prefix = "  " * indent
+    decorators = "".join(f"{prefix}@{d}\n" for d in func["decorators"])
+    returns = f" -> {func['returns']}" if func["returns"] else ""
+    print(f"{decorators}{prefix}def {func['name']}({func['args']}){returns}:")
+    if func["docstring"]:
+        print(f'{prefix}    """{func["docstring"]}"""')
+    print(f"{prefix}    ...\n")
+
+
+def _print_class_human(cls: dict):
+    bases = f"({', '.join(cls['bases'])})" if cls["bases"] else ""
+    print(f"class {cls['name']}{bases}:")
+    if cls["docstring"]:
+        print(f'    """{cls["docstring"]}"""')
+    for assignment in cls["assignments"]:
+        print(f"    {assignment}")
+    for method in cls["methods"]:
+        _print_function_human(method, indent=1)
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Extract structural skeleton from Python files or directories."
+    )
+    parser.add_argument("path", help="File or directory to analyse")
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Output structured JSON instead of human-readable text",
+    )
+    args = parser.parse_args()
+    extract_structure(args.path, as_json=args.json_output)
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python extract_structure.py <file_or_directory>")
+        print("Usage: python extract_structure.py <file_or_directory> [--json]")
     else:
-        extract_structure(sys.argv[1])
+        main()

@@ -22,7 +22,7 @@ fi
 
 INPUT=$(cat)
 
-FILE_PATH=$(python3 -c "
+FILE_PATH=$(uv run rtk python -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -35,7 +35,7 @@ if [ -z "$FILE_PATH" ]; then
     exit 0
 fi
 
-IS_PYI=$(python3 -c "
+IS_PYI=$(uv run rtk python -c "
 import os, sys, re
 p = os.path.normpath('$FILE_PATH').replace('\\\\', '/')
 # Match interfaces/*.pyi (any depth under an 'interfaces' directory)

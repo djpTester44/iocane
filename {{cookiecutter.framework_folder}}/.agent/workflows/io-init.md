@@ -54,7 +54,30 @@ Before proceeding to Step 2, output the following metadata to confirm the projec
 
 ---
 
-### Step C: CREATE PLANS/ DIRECTORY STRUCTURE
+### Step C: SCAFFOLD PYPROJECT.TOML
+
+- **Rule:** If `pyproject.toml` already exists, skip this step entirely.
+- **Action:** Extract from `plans/PRD.md`:
+  - Project name (snake_case)
+  - One-line description
+  - Python version (default `3.12` if not specified)
+- **Action:** Derive `root_packages` from the layer map in Step B. Always include `interfaces`. Example: layers rooted at `src/` → root packages are `src` and `interfaces`.
+- **Action:** Run:
+
+```bash
+bash .agent/scripts/scaffold-greenfield.sh \
+  --name "PROJECT_NAME" \
+  --description "PROJECT_DESCRIPTION" \
+  --python "PYTHON_VERSION" \
+  --root-packages "src,interfaces"
+```
+
+- **Output:** `pyproject.toml` written. Runtime dependencies (`[project].dependencies`) are left empty — the human adds them with `uv add` as the project develops.
+- **Note:** `[[tool.importlinter.contracts]]` is intentionally absent at this stage. `/io-architect` appends it after the layer hierarchy is finalized.
+
+---
+
+### Step C2: CREATE PLANS/ DIRECTORY STRUCTURE
 
 Create the following directory scaffolding if not already present:
 
@@ -63,10 +86,10 @@ plans/
   PRD.md          (already exists — do not modify)
   roadmap.md      (stub — created in Step D)
   backlog.md      (create empty with standard header)
-  tasks/          (empty directory — populated by /io-orchestrate)
+  tasks/          (empty directory — populated by /io-plan-batch)
 ```
 
-Do not create `plans/PLAN.md`. Checkpoint planning is handled by `/io-checkpoint` after contracts are locked. The `tasks/` directory is intentionally empty at this stage — `/io-orchestrate` populates it.
+Do not create `plans/PLAN.md`. Checkpoint planning is handled by `/io-checkpoint` after contracts are locked. The `tasks/` directory is intentionally empty at this stage — `/io-plan-batch` populates it.
 
 ---
 
@@ -107,7 +130,7 @@ Do not create `plans/PLAN.md`. Checkpoint planning is handled by `/io-checkpoint
 ```markdown
 # Backlog
 
-Findings from /review and /gap-analysis. Append-only — never delete entries.
+Findings from /io-review and /gap-analysis. Append-only — never delete entries.
 Items marked [x] are resolved. Items marked [ ] are active.
 
 ---
@@ -122,6 +145,7 @@ Items marked [x] are resolved. Items marked [ ] are active.
 ```
 BOOTSTRAP COMPLETE.
 
+pyproject.toml scaffolded (runtime deps empty — add with uv add).
 plans/roadmap.md created (stub — ready for /io-specify).
 plans/backlog.md initialized.
 

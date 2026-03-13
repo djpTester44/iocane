@@ -9,13 +9,18 @@
 
 set -euo pipefail
 
+INPUT=$(cat)
+
 # Clear any stale validating sentinel left by a crashed session.
 # If present at session start, the reset hooks would be permanently disabled.
 rm -f .iocane/validating
 
+# Write model name so write-gate can exempt interactive (non-haiku) sessions.
+echo "$INPUT" | uv run rtk python -c "import sys,json; d=json.load(sys.stdin); open(\".iocane/session-model\",\"w\").write(d.get(\"model\",\"unknown\"))" 2>/dev/null || true
+
 output_json() {
     local content="$1"
-    uv run python -c "
+    uv run rtk python -c "
 import json, sys
 content = sys.stdin.read()
 print(json.dumps({'systemPrompt': content}))
@@ -60,7 +65,7 @@ if [ -f "$PLAN_FILE" ]; then
 fi
 
 # --- Read plans/tasks/ for recent status files ---
-TASKS_DIR="tasks"
+TASKS_DIR="plans/tasks"
 LAST_COMPLETED=""
 RECENT_FAILURES=""
 
@@ -92,8 +97,8 @@ DESIGN_ITEMS=""
 REFACTOR_ITEMS=""
 
 if [ -f "$BACKLOG_FILE" ]; then
-    DESIGN_ITEMS=$(grep -c "^\- \[ \] \[DESIGN\]" "$BACKLOG_FILE" 2>/dev/null || echo "0")
-    REFACTOR_ITEMS=$(grep -c "^\- \[ \] \[REFACTOR\]" "$BACKLOG_FILE" 2>/dev/null || echo "0")
+    DESIGN_ITEMS=$(grep -c "^\- \[ \] \[DESIGN\]" "$BACKLOG_FILE" 2>/dev/null | tr -d '\r' || echo "0")
+    REFACTOR_ITEMS=$(grep -c "^\- \[ \] \[REFACTOR\]" "$BACKLOG_FILE" 2>/dev/null | tr -d '\r' || echo "0")
 
     if [ "$DESIGN_ITEMS" -gt 0 ] || [ "$REFACTOR_ITEMS" -gt 0 ]; then
         BACKLOG_ALERT="
@@ -138,20 +143,17 @@ suggest_next_workflow() {
         return
     fi
 
-    # Check if plans/tasks/run.sh exists but hasn't been executed yet
-    if [ -f "$TASKS_DIR/run.sh" ]; then
-        # Check if any status files are missing for the current batch
-        MISSING=$(ls "$TASKS_DIR"/*.md 2>/dev/null | while read f; do
-            CP_ID=$(basename "$f" .md)
-            if [ ! -f "$TASKS_DIR/$CP_ID.status" ]; then
-                echo "$CP_ID"
-            fi
-        done | grep -v "^$" || echo "")
-
-        if [ -n "$MISSING" ]; then
-            echo "run.sh is ready but not yet executed. Run: bash plans/tasks/run.sh"
-            return
+    # Check if task files exist but haven't been dispatched yet
+    MISSING=$(ls "$TASKS_DIR"/*.md 2>/dev/null | while read f; do
+        CP_ID=$(basename "$f" .md)
+        if [ ! -f "$TASKS_DIR/$CP_ID.status" ]; then
+            echo "$CP_ID"
         fi
+    done | grep -v "^$" || echo "")
+
+    if [ -n "$MISSING" ]; then
+        echo "Task files ready but not yet dispatched. Run: uv run rtk bash .claude/scripts/dispatch-agents.sh"
+        return
     fi
 
     # All checkpoints complete — ready for review or next feature

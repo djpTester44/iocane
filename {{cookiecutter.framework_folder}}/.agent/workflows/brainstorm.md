@@ -15,7 +15,7 @@ This workflow produces no implementation artifacts. Its output is either a ready
 >
 > - The user describes a new capability that has no corresponding requirement in `plans/PRD.md`.
 > - The user describes a change that would modify existing requirements or invalidate completed checkpoints.
-> - A `/gap-analysis` or `/review` surfaces a pattern suggesting the PRD is incomplete or outdated.
+> - A `/gap-analysis` or `/io-review` surfaces a pattern suggesting the PRD is incomplete or outdated.
 
 ---
 

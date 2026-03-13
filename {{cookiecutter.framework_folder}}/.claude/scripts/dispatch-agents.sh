@@ -11,7 +11,7 @@
 #   7. Reports batch summary
 #
 # Usage:
-#   bash .claude/scripts/dispatch-agents.sh
+#   uv run rtk bash .claude/scripts/dispatch-agents.sh
 #
 # Environment (all optional, override config when config is absent):
 #   IOCANE_PARALLEL_LIMIT  -- max concurrent agents (fallback when config unreadable)
@@ -27,8 +27,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # --- Configuration ---
 REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null)}"
 CONFIG_FILE="$REPO_ROOT/.claude/iocane.config.yaml"
-AGENT_TIMEOUT="${IOCANE_TIMEOUT:-10m}"
-MAX_TURNS="${IOCANE_MAX_TURNS:-20}"
 
 # _cfg_read: extract section.key value from YAML config (awk-based, no external deps)
 # Usage: _cfg_read "parallel.limit"
@@ -57,6 +55,22 @@ else
     PARALLEL_SOURCE="default"
 fi
 
+# Read agents.max_turns: config -> IOCANE_MAX_TURNS env -> default 50
+_cfg_max_turns=$(_cfg_read "agents.max_turns")
+if [ -n "$_cfg_max_turns" ] && [ "$_cfg_max_turns" != "null" ]; then
+    MAX_TURNS="${IOCANE_MAX_TURNS:-$_cfg_max_turns}"
+else
+    MAX_TURNS="${IOCANE_MAX_TURNS:-50}"
+fi
+
+# Read agents.timeout: config -> IOCANE_TIMEOUT env -> default 10m
+_cfg_timeout=$(_cfg_read "agents.timeout")
+if [ -n "$_cfg_timeout" ] && [ "$_cfg_timeout" != "null" ]; then
+    AGENT_TIMEOUT="${IOCANE_TIMEOUT:-$_cfg_timeout}"
+else
+    AGENT_TIMEOUT="${IOCANE_TIMEOUT:-10m}"
+fi
+
 # Read models.tier3: config -> IOCANE_MODEL env -> hard default
 _cfg_model=$(_cfg_read "models.tier3")
 if [ -n "$_cfg_model" ] && [ "$_cfg_model" != "null" ]; then
@@ -71,6 +85,10 @@ if [ -z "$REPO_ROOT" ]; then
     echo "ERROR: Could not determine repo root. Are you inside a git repository?" >&2
     exit 1
 fi
+
+# Capture the branch that was checked out when the user ran this script.
+# Completed checkpoint branches are merged back here on PASS.
+PARENT_BRANCH=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD)
 
 # --- Collect pending task files ---
 # A task file is pending if CP-XX.md exists but CP-XX.status does not.
@@ -120,16 +138,26 @@ for CP_ID in "${BATCH[@]}"; do
         # Deterministic io-execute invocation string -- same for every checkpoint.
         INVOKE_PROMPT="Read and execute the workflow defined in .agent/workflows/io-execute.md. Your task file is plans/tasks/${CP_ID}.md. Follow every step exactly. Terminate after writing the status file."
 
+        ATTEMPT_FILE="$REPO_ROOT/.iocane/$CP_ID.attempts"
+        ATTEMPT=$(cat "$ATTEMPT_FILE" 2>/dev/null || echo "0")
+        ATTEMPT=$((ATTEMPT + 1))
+        echo "$ATTEMPT" > "$ATTEMPT_FILE"
+
         export IOCANE_SUBAGENT=1
         export IOCANE_CP_ID="$CP_ID"
+        export IOCANE_ATTEMPT="$ATTEMPT"
+        export IOCANE_REPO_ROOT="$REPO_ROOT"
+        export IOCANE_LOG_FILE="$LOG_FILE"
+        # Unset VIRTUAL_ENV so uv uses the worktree venv, not the parent repo venv.
+        unset VIRTUAL_ENV
 
         cd "$WORKTREE_PATH"
 
-        timeout "$AGENT_TIMEOUT" claude -p \
+        echo "$INVOKE_PROMPT" | timeout "$AGENT_TIMEOUT" claude -p \
             --model "$MODEL" \
             --max-turns "$MAX_TURNS" \
             --allowedTools "Bash,Read,Write,Edit" \
-            "$INVOKE_PROMPT" \
+            --output-format text \
             > "$LOG_FILE" 2>&1
         AGENT_EXIT=$?
 
@@ -155,9 +183,19 @@ for CP_ID in "${BATCH[@]}"; do
     if [ "$EXIT_CODE" -eq 0 ] && [ "$STATUS" = "PASS" ]; then
         echo "$CP_ID: PASS"
 
-        # Clean up worktree on success only
+        # Check whether the branch has any new commits to merge.
+        AHEAD=$(git -C "$REPO_ROOT" rev-list --count "$PARENT_BRANCH..iocane/$CP_ID" 2>/dev/null || echo "0")
+        if [ "$AHEAD" -eq 0 ]; then
+            echo "$CP_ID: WARNING — branch iocane/$CP_ID has no new commits. Sub-agent may not have committed its work. Skipping merge." >&2
+        else
+            git -C "$REPO_ROOT" merge "iocane/$CP_ID" --no-ff -m "Merge checkpoint $CP_ID into $PARENT_BRANCH"
+            echo "$CP_ID: Merged into $PARENT_BRANCH."
+        fi
+
         git -C "$REPO_ROOT" worktree remove "$REPO_ROOT/.worktrees/$CP_ID" --force 2>/dev/null || true
-        echo "$CP_ID: Worktree removed."
+        git -C "$REPO_ROOT" worktree prune
+        git -C "$REPO_ROOT" branch -d "iocane/$CP_ID" 2>/dev/null || true
+        echo "$CP_ID: Worktree and branch removed."
 
     else
         echo "$CP_ID: $STATUS (exit $EXIT_CODE) -- see $TASKS_DIR/$CP_ID.log"

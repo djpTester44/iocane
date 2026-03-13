@@ -2,7 +2,15 @@
   "permissions": {
     "allow": [
       "Bash(find:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(bash:*)",
+      "Bash(source:*)",
+      "Bash(source .venv/Scripts/activate && rtk pytest tests/core/ 2>&1)",
+      "Bash(cd C:/Users/danny/projects/030926_claude-harness-testing && uv run rtk pytest tests/connectivity/test_cp01_cp06.py 2>&1)",
+      "Bash(cd C:/Users/danny/projects/030926_claude-harness-testing && rtk pytest tests/lib/test_pipeline_repo.py 2>&1)",
+      "Bash(rtk git:*)",
+      "Bash(rtk find:*)",
+      "Bash(rtk uv:*)"
     ]
   }
 }

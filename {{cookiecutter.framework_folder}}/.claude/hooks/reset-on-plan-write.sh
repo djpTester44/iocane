@@ -13,7 +13,7 @@
 if [ -f ".iocane/validating" ]; then
     # If this write IS the Plan Validated stamp itself, the sentinel's job is done.
     # Auto-delete so the agent does not need an explicit cleanup step.
-    NEW_CONTENT=$(python3 -c "
+    NEW_CONTENT=$(uv run rtk python -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -30,7 +30,7 @@ fi
 
 INPUT=$(cat)
 
-FILE_PATH=$(python3 -c "
+FILE_PATH=$(uv run rtk python -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -43,7 +43,7 @@ if [ -z "$FILE_PATH" ]; then
     exit 0
 fi
 
-MATCH=$(python3 -c "
+MATCH=$(uv run rtk python -c "
 import os, sys
 p = os.path.normpath('$FILE_PATH').replace('\\\\', '/')
 print('yes' if p.endswith('plans/plan.md') else 'no')

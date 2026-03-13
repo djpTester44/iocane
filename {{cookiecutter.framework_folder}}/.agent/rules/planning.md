@@ -37,7 +37,7 @@ globs: plans/**, interfaces/**
 
 ## [HARD] Requirements Analysis
 
-1. **No Speculation**: Do not assume a library or function exists. Verify strictly with a semantic search tool, `smart_search`, or a filename search tool.
+1. **No Speculation**: Do not assume a library or function exists. Verify strictly using a search tool (content or filename) before proceeding.
 2. **Integration Integrity**: If a Checkpoint modifies the critical path (Input -> Logic -> Output), you **MUST** include a task to run/update `tests/test_integration_golden_path.py`.
 
 ## DESIGN PRINCIPLES

@@ -6,6 +6,7 @@ description: Full-system integration correctness analysis after all checkpoints 
 > Read-only analysis. No file writes except via /review-capture at the end.
 
 > **[CRITICAL] CONTEXT LOADING**
+>
 > 1. Load planning rules: `view_file .agent/rules/planning.md`
 > 2. Load the Architecture Spec: `view_file plans/project-spec.md`
 > 3. Load all contracts: `view_file interfaces/*.pyi`
@@ -17,8 +18,9 @@ description: Full-system integration correctness analysis after all checkpoints 
 **Scope:** Full system — all components in the Interface Registry.
 
 **Position in chain:**
+
 ```
-/review (all checkpoints) -> [/gap-analysis] -> /doc-sync
+/io-review (all checkpoints) -> [/gap-analysis] -> /doc-sync
 ```
 
 ---
@@ -38,9 +40,9 @@ Before proceeding, output:
 
 ### Step A: ALL-GATES VERIFICATION
 
-* **Action:** For every checkpoint in `plans/plan.md`, verify `tasks/[CP-ID].status` is `PASS`.
-* **Action:** Run every connectivity test gate command listed in `plans/plan.md`.
-* **Output:** Full pass/fail table.
+- **Action:** For every checkpoint in `plans/plan.md`, verify `tasks/[CP-ID].status` is `PASS`.
+- **Action:** Run every connectivity test gate command listed in `plans/plan.md`.
+- **Output:** Full pass/fail table.
 
 If any checkpoint gate or connectivity test is failing, output a warning and continue — do not halt. Surface all failures in the findings report.
 
@@ -50,35 +52,37 @@ If any checkpoint gate or connectivity test is failing, output a warning and con
 
 For every entry in the Interface Registry (`plans/project-spec.md`):
 
-* **Action:** Run `uv run python .agent/scripts/extract_structure.py <implementation_file>` to map the public surface area.
-* **Check:** Does the implementation surface match the Protocol signature exactly?
-  * Missing methods → HIGH finding
-  * Signature mismatch (wrong types, wrong return) → HIGH finding
-  * Extra public methods not in Protocol → MEDIUM finding (scope creep)
-* **Check:** Run `uv run python .agent/scripts/check_design_anchors.py` to verify CRC-to-Protocol alignment.
+- **Action:** Run `uv run rtk python .agent/scripts/extract_structure.py <implementation_file>` to map the public surface area.
+
+- **Check:** Does the implementation surface match the Protocol signature exactly?
+  - Missing methods → HIGH finding
+  - Signature mismatch (wrong types, wrong return) → HIGH finding
+  - Extra public methods not in Protocol → MEDIUM finding (scope creep)
+
+- **Check:** Run `uv run rtk python .agent/scripts/check_design_anchors.py` to verify CRC-to-Protocol alignment.
 
 ---
 
 ### Step C: LAYER COMPLIANCE AUDIT
 
-* **Action:** Run `uv run lint-imports` across the full codebase.
-* **Output:** Any layer violations as HIGH findings.
-* **Check:** Review `ignore_imports` list in `pyproject.toml`. Are all tracked deferrals still justified? Flag any that appear resolvable.
+- **Action:** Run `uv run rtk lint-imports` across the full codebase.
+- **Output:** Any layer violations as HIGH findings.
+- **Check:** Review `ignore_imports` list in `pyproject.toml`. Are all tracked deferrals still justified? Flag any that appear resolvable.
 
 ---
 
 ### Step D: DI COMPLIANCE AUDIT
 
-* **Action:** Run `uv run python .agent/scripts/check_di_compliance.py` across the full codebase.
-* **Check:** Any untracked `# noqa: DI` suppressions → HIGH finding.
-* **Check:** Any `[CRITICAL]` or `[WARNING]` findings not already in `plans/backlog.md` → new findings.
+- **Action:** Run `uv run rtk python .agent/scripts/check_di_compliance.py` across the full codebase.
+- **Check:** Any untracked `# noqa: DI` suppressions → HIGH finding.
+- **Check:** Any `[CRITICAL]` or `[WARNING]` findings not already in `plans/backlog.md` → new findings.
 
 ---
 
 ### Step E: TYPE CORRECTNESS AUDIT
 
-* **Action:** Run `uv run mypy .` across the full codebase.
-* **Output:** Any type errors not caught during per-checkpoint review → MEDIUM findings.
+- **Action:** Run `uv run rtk mypy .` across the full codebase.
+- **Output:** Any type errors not caught during per-checkpoint review → MEDIUM findings.
 
 ---
 
@@ -86,9 +90,9 @@ For every entry in the Interface Registry (`plans/project-spec.md`):
 
 Verify cross-component wiring:
 
-* Do components that depend on each other (per CRC Collaborators) actually use the correct Protocol-typed injection?
-* Are there any concrete class imports in non-entrypoint layers (should only be Protocol names)?
-* Are there any circular dependencies not already in `ignore_imports`?
+- Do components that depend on each other (per CRC Collaborators) actually use the correct Protocol-typed injection?
+- Are there any concrete class imports in non-entrypoint layers (should only be Protocol names)?
+- Are there any circular dependencies not already in `ignore_imports`?
 
 ---
 
@@ -129,8 +133,8 @@ Verify cross-component wiring:
 
 ### Step H: ROUTE FINDINGS
 
-* **Action:** Run `/review-capture` to classify and log all HIGH and MEDIUM findings to `plans/backlog.md`.
-* **Rule:** Findings not in `backlog.md` are invisible to subsequent planning. This step is mandatory if any findings exist.
+- **Action:** Run `/review-capture` to classify and log all HIGH and MEDIUM findings to `plans/backlog.md`.
+- **Rule:** Findings not in `backlog.md` are invisible to subsequent planning. This step is mandatory if any findings exist.
 
 ---
 

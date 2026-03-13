@@ -8,7 +8,7 @@
 
 INPUT=$(cat)
 
-FILE_PATH=$(echo "$INPUT" | uv run python -c "
+FILE_PATH=$(echo "$INPUT" | uv run rtk python -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -22,12 +22,18 @@ if [[ "$FILE_PATH" != *.py ]]; then
     exit 0
 fi
 
+# Only gate in haiku sub-agent sessions; interactive sessions have a human present.
+SESSION_MODEL=$(cat .iocane/session-model 2>/dev/null || echo "")
+if [[ "$SESSION_MODEL" != *"haiku"* ]]; then
+    exit 0
+fi
+
 # Compliance script must exist to run the gate.
 if [ ! -f ".agent/scripts/check_di_compliance.py" ]; then
     exit 0
 fi
 
-OUTPUT=$(uv run python .agent/scripts/check_di_compliance.py 2>&1)
+OUTPUT=$(uv run rtk python .agent/scripts/check_di_compliance.py 2>&1)
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then

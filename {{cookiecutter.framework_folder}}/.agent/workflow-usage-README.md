@@ -3,8 +3,8 @@
 ## Orchestration Chain
 
 ```
-/io-clarify -> /io-specify -> /io-architect -> /io-checkpoint -> /validate-plan -> /io-plan-batch -> /io-orchestrate (or direct dispatch)
-                                   └── [.pyi OOB change] -> /validate-spec ───────────> /io-checkpoint
+/io-clarify -> /io-init -> /io-specify -> /io-architect -> /io-checkpoint -> /validate-plan -> /io-plan-batch -> /io-orchestrate (or direct dispatch)
+                                              └── [.pyi OOB change] -> /validate-spec ───────────> /io-checkpoint
 ```
 
 ---
@@ -22,7 +22,7 @@ After `/io-plan-batch` accepts a batch and writes task files, you have two equiv
 **Option B — Direct script invocation:**
 
 ```bash
-bash .claude/scripts/dispatch-agents.sh
+uv run rtk bash .claude/scripts/dispatch-agents.sh
 ```
 
 Both options are equivalent. `/io-orchestrate` is a thin alias for the script invocation provided for discoverability. Direct invocation is preferred if you are comfortable with the CLI.
@@ -44,6 +44,23 @@ Controls how many checkpoints `/io-plan-batch` may include in a single batch. `/
 
 - Default if config file is missing: `1`
 - Increase with caution — parallelization safety is checked per batch, but higher limits increase the blast radius of a bad batch composition.
+
+### `agents.max_turns`
+
+Controls the maximum number of turns a sub-agent may take before the dispatcher terminates it. See `.claude/iocane.config.yaml` for the current value.
+
+- If an agent exhausts its budget mid-run, no `.status` file is written — the checkpoint remains pending and will be re-picked on the next dispatch, resuming from the last completed `## Step Progress` checkbox.
+- If turn exhaustion recurs on a particular checkpoint, increase `agents.max_turns` in `.claude/iocane.config.yaml` before re-dispatching.
+- The `IOCANE_MAX_TURNS` environment variable overrides this value for ad-hoc runs.
+
+### Resetting failed checkpoints
+
+```bash
+bash .claude/scripts/reset-failed-checkpoints.sh          # reset all FAIL checkpoints
+bash .claude/scripts/reset-failed-checkpoints.sh CP-XX    # reset a specific checkpoint
+```
+
+Removes the worktree, branch, `.status`, and `.exit` files for each named checkpoint so it can be re-queued by `/io-plan-batch`. Log files are preserved. Run `/io-plan-batch` after reset to generate a fresh task file before dispatching.
 
 ---
 
@@ -81,6 +98,7 @@ The sentinel is automatically cleared on session start. If it is unexpectedly pr
 | Workflow | Purpose | Writes to |
 |----------|---------|-----------|
 | `/io-clarify` | Clarify PRD ambiguities and critique against quality rubric | `plans/PRD.md` |
+| `/io-init` | Bootstrap project structure and stub roadmap from clarified PRD | `plans/roadmap.md`, `plans/backlog.md` |
 | `/io-specify` | Propose feature roadmap from clarified PRD | `plans/roadmap.md` |
 | `/io-architect` | Design CRC cards, Protocols, Interface Registry | `plans/project-spec.md`, `interfaces/*.pyi` |
 | `/io-checkpoint` | Define atomic checkpoints and connectivity tests | `plans/plan.md` |
@@ -89,7 +107,7 @@ The sentinel is automatically cleared on session start. If it is unexpectedly pr
 | `/io-orchestrate` | Dispatch agents (alias for `dispatch-agents.sh`) | none |
 | `/validate-spec` | Detect CRC-Protocol drift and re-earn `**Approved:** True` (recovery path) | `plans/project-spec.md` (stamp only) |
 | `/doc-sync` | Reconcile docs with codebase after feature completion | `plans/project-spec.md`, `plans/roadmap.md`, `README.md` |
-| `/review` | Post-implementation review | `plans/backlog.md` |
+| `/io-review` | Post-implementation review | `plans/backlog.md` |
 | `/gap-analysis` | Identify gaps between implementation and spec | `plans/backlog.md` |
 
 ---
@@ -123,7 +141,7 @@ The following workflows require human interaction and must never be dispatched h
 - `/io-architect`
 - `/io-checkpoint`
 - `/validate-spec`
-- `/review`
+- `/io-review`
 
 ---
 

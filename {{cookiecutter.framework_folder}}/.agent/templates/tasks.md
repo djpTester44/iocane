@@ -60,7 +60,7 @@ Do not load any other file from the repository.
 ## Gate Command
 
 ```
-pytest tests/[path]/test_[module].py
+uv run rtk pytest tests/[path]/test_[module].py
 ```
 
 This must pass before you write the status file. If it does not pass after 3 remediation attempts, write FAIL and terminate.
@@ -72,8 +72,21 @@ This must pass before you write the status file. If it does not pass after 3 rem
 Run each of these after your gate passes. If any go red, write FAIL and terminate immediately — do not attempt remediation.
 
 ```
-pytest tests/connectivity/test_[cp_a]_[cp_nn].py::[function_name]
+uv run rtk pytest tests/connectivity/test_[cp_a]_[cp_nn].py::[function_name]
 ```
+
+---
+
+## Refactor Commands
+
+After the gate passes, run these — scoped to your write targets only:
+
+```bash
+uv run ruff check src/[path]/
+uv run mypy src/[path]/
+```
+
+Do NOT run linters against `.` (the whole repo) or against any path outside your write targets.
 
 ---
 

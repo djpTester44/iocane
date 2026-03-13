@@ -18,12 +18,12 @@ Execution follows a strict chronology. Design is locked before any code is writt
   4. /io-checkpoint   — PLAN MODE — propose plan.md + connectivity test signatures, human approves
 
 [Tier 2 — Harness Autonomous]
-  5. /io-orchestrate  — score confidence rubric, generate task files + run.sh
-  6. bash plans/tasks/run.sh  — human executes; sub-agents run in git worktrees
+  5. /io-plan-batch   — compose batch, score confidence rubric, generate task files, human approves
+  6. /io-orchestrate or uv run rtk bash .claude/scripts/dispatch-agents.sh  — human executes; sub-agents run in git worktrees
 
 [Tier 1 — Human Review]
-  7. /review          — per-checkpoint behavioral + connectivity review
-  8. repeat /io-orchestrate → run.sh → /review for each checkpoint batch
+  7. /io-review          — per-checkpoint behavioral + connectivity review
+  8. repeat /io-plan-batch → /io-orchestrate → /io-review for each checkpoint batch
 
 [Full-system close]
   9. /gap-analysis    — integration correctness across entire codebase
@@ -40,8 +40,8 @@ The human is required at these moments and only these:
 | Roadmap proposal | `/io-specify` | Approve or correct `roadmap.md` |
 | Design proposal | `/io-architect` | Approve CRC + Protocols — contract lock |
 | Checkpoint boundaries | `/io-checkpoint` | Approve `plan.md` + connectivity signatures |
-| Run sub-agents | post `/io-orchestrate` | `bash plans/tasks/run.sh` |
-| Checkpoint review | `/review` | Approve or route findings to backlog |
+| Run sub-agents | post `/io-plan-batch` | `/io-orchestrate` or `uv run rtk bash .claude/scripts/dispatch-agents.sh` |
+| Checkpoint review | `/io-review` | Approve or route findings to backlog |
 | Escalation | session start | Review `.iocane/escalation.log`, clear flag |
 | Replanning | `/io-replan` | Approve PRD delta propagation |
 
@@ -94,12 +94,29 @@ Sub-agents run in dedicated git worktrees to prevent filesystem collisions durin
 
 Each worktree is a full checkout. Two checkpoints can run concurrently only if their `write_targets` are completely disjoint — this is enforced at `/io-checkpoint` time, not at runtime.
 
-After a checkpoint batch completes and `/review` approves:
+After a checkpoint batch completes and `/io-review` approves:
 
 - Merge `iocane/[CP-ID]` branches to main
 - Remove worktrees
 
-The merge is a human action at the `/review` boundary. The orchestrator does not perform merges.
+The merge is a human action at the `/io-review` boundary. The orchestrator does not perform merges.
+
+### Recovering from Failed Checkpoints
+
+When a sub-agent writes a FAIL status (or exhausts its turn budget without writing any status), the worktree is preserved at `.worktrees/[CP-ID]` for inspection.
+
+**Step Progress resumability:** Task files contain a `## Step Progress` section with checkboxes for each execution step (B–G). The sub-agent marks each step complete as it goes. On re-dispatch, the agent reads the checkboxes and resumes from the first unchecked step — skipping already-completed work.
+
+**To reset and re-dispatch a failed checkpoint:**
+
+```bash
+bash .claude/scripts/reset-failed-checkpoints.sh          # reset all FAIL checkpoints
+bash .claude/scripts/reset-failed-checkpoints.sh CP-XX    # reset a specific checkpoint
+```
+
+This removes the worktree, deletes the `iocane/CP-XX` branch, clears the `.status` and `.exit` files, and resets the attempt counter. Log files are preserved for post-mortem. After reset, run `/io-plan-batch` to generate a fresh task file, then re-dispatch.
+
+**Turn budget exhaustion:** If an agent hits `agents.max_turns` mid-run without writing a status file, no `.status` file is created — the checkpoint appears pending and will be picked up on the next dispatch. If the existing worktree is still intact and Step Progress shows partial completion, re-dispatch reuses the worktree and resumes from the last unchecked step. If resumption is not viable, run `reset-failed-checkpoints.sh` first. Adjust `agents.max_turns` in `.claude/iocane.config.yaml` if turn exhaustion recurs on complex checkpoints.
 
 ---
 
@@ -121,9 +138,9 @@ When removing redundant or dead code, prove unused status before deletion.
 3. **Verify integrity:**
 
    ```bash
-   uv run lint-imports       # broken internal references
-   uv run mypy .             # type signature drift
-   uv run pytest             # behavioral regressions
+   uv run rtk lint-imports       # broken internal references
+   uv run rtk mypy .             # type signature drift
+   uv run rtk pytest         # behavioral regressions
    ```
 
 4. **Cleanup spec:** Remove the entry from the Interface Registry in `plans/project-spec.md`. Run `/doc-sync` to reconcile.
@@ -132,10 +149,10 @@ When removing redundant or dead code, prove unused status before deletion.
 
 ## 5. Backlog Lifecycle
 
-`plans/backlog.md` is the formal tracking record for all `/review` and `/gap-analysis` findings. It is append-only and survives across all sessions.
+`plans/backlog.md` is the formal tracking record for all `/io-review` and `/gap-analysis` findings. It is append-only and survives across all sessions.
 
 ```
-/review or /gap-analysis  --> surfaces findings
+/io-review or /gap-analysis  --> surfaces findings
 /review-capture           --> appends [ ] items to plans/backlog.md with taxonomy tags
 /io-orchestrate           --> reads backlog.md, warns on [DESIGN]/[REFACTOR] conflicts
 /doc-sync                 --> human marks resolved items [x] after verification
@@ -163,8 +180,8 @@ When removing redundant or dead code, prove unused status before deletion.
 Projects created before Session 3 used `plans/tasks.json`. The converter script migrates to the new per-checkpoint format:
 
 ```bash
-uv run python .agent/scripts/tasks_json_to_md.py --dry-run   # preview
-uv run python .agent/scripts/tasks_json_to_md.py             # write
+uv run rtk python .agent/scripts/tasks_json_to_md.py --dry-run   # preview
+uv run rtk python .agent/scripts/tasks_json_to_md.py             # write
 ```
 
 After conversion, review each generated `plans/tasks/[CP-ID].md` and fill in `[REQUIRED: fill in]` placeholders:

@@ -172,8 +172,49 @@ Generate a Plan Validation report:
 1. If all VIOLATIONs are auto-remediable: amend `plan.md`, mark each change `[AUTO-AMENDED]`, and re-run checks 4–10.
 2. If any non-auto-remediable VIOLATION exists: stop immediately and escalate to user with findings.
 3. After each pass, compare violation set to previous pass. If no new violations appear, the loop has converged — proceed to Step 13.
-4. If the same violation recurs across two consecutive passes: stop and escalate to the user.
+4. If the same violation recurs across 3 passes: the violation is structural. Execute the 3x-failure path below.
 5. On success: proceed to Step 13.
+
+**3x-Failure Path:**
+
+When a violation has appeared in 3 consecutive passes without being resolved, auto-heal has exhausted its scope. The problem is in the underlying design, not in `plan.md` surface edits.
+
+1. Stamp `plans/plan.md` with `**Plan Validated:** FAIL` (via Step 13 sentinel procedure).
+2. Append an `## Architect Brief` section to `plans/plan.md`:
+
+```markdown
+## Architect Brief
+
+**Reason:** validate-plan self-heal failed to converge after 3 passes.
+**Action required:** Run /io-architect to correct the design, then re-run /io-checkpoint and /validate-plan.
+
+### Persistent Violations
+
+| Pass | Flag | Checkpoint | Component | Attempted Fix | Why It Did Not Resolve |
+|------|------|------------|-----------|---------------|------------------------|
+| 1    | ...  | ...        | ...       | ...           | ...                    |
+| 2    | ...  | ...        | ...       | ...           | ...                    |
+| 3    | ...  | ...        | ...       | ...           | ...                    |
+
+### Implied Structural Issue
+
+[One paragraph: what the recurring violation reveals about the design — e.g.,
+"CP-03 and CP-04 cannot be merged because they reference components from different
+CRC cards with no shared Protocol anchor. The CRC card for ComponentX may need
+to be split, or the checkpoint boundary redrawn at /io-checkpoint."]
+```
+
+3. Inform the user:
+```
+VALIDATE-PLAN: 3x self-heal failure. Plan stamped FAIL.
+
+Architect Brief written to plans/plan.md — open the file and read the
+## Architect Brief section. Then run /io-architect to correct the design.
+
+Path forward: /io-architect → /io-checkpoint → /validate-plan
+```
+
+Do NOT offer to re-run `/validate-plan`. The loop cannot converge without a design change.
 
 ---
 
@@ -187,8 +228,9 @@ Generate a Plan Validation report:
 
 **Gate Behavior:**
 
-* If all VIOLATIONs are auto-remediable, the agent fixes them and re-validates until no new violations appear, or escalates if the same violation recurs across two consecutive passes.
-* If any non-auto-remediable VIOLATION exists, the plan **FAILS** and the user must intervene.
+* If all VIOLATIONs are auto-remediable, the agent fixes them and re-validates until no new violations appear.
+* If any non-auto-remediable VIOLATION exists, the plan **FAILS** immediately and the user must intervene.
+* If the same violation recurs across 3 passes, the plan **FAILS** and an Architect Brief is written to `plans/plan.md`. Path forward: `/io-architect` → `/io-checkpoint` → `/validate-plan`.
 * Only a **PASS** result (zero VIOLATIONs) allows `/io-plan-batch` to proceed.
 
 **Gate Artifact:**

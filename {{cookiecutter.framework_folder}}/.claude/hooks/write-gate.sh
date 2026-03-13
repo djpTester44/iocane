@@ -12,31 +12,67 @@
 
 INPUT=$(cat)
 
-FILE_PATH=$(echo "$INPUT" | uv run python -c "
-import sys, json
+# Extract file_path, absolute CWD, and absolute file path in a single Python call.
+# Output is NUL-delimited: FILE_PATH\0ABS_CWD\0ABS_FILE
+PARSED=$(printf '%s' "$INPUT" | uv run rtk python -c "
+import sys, json, os
+
+raw = sys.stdin.read()
+NUL = chr(0)
 try:
-    d = json.load(sys.stdin)
-    print(d.get('tool_input', {}).get('file_path', ''))
+    d = json.loads(raw)
+    fp = d.get('tool_input', {}).get('file_path', '')
 except Exception:
-    print('')
-")
+    fp = ''
+
+cwd = os.path.normpath(os.getcwd()).replace('\\\\', '/')
+if fp:
+    abs_fp = os.path.normpath(os.path.abspath(fp)).replace('\\\\', '/')
+else:
+    abs_fp = ''
+
+print(fp + NUL + cwd + NUL + abs_fp, end='')
+" 2>/dev/null || printf '\0\0')
+
+FILE_PATH=$(printf '%s' "$PARSED" | cut -d$'\0' -f1)
+ABS_CWD=$(printf '%s' "$PARSED"  | cut -d$'\0' -f2)
+ABS_FILE=$(printf '%s' "$PARSED" | cut -d$'\0' -f3)
 
 # No file path extracted — let the tool proceed.
 if [ -z "$FILE_PATH" ]; then
     exit 0
 fi
 
+# Exempt interactive sessions: only haiku sub-agents are gated.
+SESSION_MODEL=$(cat .iocane/session-model 2>/dev/null || echo "")
+if [[ "$SESSION_MODEL" != *"haiku"* ]]; then
+    exit 0
+fi
+
+# Enforce worktree boundary: block any write that escapes the current working directory.
+if [ -n "$ABS_FILE" ] && [[ "$ABS_FILE" != "$ABS_CWD"* ]]; then
+    echo "BLOCKED: $FILE_PATH is outside the worktree boundary ($ABS_CWD). Sub-agents must not write to the parent repository." >&2
+    exit 2
+fi
+
 # -----------------------------------------------------------------------
-# PATH RESOLUTION: v2 (tasks/ directory) or v1 (tasks.json) or free pass
+# PATH RESOLUTION: v2 (tasks/ directory) or free pass
 # -----------------------------------------------------------------------
 
 TASKS_DIR="plans/tasks"
-TASKS_JSON="plans/tasks.json"
+
+# --- Always allow workflow control files ---
+# .status/.exit: written by sub-agents (Tier 3) to signal completion.
+# .md: written by /io-plan-batch (Tier 2 orchestration) to generate task files.
+# write-gate must never block these.
+if echo "$FILE_PATH" | grep -qE '(plans/tasks/CP-[^/]+\.(status|exit|md)|\.iocane/(escalation\.log|escalation\.flag|validating))'; then
+    exit 0
+fi
 
 # --- v2: tasks/ directory present — use CP-ID.md format ---
 if [ -d "$TASKS_DIR" ]; then
 
-    RESULT=$(uv run python -c "
+    RESULT=$(uv run rtk python -c "
 import os, sys, re
 
 file_path = '''$FILE_PATH'''
@@ -111,63 +147,12 @@ print('BLOCKED:' + active_cp_id)
 
     if [[ "$RESULT" == BLOCKED:* ]]; then
         CP_ID="${RESULT#BLOCKED:}"
-        echo "BLOCKED: $FILE_PATH is not in write_targets for checkpoint $CP_ID. Update plans/tasks/$CP_ID.md or run /io-orchestrate to regenerate."
+        echo "BLOCKED: $FILE_PATH is not in write_targets for checkpoint $CP_ID. Update plans/tasks/$CP_ID.md or run /io-orchestrate to regenerate." >&2
         exit 2
     fi
 
     exit 0
 fi
 
-# --- v1 fallback: tasks.json present ---
-if [ -f "$TASKS_JSON" ]; then
-
-    RESULT=$(uv run python -c "
-import json, os, sys
-
-file_path = '''$FILE_PATH'''
-
-try:
-    with open('$TASKS_JSON') as f:
-        data = json.load(f)
-except Exception:
-    print('ALLOW')
-    sys.exit(0)
-
-task_list = data if isinstance(data, list) else data.get('tasks', [])
-
-pending = next((t for t in task_list if t.get('status') == 'pending'), None)
-if pending is None:
-    print('ALLOW')
-    sys.exit(0)
-
-write_targets = pending.get('write_targets', [])
-task_id = pending.get('id', pending.get('task_id', 'unknown'))
-
-if not write_targets:
-    print('ALLOW')
-    sys.exit(0)
-
-def normalize(p):
-    return os.path.normpath(p).replace('\\\\', '/')
-
-norm_target = normalize(file_path)
-for wt in write_targets:
-    norm_wt = normalize(wt)
-    if norm_target == norm_wt or norm_target.endswith('/' + norm_wt) or norm_wt.endswith('/' + norm_target):
-        print('ALLOW')
-        sys.exit(0)
-
-print('BLOCKED:' + task_id)
-")
-
-    if [[ "$RESULT" == BLOCKED:* ]]; then
-        TASK_ID="${RESULT#BLOCKED:}"
-        echo "BLOCKED: $FILE_PATH is not in write_targets for task $TASK_ID. Update tasks.json or run /io-orchestrate."
-        exit 2
-    fi
-
-    exit 0
-fi
-
-# --- Neither tasks/ nor tasks.json present: not in execution mode, allow freely ---
+# --- tasks/ not present: not in execution mode, allow freely ---
 exit 0

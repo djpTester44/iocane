@@ -14,9 +14,11 @@ globs: **/*.py
 1. **Context Hygiene (Reads)**: You are **FORBIDDEN** from reading files outside the scope of your current task.
     You must only read the files listed in `## Context Files` in your task file (`plans/tasks/CP-XX.md`).
 2. **Write Hygiene**: You are **FORBIDDEN** from writing to files not listed in `## Write Targets` in your task file.
-    The `write-gate.sh` PreToolUse hook enforces this automatically.
+    The `write-gate.sh` PreToolUse hook enforces this automatically and will also block any write outside the worktree boundary.
 3. **Task Source**: Your objective, write targets, gate command, and context files are all in your task file. Read it completely before taking any action.
 4. **State Verification**: Never trust cached line numbers or file contents across session boundaries. When external tools (formatters, linters) modify files, you **MUST** re-read them before editing. For test regressions: `git stash` + run + `git stash pop` before investigating.
+5. **No Directory Traversal**: You are **FORBIDDEN** from using `cd ..` or any upward path traversal in Bash commands. You operate in the worktree root. If a tool reports "can't read file", the cause is that you wrote the file to the wrong path — fix the write, do not change directory.
+6. **Test Integrity**: You are **FORBIDDEN** from weakening test assertions to force a GREEN state. Catching `Exception` instead of a specific exception type, skipping assertions, or mocking away the code under test are all violations. A green test that lies is a worse outcome than a failing test.
 
 ## [HARD] Architectural Guidance
 
@@ -44,7 +46,7 @@ globs: **/*.py
     - **Atomic CRC Sync:** Any behavioral change (new methods, exceptions, collaborators) requires an atomic CRC update in the same edit batch.
     - **Compliance Arbitration:** When automated scripts (e.g., `check_di_compliance.py`) flag a structural discrepancy, cross-reference the CRC first. If the implementation matches the CRC, classify as a `[DESIGN]` gap, not a code error.
 3. **Test-Driven**: If you are fixing a bug or adding a feature, you **MUST** follow the Red/Green/Refactor state machine.
-4. **Run Tests**: You **MUST** run `uv run pytest` (or specific test file) after every meaningful change.
+4. **Run Tests**: You **MUST** run `uv run rtk pytest` (or specific test file) after every meaningful change.
     - **Token Efficiency:** Analyze the failure message first. Only increase verbosity or debug if the initial error is ambiguous.
 5. **No Broken Windows**: You **MUST NOT** leave the build in a broken state between tool calls if possible.
 
@@ -54,7 +56,7 @@ globs: **/*.py
 
 1. **RED**: Write a failing test for the specific requirement. Verify the test fails.
 2. **GREEN**: Write the *minimal* code to pass that test. Verify the test passes.
-3. **REFACTOR**: Clean up the code. Run `uv run ruff check .` and `uv run mypy .`.
+3. **REFACTOR**: Clean up the code. Run `uv run rtk ruff check <write-target-dir>` and `uv run rtk mypy <write-target-dir>`. Scope linters to your write targets only — never run them against `.` (the whole repo).
 
 ### Constraints
 
@@ -90,6 +92,7 @@ from __future__ import annotations
 ```
 
 The docstring must state:
+
 - What the module is responsible for (ownership)
 - Which Protocol it implements or collaborates with, if any
 

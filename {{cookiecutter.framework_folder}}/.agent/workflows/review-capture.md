@@ -1,5 +1,5 @@
 ---
-description: Classify review findings and append them to plans/backlog.md. Called by /review and /gap-analysis.
+description: Classify review findings and append them to plans/backlog.md. Called by /io-review and /gap-analysis.
 ---
 
 > **[NO PLAN MODE]**
@@ -11,7 +11,7 @@ description: Classify review findings and append them to plans/backlog.md. Calle
 
 # WORKFLOW: REVIEW-CAPTURE
 
-**Objective:** Take findings from `/review` or `/gap-analysis` and append them to `plans/backlog.md` with correct taxonomy tags. Findings not in `backlog.md` are invisible to subsequent planning workflows.
+**Objective:** Take findings from `/io-review` or `/gap-analysis` and append them to `plans/backlog.md` with correct taxonomy tags. Findings not in `backlog.md` are invisible to subsequent planning workflows.
 
 ---
 
@@ -19,7 +19,7 @@ description: Classify review findings and append them to plans/backlog.md. Calle
 
 ### Step A: RECEIVE FINDINGS
 
-* Accept the findings table from the calling workflow (`/review` or `/gap-analysis`).
+* Accept the findings table from the calling workflow (`/io-review` or `/gap-analysis`).
 * Filter: include only HIGH and MEDIUM severity findings.
 * LOW and INFO findings are not captured unless explicitly requested by the human.
 
@@ -47,8 +47,9 @@ Each finding becomes one backlog entry in this format:
 
 ```markdown
 - [ ] [TAG] [ComponentName] — [one line description of the issue]
-  - Source: /review CP-[ID] | /gap-analysis [date]
+  - Source: /io-review CP-[ID] | /gap-analysis [date]
   - Severity: HIGH | MEDIUM
+  - Files: [comma-separated repo-relative paths — omit if cross-cutting or unknown]
   - Detail: [one sentence of context — what to fix and why]
 ```
 
@@ -61,7 +62,7 @@ Each finding becomes one backlog entry in this format:
 ```markdown
 # Backlog
 
-Findings from /review and /gap-analysis. Append-only — never delete entries.
+Findings from /io-review and /gap-analysis. Append-only — never delete entries.
 Items marked [x] are resolved. Items marked [ ] are active.
 
 ---
@@ -75,6 +76,7 @@ Items marked [x] are resolved. Items marked [ ] are active.
 - [ ] [TAG] [ComponentName] — [description]
   - Source: ...
   - Severity: ...
+  - Files: ...
   - Detail: ...
 ```
 

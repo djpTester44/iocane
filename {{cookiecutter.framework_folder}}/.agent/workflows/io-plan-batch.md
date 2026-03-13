@@ -48,11 +48,23 @@ Apply `parallel.limit` cap: take only the first N checkpoints that pass the disj
 For each checkpoint in the confirmed batch, construct the full `CP-XX.md` task file content. Do **not** write to disk at this step.
 
 Each task file must include:
+
 - Checkpoint ID and title
 - Objective and acceptance criteria (from `plan.md`)
 - Declared write targets
 - Any interface contracts or `.pyi` references
 - Self-contained instructions sufficient for an agent to execute without clarification
+- A `## Step Progress` section with checkboxes for resumable steps B–G (Step A is context-gathering and is never checkboxed):
+
+```markdown
+## Step Progress
+- [ ] B: Red — write failing test
+- [ ] C: Green — write implementation
+- [ ] D: Gate command
+- [ ] E: Connectivity tests
+- [ ] F: Refactor
+- [ ] G: Commit and write status
+```
 
 ### Step E — Score Confidence Rubric
 
@@ -92,7 +104,7 @@ Task file previews available on request.
 ---
 Accept / Modify / Reject?
 
-- Accept: task files will be written to plans/tasks/. You are then responsible for running /io-orchestrate or bash .claude/scripts/dispatch-agents.sh to dispatch agents.
+- Accept: task files will be written to plans/tasks/. You are then responsible for running /io-orchestrate or uv run rtk bash .claude/scripts/dispatch-agents.sh to dispatch agents.
 - Modify: describe changes in natural language. A new /io-plan-batch run will incorporate your modifications.
 - Reject: a new /io-plan-batch run will start from scratch.
 ```
@@ -102,7 +114,7 @@ Accept / Modify / Reject?
 ### Step G — Handle Response
 
 **Accept:**
-Write all draft task files to `plans/tasks/CP-XX.md`. Confirm each file written. Remind the user to invoke `/io-orchestrate` or `bash .claude/scripts/dispatch-agents.sh` to dispatch agents.
+Write all draft task files to `plans/tasks/CP-XX.md`. Confirm each file written. Remind the user to invoke `/io-orchestrate` or `uv run rtk bash .claude/scripts/dispatch-agents.sh` to dispatch agents.
 
 **Modify:**
 Acknowledge the requested modifications. Do not write any task files. Re-run from Step B incorporating the user's natural language modifications as constraints.
@@ -115,6 +127,7 @@ Do not write any task files. Re-run from Step B from scratch.
 ## Output
 
 On acceptance, for each checkpoint in the batch:
+
 - `plans/tasks/CP-XX.md` written to disk
 
 No other files are written or modified by this workflow.
@@ -135,5 +148,5 @@ No other files are written or modified by this workflow.
 - `/io-checkpoint` — upstream; produces `plan.md`
 - `/validate-plan` — must pass before this workflow runs
 - `/io-orchestrate` — downstream; reads `plans/tasks/` and dispatches agents
-- `bash .claude/scripts/dispatch-agents.sh` — direct dispatch alternative to `/io-orchestrate`
+- `uv run rtk bash .claude/scripts/dispatch-agents.sh` — direct dispatch alternative to `/io-orchestrate`
 - `.claude/iocane.config.yaml` — configuration (parallel limit)

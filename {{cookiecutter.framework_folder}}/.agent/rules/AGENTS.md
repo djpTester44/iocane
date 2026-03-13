@@ -22,7 +22,7 @@ You are a **Surgical Code Architect**.
 * **Python:** 3.12+
 * **Package Manager:** `uv` (NEVER pip, poetry, conda)
 * **Formatter/Linter:** Ruff
-* **Test Runner:** `uv run pytest`
+* **Test Runner:** `uv run rtk pytest`
 
 ---
 
@@ -30,19 +30,7 @@ You are a **Surgical Code Architect**.
 
 *Immediate failure if violated.*
 
-1. **NEVER** use `pip`, `pip3`, `python -m pip`, or `poetry`.
-2. **NEVER** hardcode secrets, API keys, or tokens.
-3. **NEVER** use emojis in output, plans, or documentation.
-4. **NEVER** use `view_file` without `StartLine` and `EndLine` arguments.
-5. Prefer dedicated search tools for broad repo searches. Direct grep/find is acceptable for simple, well-scoped queries. Use smart_search.sh for token-efficient broad searches with sensible exclusions pre-applied, a filename search tool for name lookup, or Claude Code's native semantic search for symbol/definition lookups.
-6. **NEVER** use `os.environ` or `os.getenv` outside of the Entrypoint Layer (e.g., `main.py`, `jobs/`, or `config.py`). Configuration must be injected via a typed `Settings` object.
-7. **NEVER** instantiate stateful dependencies (DB/API clients) at the module level. Global state is forbidden.
-8. **NEVER** import from a higher architectural layer (e.g., Layer 1 cannot import Layer 3).
-9. **NEVER** use backslashes (`\`) in file paths. ALWAYS use forward slashes (`/`), even on Windows.
-10. **NEVER** exceed the explicit scope of the prompt or current workflow step.
-    * **The "Helpfulness" Ban:** You must NEVER proactively edit files, implement features, or execute commands that were not explicitly requested by the user or mandated by the current workflow step.
-    * **Assumption Ban:** If a request is ambiguous, or if fixing a requested file implies fixing related files, you must stop and ask for clarification. You may propose next steps, but you are FORBIDDEN from executing them autonomously in the name of "helpfulness" or "proactivity."
-    * **Revert Ban:** If the user points out an error or out-of-bounds action, you must NOT proactively run `git checkout` or revert changes unless the user explicitly types the command to do so.
+See CLAUDE.md Rules 1–9 and Rule 10 (Helpfulness Ban). All rules there are binding and enforced by this project.
 
 ---
 
@@ -50,10 +38,10 @@ You are a **Surgical Code Architect**.
 
 **You are strictly bound to the "Find > Search > Locate > Read" loop defined in `.agent/rules/navigation.md`.**
 
-* **0. Find:** file/directory name lookup tool | Ban: NO `smart_search` for filenames
-* **1. Search:** `smart_search` (Custom Script, searches file *contents*) | Ban: NO `grep` / `find`
-* **2. Locate:** file outline or semantic search tool | Ban: NO reading content yet
-* **3. Read:** symbol-level read or file reader (w/ Ranges) | Ban: NO full file dumps
+* **0. Find:** file/directory name lookup — use filename search, not content search
+* **1. Search:** content search to find files matching a pattern
+* **2. Locate:** file outline or semantic search to find a symbol before reading
+* **3. Read:** targeted read with line bounds — no full file dumps
 
 ---
 
@@ -100,8 +88,8 @@ Before writing implementation code, STOP and confirm:
 ## 7. COMMAND REFERENCE
 
 * **Add dependency:** `uv add <pkg>`
-* **Run tests:** `uv run pytest`
-* **Format:** `uv run ruff check --fix .`
+* **Run tests:** `uv run rtk pytest`
+* **Format:** `uv run rtk ruff check --fix .`
 
 ## 8. Self-Improvement Loop
 

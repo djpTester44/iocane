@@ -23,14 +23,14 @@ Generate implementation stubs from `.pyi` Protocol definitions for TDD.
    - Import the Protocol for type checking
    - Create class implementing the Protocol
    - Method bodies: `raise NotImplementedError`
-3. **Verify** type checker passes: `uv run pyright src/<component>.py`
+3. **Verify** type checker passes: `uv run rtk pyright src/<component>.py`
 
 ### Mode B: From Test Imports (legacy TDD)
 
 1. **Analyze** the test file:
 
    ```bash
-   uv run python scripts/analyze_imports.py <test_file>
+   uv run rtk python scripts/analyze_imports.py <test_file>
    ```
 
 2. **Parse** the JSON output containing missing imports with:
@@ -47,7 +47,7 @@ Generate implementation stubs from `.pyi` Protocol definitions for TDD.
 4. **Verify** collection succeeds:
 
    ```bash
-   uv run pytest --collect-only <test_file>
+   uv run rtk pytest --collect-only <test_file>
    ```
 
 5. **Confirm** tests now fail via assertion, not ImportError

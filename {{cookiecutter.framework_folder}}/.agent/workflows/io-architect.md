@@ -4,7 +4,7 @@ description: Design CRC cards, Protocols, and the Interface Registry. Tier 1 —
 
 > **[CRITICAL] PLAN MODE**
 > This is the highest-value gate in the entire workflow.
-> Claude PROPOSES the full design before writing any file.
+> Claude WRITES the full design to `plans/project-spec.md` for human review in an editor.
 > No `.pyi` file is written until the human approves.
 > Human approval here is the Tier 1 / Tier 2 boundary — nothing executes until sign-off.
 
@@ -63,22 +63,24 @@ Before proceeding, output the following metadata:
 
 ---
 
-### Step C: [PLAN MODE] PROPOSE DEPENDENCY MAP
+### Step C: WRITE DEPENDENCY MAP
 
-* **Goal:** Show how components depend on each other across architectural layers.
+* **Goal:** Capture how components depend on each other across architectural layers.
 * **Format:** Mermaid graph — components as nodes, dependency arrows showing direction.
 * **Rules:**
   * Arrow direction = "depends on" (A → B means A depends on B)
   * Higher layers may only depend on lower layers (no upward imports)
   * Cross-layer dependencies must go through an interface in `interfaces/`
 
-**Present the dependency map. Do not write any file yet.**
+**Write** the dependency map to `plans/project-spec.md` under a `## Dependency Map` section. Do not print it to the terminal.
+
+For incremental runs: mark any changed section with an HTML comment `<!-- CHANGED -->` on the section heading line.
 
 ---
 
-### Step D: [PLAN MODE] PROPOSE CRC CARDS
+### Step D: WRITE CRC CARDS
 
-For every component identified in Step B, propose a CRC card:
+For every component identified in Step B, write a CRC card to `plans/project-spec.md` under a `## CRC Cards` section:
 
 ```markdown
 ### [ComponentName]
@@ -97,13 +99,15 @@ For every component identified in Step B, propose a CRC card:
 - [Explicit negative constraints — what this component must never do]
 ```
 
-**Present all CRC cards. Do not write any file yet.**
+**Write all CRC cards to `plans/project-spec.md`. Do not print them to the terminal.**
+
+For incremental runs: mark each new or changed CRC card heading with `<!-- CHANGED -->`.
 
 ---
 
-### Step E: [PLAN MODE] PROPOSE PROTOCOL SIGNATURES
+### Step E: WRITE PROTOCOL SIGNATURES
 
-For every CRC card, propose the corresponding Protocol interface:
+For every CRC card, write the corresponding Protocol interface to `plans/project-spec.md` under a `## Protocol Signatures` section:
 
 ```python
 # interfaces/[protocol].pyi
@@ -123,13 +127,15 @@ class [ProtocolName](Protocol):
 - Methods must be testable in isolation — no side-effectful signatures that cannot be mocked.
 - Protocols describe behavior at the boundary, not implementation details.
 
-**Present all Protocol signatures. Do not write any `.pyi` file yet.**
+**Write all Protocol signatures to `plans/project-spec.md`. Do not print them to the terminal. Do not write `.pyi` files yet.**
+
+For incremental runs: mark each new or changed Protocol heading with `<!-- CHANGED -->`.
 
 ---
 
-### Step F: [PLAN MODE] PROPOSE INTERFACE REGISTRY UPDATE
+### Step F: WRITE INTERFACE REGISTRY
 
-Propose the complete Interface Registry section for `plans/project-spec.md`:
+Write the complete Interface Registry to `plans/project-spec.md` under a `## Interface Registry` section:
 
 ```markdown
 ## Interface Registry
@@ -141,55 +147,57 @@ Propose the complete Interface Registry section for `plans/project-spec.md`:
 
 Every component with a Protocol must appear here. This table is the write-gate's source of truth — sub-agents may only write to files registered here.
 
-**Present the full Interface Registry. Do not write any file yet.**
+**Write the full Interface Registry to `plans/project-spec.md`. Do not print it to the terminal.**
 
 ---
 
 ### Step G: [HUMAN GATE] APPROVAL REQUIRED
 
-Present a consolidated summary:
+Print only this compact summary to the terminal:
 
 ```
-DESIGN PROPOSAL SUMMARY
+DESIGN PROPOSAL WRITTEN
+
+plans/project-spec.md is ready for review.
+Open it in your editor to inspect the full design.
 
 Components: [N]
-Protocols: [N]
-New .pyi files to create: [list]
-project-spec.md sections to update: [list]
+Protocols:  [N]
+.pyi files to create: [list filenames only]
 
-Dependency map: [above]
-CRC cards: [above]
-Protocol signatures: [above]
-Interface Registry: [above]
+Incremental run: search <!-- CHANGED --> to find what changed.
 
-Reply with approval to lock contracts, or provide corrections.
+Reply with approval to lock contracts, or describe any correction needed
+(cite section name and component).
 ```
 
 * **WAIT** for explicit human approval.
-* If corrections requested: revise and re-present. Do not write until approved.
+* If corrections requested: edit `plans/project-spec.md` in place for the identified component only. Do not re-print the corrected content — tell the user which lines were changed and ask them to re-read the file. Do not proceed to Step H until approved.
 
 ---
 
 ### Step H: WRITE ARTIFACTS
 
-On approval, execute the following steps in strict sequence. Do NOT parallelize any of these steps — the sentinel must be active for the entire write sequence.
+On approval, execute the following steps in strict sequence. Do NOT parallelize any of these steps.
+
+**Step H-1:** Strip all `<!-- CHANGED -->` markers from `plans/project-spec.md`.
 
 **Step H-pre:** `bash: mkdir -p .iocane && touch .iocane/validating`
 
-The sentinel prevents `reset-on-project-spec-write.sh` and `reset-on-pyi-write.sh` from resetting stamps mid-write. It must be created before the first write. The hook auto-deletes it when it detects the `**Approved:** True` stamp write at Step H-3.
+The sentinel prevents `reset-on-project-spec-write.sh` and `reset-on-pyi-write.sh` from resetting stamps during the `.pyi` write and stamp sequence. It must be set before Step H-3. The hook auto-deletes it when it detects the `**Approved:** True` stamp write at Step H-4.
 
-**Step H-1:** Update `plans/project-spec.md`:
-   * Add/update CRC cards for all proposed components
-   * Add/update Interface Registry entries
-   * Add/update Mermaid dependency graph
-   * Add/update Sequence Diagrams for non-trivial flows
+**Step H-2:** Append `[[tool.importlinter.contracts]]` to `pyproject.toml`:
+   * One `[[tool.importlinter.contracts]]` block for the layer hierarchy, ordered top-to-bottom (entrypoint → domain → utility → foundation)
+   * Additional `[[tool.importlinter.contracts]]` blocks for any independence contracts between peer packages
+   * Remove the `# [[tool.importlinter.contracts]] populated by /io-architect` comment placeholder
+   * If `pyproject.toml` does not exist (brownfield adoption), create it from `.agent/templates/pyproject.toml` first, then append contracts
 
-**Step H-2:** Write `interfaces/*.pyi`:
+**Step H-3:** Write `interfaces/*.pyi`:
    * One file per Protocol
-   * Exactly as approved — no additions or simplifications
+   * Exactly as written in `plans/project-spec.md` Protocol Signatures section — no additions or simplifications
    * Include docstrings on every method
 
-**Step H-3:** Stamp `plans/project-spec.md` with `**Approved:** True` in the doc header.
+**Step H-4:** Stamp `plans/project-spec.md` with `**Approved:** True` in the doc header.
 
 The hook auto-deletes the sentinel when it detects the `**Approved:** True` stamp write — no explicit cleanup step required.
 

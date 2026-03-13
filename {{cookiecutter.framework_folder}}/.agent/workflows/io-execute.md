@@ -24,14 +24,17 @@ This workflow runs inside a git worktree (`$REPO_ROOT/.worktrees/[CP-ID]`) on br
 
 Before proceeding:
 
-1. Run `uv run python .agent/scripts/generate_walkthrough_context.py` and parse the JSON output. This gives you the Protocol definitions, src structure, and layer map without reading any source files. Use it to orient yourself — do not load additional files beyond what your task file lists.
+1. Read your task file completely. It contains the checkpoint ID, write targets, contract path, and gate command. Do not load additional files beyond what the task file lists.
 
-2. Output:
+2. Check the `## Step Progress` section for checked boxes. Any step marked `[x]` is already complete — skip it and resume from the first unchecked step. If all boxes are unchecked, start at Step B.
+
+3. Output:
 
 - **Checkpoint ID:** [CP-ID from task file]
 - **Target files:** [write_targets listed in task file]
 - **Protocol contract:** [interfaces/*.pyi file named in task file]
 - **Gate command:** [exact gate command from task file]
+- **Resuming from:** [first unchecked step, or B if none checked]
 
 ---
 
@@ -57,6 +60,7 @@ Before proceeding:
   - If test PASSES immediately → test is invalid. Rewrite it.
   - If test FAILS with `ImportError` or `ModuleNotFoundError` → create empty skeleton implementation file first, then re-run. This is acceptable.
   - If test FAILS with assertion error or `NotImplementedError` → correct RED state. Proceed.
+- **On completion:** Mark `- [x] B` in `## Step Progress` of the task file.
 
 ---
 
@@ -70,8 +74,9 @@ Before proceeding:
   - No global state, no module-level side effects
   - `from __future__ import annotations` at top of every module
   - Protocol imports inside `if TYPE_CHECKING:` only
-- **Gate:** Run `pytest [test_file_path]`
+- **Gate:** Run `uv run rtk pytest [test_file_path]`
   - Must PASS. If fail: attempt remediation up to 3 times. If still failing after 3 attempts → escalate (see Section 3).
+- **On completion:** Mark `- [x] C` in `## Step Progress` of the task file.
 
 ---
 
@@ -81,6 +86,7 @@ Before proceeding:
 - **This is the checkpoint's acceptance test.**
 - Must PASS before proceeding to refactor.
 - If fail after 3 attempts → escalate (see Section 3).
+- **On completion:** Mark `- [x] D` in `## Step Progress` of the task file.
 
 ---
 
@@ -88,6 +94,7 @@ Before proceeding:
 
 - **Action:** If `## Connectivity Tests to Keep Green` lists any gate commands in the task file, run each one.
 - **Rule:** If any previously passing connectivity test goes red, this is an escalation trigger. Do not attempt autonomous remediation. Escalate immediately (see Section 3).
+- **On completion:** Mark `- [x] E` in `## Step Progress` of the task file.
 
 ---
 
@@ -96,10 +103,10 @@ Before proceeding:
 - **Action:** Run the following checks in order:
 
 ```bash
-uv run python .agent/scripts/check_di_compliance.py
-uv run mypy src/[implementation_path]
-uv run ruff check --fix src/[implementation_path]
-uv run lint-imports
+uv run rtk python .agent/scripts/check_di_compliance.py
+uv run rtk mypy src/[implementation_path]
+uv run rtk ruff check --fix src/[implementation_path]
+uv run rtk lint-imports
 ```
 
 - **Rules for each:**
@@ -109,14 +116,17 @@ uv run lint-imports
   - `lint-imports`: Must exit 0. If a layer violation is detected, this is an escalation trigger. Escalate (see Section 3).
 
 - **After all checks pass:** Re-run gate command to confirm refactoring did not break GREEN state.
+- **On completion:** Mark `- [x] F` in `## Step Progress` of the task file.
 
 ---
 
-### Step G: WRITE STATUS AND TERMINATE
+### Step G: COMMIT, WRITE STATUS, AND TERMINATE
 
 **On success:**
 
 ```bash
+git add -A
+git commit -m "CP-[CP-ID]: [one-line summary of what was implemented]"
 echo "PASS" > ../../plans/tasks/[CP-ID].status
 ```
 
@@ -155,7 +165,7 @@ The `PostToolUse` hook will detect the non-zero exit or FAIL status and append t
 ## 4. CONSTRAINTS
 
 - Read ONLY the files listed in your task file's `## Context Files` section plus the Protocol
-- Write ONLY to files listed in `## Write Targets`
+- Write ONLY to files listed in `## Write Targets`, plus the task file itself (for checkbox updates in `## Step Progress`)
 - No internet access, no package installation, no git operations (worktree is already set up)
 - No awareness of other checkpoints, other task files, or the broader plan
 - No `print()` statements in implementation — use `logging` or `structlog`

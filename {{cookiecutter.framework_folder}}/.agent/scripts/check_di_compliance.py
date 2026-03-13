@@ -44,7 +44,7 @@ Injection patterns recognised (no false-positive for any of these):
   - Param-attribute access:                 self.x = some_param.dep  (no call needed)
 
 Usage:
-    uv run python .agent/scripts/check_di_compliance.py
+    uv run rtk python .agent/scripts/check_di_compliance.py
 """
 
 import ast

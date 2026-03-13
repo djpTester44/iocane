@@ -11,25 +11,30 @@ description: Generate or refresh the evaluator-facing architectural walkthrough 
 ---
 
 > **[CRITICAL] CONTEXT LOADING**
+>
 > 1. Load the walkthrough template: `view_file .agent/templates/walkthrough.md`
 > 2. Run the context generator:
+>
 > ```bash
 > // turbo
-> uv run python .agent/scripts/generate_walkthrough_context.py
+> uv run rtk python .agent/scripts/generate_walkthrough_context.py
 > ```
-> 3. Load the existing walkthrough (if it exists): `view_file docs/current-state-walkthrough.md`
+>
+> 1. Load the existing walkthrough (if it exists): `view_file docs/current-state-walkthrough.md`
 
 ## Procedure
 
 ### 1. GATHER CONTEXT
 
 Read the context generator output (JSON). It provides:
+
 - **protocols**: All Protocol names, their `.pyi` files, and target implementations
 - **settings_keys**: Key configuration values from `settings.yaml`
 - **layers**: Architectural layer mapping from `import-linter` config
 - **src_structure**: AST-extracted class/function skeletons per source file
 
 Additionally, read these source documents for narrative content:
+
 - `plans/PRD.md` -- Algorithmic definitions and requirements
 - `plans/project-spec.md` -- CRC cards and sequence diagrams (Section 6+)
 - `settings.yaml` -- Live configuration values
@@ -53,6 +58,7 @@ Follow the template structure in `.agent/templates/walkthrough.md`. For each sec
 ### 3. INJECT CODE REFERENCES
 
 For every component mentioned in the walkthrough:
+
 - Use `view_file_outline` on the implementation file to get accurate line ranges.
 - Format as `[ComponentName](file:///absolute/path/to/file.py#L{start}-L{end})`.
 - Do NOT use stale line numbers from previous versions -- always re-verify with outline.
@@ -60,6 +66,7 @@ For every component mentioned in the walkthrough:
 ### 4. GENERATE SYSTEM DIAGRAM
 
 Build a Mermaid `graph TB` diagram using the context generator's `protocols` and `layers` data:
+
 - Group components by architectural layer (from `import-linter` config).
 - Show dependency arrows between components.
 - Include all Protocol implementations from the Interface Registry.
@@ -69,6 +76,7 @@ Build a Mermaid `graph TB` diagram using the context generator's `protocols` and
 After generating:
 
 1. **Link Check:** Verify that all `file:///` URIs point to existing files:
+
    ```bash
    // turbo
    .agent/scripts/smart_search.sh -c "file:///" docs/current-state-walkthrough.md

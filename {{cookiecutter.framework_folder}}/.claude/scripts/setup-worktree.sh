@@ -63,6 +63,22 @@ if [ -d "$WORKTREE_PATH" ]; then
     exit 0
 fi
 
+# --- Commit task file in main before creating a fresh worktree ---
+# Task files are untracked in main after /io-plan-batch writes them.
+# If left untracked, git refuses to merge the sub-agent branch back because
+# the committed (checkbox-updated) task file would overwrite the untracked one.
+# Skipped when reusing an existing worktree — the merge reconciles the file.
+# Only runs in the main working tree (.git is a directory); no-ops in worktrees.
+if [ -d "$REPO_ROOT/.git" ]; then
+    REL_TASK="plans/tasks/$CP_ID.md"
+    FILE_STATUS=$(git -C "$REPO_ROOT" status --porcelain -- "$REL_TASK" 2>/dev/null | cut -c1-2)
+    if [ -n "$FILE_STATUS" ]; then
+        git -C "$REPO_ROOT" add -- "$REL_TASK"
+        git -C "$REPO_ROOT" commit -m "chore: track $CP_ID task file before dispatch" -- "$REL_TASK"
+        echo "Committed $REL_TASK to main."
+    fi
+fi
+
 if git -C "$REPO_ROOT" show-ref --verify --quiet "refs/heads/$BRANCH_NAME"; then
     echo "Branch $BRANCH_NAME already exists -- attaching worktree."
     git -C "$REPO_ROOT" worktree add "$WORKTREE_PATH" "$BRANCH_NAME"
@@ -71,5 +87,42 @@ else
     git -C "$REPO_ROOT" worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME"
 fi
 
+# --- Copy task file into worktree ---
+# Task files are untracked in the main tree and not visible to the fresh branch.
+# The sub-agent needs this file to know what to implement.
+mkdir -p "$WORKTREE_PATH/plans/tasks"
+cp "$TASK_FILE" "$WORKTREE_PATH/plans/tasks/$CP_ID.md"
+
+# --- Remove task files that do not belong to this checkpoint ---
+# The worktree inherits tracked plans/tasks/CP-XX.md files from the parent
+# branch. Remove any that are not this checkpoint to prevent sub-agents
+# from reading or acting on the wrong task.
+for f in "$WORKTREE_PATH/plans/tasks"/CP-*.md; do
+    [ -f "$f" ] || continue
+    fname=$(basename "$f")
+    if [ "$fname" != "$CP_ID.md" ]; then
+        rm "$f"
+    fi
+done
+
+# --- Copy untracked project files required for uv ---
+# pyproject.toml and uv.lock may be untracked in the parent repo
+# (e.g. created by a sub-agent outside its worktree). Copy them so
+# the worktree venv and uv run rtk commands work correctly.
+for f in pyproject.toml uv.lock; do
+    src="$REPO_ROOT/$f"
+    dst="$WORKTREE_PATH/$f"
+    if [ -f "$src" ] && [ ! -f "$dst" ]; then
+        cp "$src" "$dst"
+        echo "Copied $f into worktree."
+    fi
+done
+
+# --- Sync dependencies into the worktree venv ---
+# uv creates .venv inside the worktree (not shared with main checkout).
+# Syncing here ensures the venv is ready before the sub-agent starts,
+# so uv run rtk commands in task files don't incur sync latency mid-execution.
+echo "Syncing dependencies in $WORKTREE_PATH..."
+uv sync --project "$WORKTREE_PATH" --quiet
 echo "Worktree ready: $WORKTREE_PATH (branch: $BRANCH_NAME)"
 exit 0

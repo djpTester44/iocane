@@ -1,7 +1,11 @@
 # Iocane project configuration
 
 parallel:
-  limit: 1  # Maximum concurrent sub-agents per dispatch batch
+  limit: 2  # Maximum concurrent sub-agents per dispatch batch
+
+agents:
+  max_turns: 70  # Per-agent turn budget. Increase if agents hit the limit mid-refactor; decrease to tighten cost on simple checkpoints.
+  timeout: 10m   # Per-agent wall-clock timeout (passed to timeout(1))
 
 models:
   tier1: claude-opus-4-6           # Strategic: io-clarify, io-architect, io-checkpoint, review

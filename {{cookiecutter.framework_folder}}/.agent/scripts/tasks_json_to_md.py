@@ -6,13 +6,13 @@ Converts a legacy plans/tasks.json file into per-checkpoint tasks/[CP-ID].md fil
 in the Session 3 format expected by /io-orchestrate and /io-execute.
 
 Usage:
-    uv run python .agent/scripts/tasks_json_to_md.py
+    uv run rtk python .agent/scripts/tasks_json_to_md.py
 
     # Dry run (preview output without writing):
-    uv run python .agent/scripts/tasks_json_to_md.py --dry-run
+    uv run rtk python .agent/scripts/tasks_json_to_md.py --dry-run
 
     # Custom input/output paths:
-    uv run python .agent/scripts/tasks_json_to_md.py --input plans/tasks.json --output-dir tasks/
+    uv run rtk python .agent/scripts/tasks_json_to_md.py --input plans/tasks.json --output-dir tasks/
 
 Notes:
     - The converter produces best-effort task files. Gate commands and context files
