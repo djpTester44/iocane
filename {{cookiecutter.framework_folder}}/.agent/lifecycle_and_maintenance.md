@@ -127,11 +127,10 @@ When removing redundant or dead code, prove unused status before deletion.
 1. **Prove dead status:**
 
    ```bash
-   grep -r "from src.path.to.module" src/
-   grep -r "import src.path.to.module" src/
+   uv run rtk python .claude/skills/symbol-tracer/scripts/symbol_tracer.py --symbol <SymbolName> --root src/ --summary
    ```
 
-   Verify zero integration test usage.
+   Zero usages + zero imports = dead. For module-level checks, also verify zero integration test usage with `--include-tests`.
 
 2. **Delete code:** Remove the `.py` file and corresponding `.pyi` if no other component depends on the Protocol.
 
@@ -153,20 +152,36 @@ When removing redundant or dead code, prove unused status before deletion.
 
 ```
 /io-review or /gap-analysis  --> surfaces findings
-/review-capture           --> appends [ ] items to plans/backlog.md with taxonomy tags
-/io-orchestrate           --> reads backlog.md, warns on [DESIGN]/[REFACTOR] conflicts
-/doc-sync                 --> human marks resolved items [x] after verification
+/review-capture              --> appends [ ] items to plans/backlog.md with taxonomy tags
+/io-backlog-triage           --> assesses open items, outputs prioritized routing summary
+                                 with explicit prompts per item (Tier 1 -- plan mode)
+/io-orchestrate              --> reads backlog.md, warns on [DESIGN]/[REFACTOR] conflicts
+/doc-sync                    --> human marks resolved items [x] after verification
 ```
+
+### Using the Triage Output
+
+`/io-backlog-triage` produces a structured summary with an explicit `Prompt:` block for each
+routable item.
+
+- **Route Immediately items:** copy the `Prompt:` verbatim and run it. The downstream workflow
+  receives the full item description from the summary as context.
+- **Requires Human Scoping items:** amend `plans/plan.md` manually first — add the target file
+  to a checkpoint's write targets or add a new checkpoint — then run `/validate-plan`.
+- **Likely Resolved items:** confirm by reading the referenced file at the described location.
+  If resolved, change `[ ]` to `[x]` in `plans/backlog.md` with a brief resolution note.
+- **Deferred items:** triage workflow tags them `[DEFERRED]` in `plans/backlog.md` with a
+  reason note on human approval. Deferred items do not block orchestration.
 
 **Tags:**
 
-| Tag | Meaning | Blocks orchestration? |
-|-----|---------|----------------------|
-| `[DESIGN]` | CRC or Protocol gap — requires `/io-architect` | Yes (warning) |
-| `[REFACTOR]` | DI, layer, or SOLID violation | Yes (warning) |
-| `[CLEANUP]` | Minor improvement | No |
-| `[TEST]` | Missing test coverage | No |
-| `[DEFERRED]` | Acknowledged, intentionally postponed | No |
+| Tag | Meaning | Blocks orchestration? | Routing workflow |
+|-----|---------|----------------------|-----------------|
+| `[DESIGN]` | CRC or Protocol gap — requires `/io-architect` | Yes (warning) | `/io-architect` |
+| `[REFACTOR]` | DI, layer, or SOLID violation | Yes (warning) | `/io-architect` (CRC only) then `/validate-plan` |
+| `[CLEANUP]` | Minor improvement | No | `/validate-plan` → `/io-plan-batch` |
+| `[TEST]` | Missing test coverage | No | `/io-ct-remediate` (CT gaps) or checkpoint amendment (unit test gaps) |
+| `[DEFERRED]` | Acknowledged, intentionally postponed | No | — |
 
 **Rules:**
 

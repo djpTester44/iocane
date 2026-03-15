@@ -11,6 +11,7 @@ description: Per-checkpoint behavioral review and connectivity verification. Fin
 > 2. Load the checkpoint being reviewed from `plans/plan.md`
 > 3. Load CRC cards for checkpoint components from `plans/project-spec.md`
 > 4. Load relevant Protocol contracts from `interfaces/*.pyi`
+> 5. Load the Integration Seams reference: `view_file plans/seams.md` (read-only — io-review does not update seams.md)
 
 # WORKFLOW: REVIEW
 
@@ -50,9 +51,12 @@ Before proceeding, output:
 
 ### Step B: CONNECTIVITY TEST VERIFICATION
 
-- **Action:** For each connectivity test listed in `plans/plan.md` at this checkpoint's output seams, run the gate command.
-- **Rule:** Every connectivity test must be green before this checkpoint is considered approved.
-- **Output:** For each CT: "CT-[NNN]: [PASS/FAIL] — [test file::function]"
+- **Action:** For each connectivity test listed in `plans/plan.md` at this checkpoint's output seams:
+  1. Check whether the CT test file exists on disk at the `file:` path in the CT spec.
+  2. If it exists: run the gate command and report PASS or FAIL.
+  3. If it does **not** exist: report as `MISSING`. A missing CT file is a HIGH-severity finding — the sub-agent failed to create it during `/io-execute` Step E. Record in the findings report and route to backlog.
+- **Rule:** Every connectivity test must be green (and present) before this checkpoint is considered approved.
+- **Output:** For each CT: `CT-[NNN]: [PASS/FAIL/MISSING] -- [test file::function]`
 
 ---
 
@@ -72,6 +76,7 @@ For each implementation file in the checkpoint's write targets:
 - Run `uv run rtk lint-imports` — verify layer compliance
 - Run `uv run rtk python .agent/scripts/check_di_compliance.py` — verify DI compliance
 - Run `uv run rtk mypy <file>` — verify type correctness
+- Run `uv run rtk python .claude/skills/symbol-tracer/scripts/symbol_tracer.py --symbol <ProtocolName> --root src/ --summary` — verify Protocol is consumed
 
 Flag any violations. Do not fix — record for findings.
 

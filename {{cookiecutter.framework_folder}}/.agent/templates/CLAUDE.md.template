@@ -2,7 +2,7 @@
 
 ## System Context
 
-This is **{{cookiecutter.project_name}}** — a project generated from the Iocane [cookiecutter](https://cookiecutter.readthedocs.io/) template for Contract-Driven Development (CDD) workflows. Claude must treat this as a **live project**: files here are active sources to develop, test, and evolve. The `.agent/` directory at the repo root contains the active Iocane harness governing this project's workflows, rules, and skills. The `.claude/` directory contains hooks and slash commands active for this project.
+This is **__PROJECT_NAME__** — __PROJECT_DESCRIPTION__. Claude must treat this as a **live project**: files here are active sources to develop, test, and evolve. The `.agent/` directory at the repo root contains the active Iocane harness governing this project's workflows, rules, and skills. The `.claude/` directory contains hooks and slash commands active for this project.
 
 ---
 
@@ -18,7 +18,7 @@ This is **{{cookiecutter.project_name}}** — a project generated from the Iocan
 
 ---
 
-## [CRITICAL] Forbidden Actions (Rules 1–9)
+## [CRITICAL] Forbidden Actions (Rules 1-9)
 
 1. NEVER use `pip`, `pip3`, `python -m pip`, or `poetry` — use `uv` exclusively.
 2. NEVER hardcode secrets, API keys, or tokens.
@@ -37,7 +37,7 @@ This is **{{cookiecutter.project_name}}** — a project generated from the Iocan
 Iocane uses a three-tier model to keep correctness guarantees early and execution cheap:
 
 **Tier 1 — Strategic (Human + Plan Mode)**
-Human owns all design decisions. Claude uses plan mode at every Tier 1 stage — proposes before writing. Nothing commits until the human approves. Tier 1 workflows: `/io-clarify`, `/io-specify`, `/io-architect`, `/io-checkpoint`, `/review`.
+Human owns all design decisions. Claude uses plan mode at every Tier 1 stage — proposes before writing. Nothing commits until the human approves. Tier 1 workflows: `/io-clarify`, `/io-specify`, `/io-architect`, `/io-checkpoint`, `/io-review`.
 
 **Tier 2 — Orchestration (Harness Autonomous)**
 Orchestrator reads approved Tier 1 artifacts, generates task files, scores the confidence rubric, and writes `tasks/run.sh`. Human runs the script. Tier 2 workflow: `/io-orchestrate`.
@@ -58,7 +58,8 @@ The human is required at these moments — and only these:
 | Design proposal | `/io-architect` | Approve CRC + Protocols — this is the contract lock |
 | Checkpoint boundaries | `/io-checkpoint` | Approve `plan.md` + connectivity test signatures |
 | Run sub-agents | post `/io-orchestrate` | `bash tasks/run.sh` |
-| Checkpoint review | `/review` | Review findings, approve or route to backlog |
+| Checkpoint review | `/io-review` | Review findings, approve or route to backlog |
+| Backlog triage | post `/io-review` | Run `/io-backlog-triage` to assess relevance, risk, and routing |
 | Escalation | session start | Review `.iocane/escalation.log`, clear flag |
 | Replan | `/io-replan` | Approve PRD delta propagation |
 

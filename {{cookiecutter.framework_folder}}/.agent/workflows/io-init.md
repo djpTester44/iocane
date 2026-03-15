@@ -77,6 +77,17 @@ bash .agent/scripts/scaffold-greenfield.sh \
 
 ---
 
+### Step C1: SCAFFOLD CLAUDE.md
+
+- **Rule:** If `CLAUDE.md` already exists, skip this step entirely.
+- **Action:** The `scaffold-greenfield.sh` script (invoked in Step C) also writes `CLAUDE.md` from `.agent/templates/CLAUDE.md.template`, substituting:
+  - `__PROJECT_NAME__` with the project name extracted from the PRD
+  - `__PROJECT_DESCRIPTION__` with the one-line description extracted from the PRD
+- **Output:** `CLAUDE.md` written with localized System Context.
+- **Note:** If the template is missing, the script emits a warning and continues. The root `CLAUDE.md` can be written manually in that case.
+
+---
+
 ### Step C2: CREATE PLANS/ DIRECTORY STRUCTURE
 
 Create the following directory scaffolding if not already present:
@@ -145,8 +156,9 @@ Items marked [x] are resolved. Items marked [ ] are active.
 ```
 BOOTSTRAP COMPLETE.
 
-pyproject.toml scaffolded (runtime deps empty — add with uv add).
-plans/roadmap.md created (stub — ready for /io-specify).
+pyproject.toml scaffolded (runtime deps empty -- add with uv add).
+CLAUDE.md localized with project identity.
+plans/roadmap.md created (stub -- ready for /io-specify).
 plans/backlog.md initialized.
 
 Next step: Run /io-specify to generate the dependency-ordered feature roadmap from the clarified PRD.

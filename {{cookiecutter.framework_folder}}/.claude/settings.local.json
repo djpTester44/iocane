@@ -10,7 +10,8 @@
       "Bash(cd C:/Users/danny/projects/030926_claude-harness-testing && rtk pytest tests/lib/test_pipeline_repo.py 2>&1)",
       "Bash(rtk git:*)",
       "Bash(rtk find:*)",
-      "Bash(rtk uv:*)"
+      "Bash(uv run rtk:*)",
+      "Bash(rtk grep:*)"
     ]
   }
 }

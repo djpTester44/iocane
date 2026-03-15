@@ -41,9 +41,13 @@ Produce a candidate list ordered by checkpoint sequence.
 
 For each candidate checkpoint, extract declared write targets. Check all pairs in the candidate list for write target overlap. Remove any checkpoint from the candidate list that shares a write target with a higher-priority checkpoint already in the batch.
 
+Beyond write-target overlap, run `symbol_tracer.py --multiple "<Symbol1>,<Symbol2>" --root src/ --imports-only` to detect hidden cross-references between candidate checkpoints' key symbols.
+
 Apply `parallel.limit` cap: take only the first N checkpoints that pass the disjoint check, where N = `parallel.limit`.
 
 ### Step D — Generate Draft Task Files (in memory only)
+
+**Context gathering:** Before constructing task files, read `plans/seams.md` once. For each checkpoint in the batch, identify the components in its write targets and extract their seam entries (fields: `Receives (DI)`, `Key failure modes`, `External terminal`). Exclude `Backlog refs` — backlog remediation is a separate workflow concern. Hold this data in memory for embedding below.
 
 For each checkpoint in the confirmed batch, construct the full `CP-XX.md` task file content. Do **not** write to disk at this step.
 
@@ -51,9 +55,11 @@ Each task file must include:
 
 - Checkpoint ID and title
 - Objective and acceptance criteria (from `plan.md`)
-- Declared write targets
+- Declared write targets (including CT test file paths — see below)
 - Any interface contracts or `.pyi` references
 - Self-contained instructions sufficient for an agent to execute without clarification
+- A `## Seam Context` section: for each component in this checkpoint's write targets, embed its seam entry from `plans/seams.md` (fields: `Receives (DI)`, `Key failure modes`, `External terminal` only — omit `Backlog refs`). Sub-agents executing this task must not read `plans/seams.md` directly; this section is their only seam reference. If a component has no entry in `plans/seams.md`, note it as "Not yet populated."
+- A `## Connectivity Tests to Keep Green` section: scan `plans/plan.md` for all connectivity tests whose **downstream** checkpoint matches this task's checkpoint ID (i.e., this checkpoint appears on the right side of the arrow in `CT-NNN: CP-XX -> CP-YY`, or on the right side of a multi-source arrow like `CT-NNN: CP-XX + CP-YY -> CP-ZZ`). For each matching CT, include the full CT specification block verbatim from `plan.md` (test_id, function, file, fixture_deps, contract_under_test, assertion, gate). The CT test file path from the `file:` field must also be added to `## Declared Write Targets` so the sub-agent is authorized to create it. If no connectivity tests target this checkpoint as downstream, include the section header with the text "None for this checkpoint."
 - A `## Step Progress` section with checkboxes for resumable steps B–G (Step A is context-gathering and is never checkboxed):
 
 ```markdown

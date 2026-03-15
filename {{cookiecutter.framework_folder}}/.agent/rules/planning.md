@@ -1,6 +1,6 @@
 ---
 trigger: glob
-description: Planning constraints. Loaded automatically by /io-architect and /io-tasking.
+description: Planning constraints. Loaded automatically by /io-architect and /io-plan-batch.
 globs: plans/**, interfaces/**
 ---
 
@@ -12,7 +12,7 @@ globs: plans/**, interfaces/**
 
 1. **The Living Document**: `plans/project-spec.md` is the ultimate authority and the core of the project's state.
 2. **Design Before Contract (Macro Tier)**: You **MUST** define the **Component Specification (CRC & Sequence)** in `plans/project-spec.md` *before* generating or modifying `.pyi` files.
-    - **Constraint:** Use the standard defined in `.agent/skills/mini-spec/SKILL.md`.
+    - **Constraint:** Use the standard defined in `.claude/skills/mini-spec/SKILL.md`.
 3. **Mandatory Updates**: You **MUST** update `plans/project-spec.md` (Interface Registry, Component Specifications, and Mermaid Graph) to reflect any new components or architectural shifts.
 4. **Atomic Scope**: Each Protocol (`.pyi`) should represent a single responsibility and map to a single Component Specification.
 5. **Interface Rules**:

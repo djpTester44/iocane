@@ -5,7 +5,7 @@ description: Clarify the PRD before Init to ensure testable, autonomous executio
 # Clarify Workflow
 
 **Trigger:** Executed prior to `io-init` or when a new `PRD.md` is provided.
-**Purpose:** Prevent architectural hallucination and ensure the PRD contains strictly testable constraints required for the autonomous `io-loop`.
+**Purpose:** Prevent architectural hallucination and ensure the PRD contains strictly testable constraints required for autonomous sub-agent execution.
 
 ## Execution Rules
 

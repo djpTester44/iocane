@@ -6,7 +6,7 @@ Direction: .github/ -> .agent/ (one-way, additive only -- never deletes targets)
 Mapping:
   .github/instructions/*.instructions.md -> .agent/rules/*.md
   .github/prompts/*.prompt.md            -> .agent/workflows/*.md
-  .github/skills/*/                      -> .agent/skills/*/
+  .github/skills/*/                      -> .claude/skills/*/
   .github/scripts/*                      -> .agent/scripts/*
   .github/templates/*                    -> .agent/templates/*
   .github/<loose files>                  -> .agent/<loose files>
@@ -309,10 +309,10 @@ def sync_skills(
     dry_run: bool = False,
     targets: set[str] | None = None,
 ) -> SyncStats:
-    """Sync .github/skills/ -> .agent/skills/ (as-is copy)."""
+    """Sync .github/skills/ -> .claude/skills/ (as-is copy)."""
     stats = SyncStats()
     src = github_dir / "skills"
-    dst = agent_dir / "skills"
+    dst = agent_dir.parent / ".claude" / "skills"
 
     if not src.is_dir():
         return stats

@@ -38,7 +38,7 @@ Record:
 
 ### 3. ANALYZE WITH SKILL
 
-**Read the skill:** `.agent/skills/code-optimizer/SKILL.md`
+**Read the skill:** `.claude/skills/code-optimizer/SKILL.md`
 
 Using the skill's reference tables, identify:
 
@@ -76,5 +76,5 @@ Present analysis to user:
 
 ## References
 
-- Skill: `.agent/skills/code-optimizer/SKILL.md`
-- Complexity cheatsheet: `.agent/skills/code-optimizer/references/complexity_cheatsheet.md`
+- Skill: `.claude/skills/code-optimizer/SKILL.md`
+- Complexity cheatsheet: `.claude/skills/code-optimizer/references/complexity_cheatsheet.md`

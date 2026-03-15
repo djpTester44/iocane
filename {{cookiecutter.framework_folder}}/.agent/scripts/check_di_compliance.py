@@ -1139,7 +1139,7 @@ def main() -> None:
     )
 
     # ------------------------------------------------------------------
-    # Exit code - strict binary gate for /io-tasking
+    # Exit code - strict binary gate for /io-plan-batch
     #
     # Exit 1 conditions:
     #   • Any CRITICAL  (hardcoded dep / untracked noqa / boundary breach)

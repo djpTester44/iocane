@@ -1,6 +1,6 @@
 ---
 trigger: glob
-description: Architectural dependency analysis constraints. Loaded by /dep-check and /io-loop verify.
+description: Architectural dependency analysis constraints. Loaded by /dep-check and /io-review.
 globs: **/*.py
 ---
 
@@ -10,9 +10,7 @@ globs: **/*.py
 
 ## [HARD] When to Run
 
-1. **After any `import` change** in source packages (as defined in `pyproject.toml`): You **MUST** run a dependency check before marking a task complete.
-2. **During `/io-loop` verify steps**: Run `uv run rtk lint-imports`.
-3. **During `/io-review` pre-scan**: Run `uv run rtk lint-imports` to surface coupling and contract compliance.
+1. **During `/io-review` pre-scan**: Run `uv run rtk lint-imports` to surface coupling and contract compliance.
 
 ## [HARD] Contract Enforcement
 
@@ -35,12 +33,6 @@ uv run rtk import-linter explore <package>
 
 e.g. `uv run rtk import-linter explore lib` OR `uv run rtk import-linter explore jobs`
 (Note: with `src` layout, you may need to use `src.lib` if top-level imports are not preserved in the tool, but `pyproject.toml` config usually handles the root)
-
-## Interpreting Violations
-
-1. **Circular dependency**: Extract shared types into a common module, or inject the dependency via constructor parameter.
-2. **Independence violation**: Peer packages are importing each other. Refactor to a shared interface in `interfaces/` and inject via DI.
-3. **Layer violation**: A lower layer is importing from a higher layer. Refactor to receive the dependency via injection.
 
 ## [CRITICAL] Technical Debt
 

@@ -6,8 +6,9 @@ description: Propagate PRD changes to roadmap.md and project-spec.md without des
 > All proposed changes to `roadmap.md` and `project-spec.md` require human approval before write.
 
 > **[CRITICAL] CONTEXT LOADING**
+>
 > 1. Load planning rules: `view_file .agent/rules/planning.md`
-> 2. Load the Design Skill: `view_file .agent/skills/mini-spec/SKILL.md`
+> 2. Load the Design Skill: `view_file .claude/skills/mini-spec/SKILL.md`
 > 3. Load the Architecture Template: `view_file .agent/templates/project-spec.md`
 
 # WORKFLOW: IO-REPLAN
@@ -17,6 +18,7 @@ description: Propagate PRD changes to roadmap.md and project-spec.md without des
 **When to use:** Only when `plans/PRD.md` itself has changed. This is not part of the linear execution chain — it is triggered on-demand when requirements shift.
 
 **Context manifest:**
+
 1. `plans/PRD.md` — updated source of truth
 2. `plans/roadmap.md` — existing feature sequence (to be updated)
 3. `plans/project-spec.md` — existing architecture (to be updated)
@@ -45,7 +47,7 @@ description: Propagate PRD changes to roadmap.md and project-spec.md without des
 | Category | Description |
 |----------|-------------|
 | **NEW** | Requirements, features, or components in the PRD that have no match in roadmap or spec |
-| **MODIFIED** | Features or components that exist but whose definition has changed |
+| **MODIFIED** | Features or components that exist but whose definition has changed. For each MODIFIED component, run `symbol_tracer.py --symbol <ComponentName> --root src/ --summary` to assess blast radius before proposing changes. |
 | **REMOVED** | Items in roadmap or spec no longer referenced by the PRD |
 
 Present the Change Report to the human for confirmation before proceeding.
@@ -116,8 +118,8 @@ Next steps:
 
 ## 2. CONSTRAINTS
 
-- Does not generate `.pyi` files — that is `/io-architect`'s job
-- Does not modify `plans/plan.md` directly — checkpoint replanning is a separate `/io-checkpoint` invocation
-- Does not delete any existing entries in `roadmap.md`, `project-spec.md`, or `backlog.md`
-- All writes require human approval via plan mode
-- `backlog.md` appends go via `/review-capture` — not written directly
+* Does not generate `.pyi` files — that is `/io-architect`'s job
+* Does not modify `plans/plan.md` directly — checkpoint replanning is a separate `/io-checkpoint` invocation
+* Does not delete any existing entries in `roadmap.md`, `project-spec.md`, or `backlog.md`
+* All writes require human approval via plan mode
+* `backlog.md` appends go via `/review-capture` — not written directly

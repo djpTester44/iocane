@@ -17,6 +17,7 @@ Different questions call for different tools. Match the tool to the question:
 | Understand a Python file's public surface | `extract_structure.py` — prefer over full file reads for structure questions |
 | Locate a symbol's line number before reading | File outline or semantic search |
 | Read a known target | Targeted read with line bounds or symbol lookup |
+| Trace a Python symbol's definitions, usages, or importers | `symbol_tracer.py` -- prefer over grep/smart_search for Python symbol lookups |
 
 > In bash-only contexts (e.g. headless sub-agents), `.agent/scripts/smart_search.sh` is available as a token-capped grep wrapper.
 
@@ -30,3 +31,4 @@ Different questions call for different tools. Match the tool to the question:
 2. **The "Grep Spam"**: Running repeated broad searches instead of refining the pattern or path after the first result.
 3. **The "Name Grep"**: Using a content search tool to find a file by name — it scans file *contents*, not filenames. Use a filename search tool instead.
 4. **The "Narrow Sweep"**: During a config migration or variable rename, search for both old names AND old values/syntax, then run a verification pass.
+5. **The "Symbol Grep"**: Using grep or smart_search.sh to find Python symbol references. Use `symbol_tracer.py` instead -- it understands Python syntax and won't match comments, strings, or partial name collisions.

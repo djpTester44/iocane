@@ -36,4 +36,4 @@ description: Systematically scan the codebase for orphaned implementation files,
      * **Tier 2: Defects & Missing Integrations:** Code that is unwired but should be (e.g., duplicate YAML keys, documented exceptions that are never raised).
      * **Tier 4: Verified Not Dead:** False positives caught during analysis (Ghost Anchors, implicit consumers, structural IO methods).
    * **[CRITICAL RULE] STRICTLY FORBIDDEN AUTOMATIC DELETION**: Do NOT automatically delete any code. The workflow must ONLY output the report for the user to review.
-   * End the workflow by instructing the user to manually task out deletions via `/io-tasking` based on the accepted findings in the report.
+   * End the workflow by instructing the user to manually task out deletions via `/io-plan-batch` based on the accepted findings in the report.

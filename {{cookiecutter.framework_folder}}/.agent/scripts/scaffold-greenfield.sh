@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # .agent/scripts/scaffold-greenfield.sh
 #
-# Scaffolds pyproject.toml from .agent/templates/pyproject.toml.template.
+# Scaffolds pyproject.toml and CLAUDE.md from .agent/templates/.
 # Called by /io-init after the layer map is resolved.
 #
 # Usage:
@@ -18,8 +18,9 @@
 #   --root-packages    Comma-separated importlinter root packages, e.g. "src,interfaces"
 #
 # Output:
-#   Writes pyproject.toml to the current working directory.
+#   Writes pyproject.toml and CLAUDE.md to the current working directory.
 #   Exits non-zero if pyproject.toml already exists (will not overwrite).
+#   Skips CLAUDE.md if it already exists.
 
 set -euo pipefail
 
@@ -76,4 +77,22 @@ sed \
     "$TEMPLATE" > pyproject.toml
 
 echo "pyproject.toml written."
+
+# --- Scaffold CLAUDE.md ---
+CLAUDE_TEMPLATE="$SCRIPT_DIR/../templates/CLAUDE.md.template"
+
+if [ -f "CLAUDE.md" ]; then
+    echo "CLAUDE.md already exists — skipping."
+else
+    if [ ! -f "$CLAUDE_TEMPLATE" ]; then
+        echo "WARNING: CLAUDE.md template not found at $CLAUDE_TEMPLATE — skipping." >&2
+    else
+        sed \
+            -e "s|__PROJECT_NAME__|${PROJECT_NAME}|g" \
+            -e "s|__PROJECT_DESCRIPTION__|${PROJECT_DESCRIPTION}|g" \
+            "$CLAUDE_TEMPLATE" > CLAUDE.md
+        echo "CLAUDE.md written."
+    fi
+fi
+
 echo "Next: add runtime dependencies with 'uv add <package>', then run /io-architect to populate [tool.importlinter.contracts]."

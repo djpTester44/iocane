@@ -7,22 +7,26 @@ description: Decompose roadmap features into atomic checkpoints with connectivit
 > Human approves checkpoint boundaries and connectivity test signatures before any orchestration begins.
 
 > **[CRITICAL] CONTEXT LOADING**
+>
 > 1. Load planning rules: `view_file .agent/rules/planning.md`
 > 2. Load the Roadmap: `view_file plans/roadmap.md`
 > 3. Load the Architecture Spec: `view_file plans/project-spec.md`
 > 4. Load all interfaces: `view_file interfaces/*.pyi`
+> 5. Load the Integration Seams reference: `view_file plans/seams.md`. Use the `Receives (DI)` graph to identify which component boundaries require connectivity tests: if CP-A builds a component and CP-B builds a component that injects it, a connectivity test is required at that seam.
 
 # WORKFLOW: IO-CHECKPOINT
 
 **Objective:** Decompose every feature in `roadmap.md` into atomic, independently-testable checkpoints. Define connectivity test signatures at every seam between dependent checkpoints. Write `plans/plan.md`.
 
 **Position in chain:**
+
 ```
 /io-architect -> [/io-checkpoint] -> /io-orchestrate
 ```
 
 **Definition of an atomic checkpoint:**
 A unit of functionality that:
+
 - Maps to one or more methods in an `interfaces/*.pyi` contract
 - Can pass its own tests independently, without requiring other checkpoints to be complete
 - Is small enough to be executed by a single sub-agent session without context pressure
@@ -45,9 +49,9 @@ Before proceeding, output the following metadata:
 
 ### Step A: [HARD GATE] CONTRACTS LOCKED
 
-* **Action:** Verify `plans/project-spec.md` exists and `interfaces/*.pyi` files are present.
-* **Rule:** If Interface Registry is empty or no `.pyi` files exist, HALT.
-* **Output:** "HALT: Contracts not locked. Run `/io-architect` first."
+- **Action:** Verify `plans/project-spec.md` exists and `interfaces/*.pyi` files are present.
+- **Rule:** If Interface Registry is empty or no `.pyi` files exist, HALT.
+- **Output:** "HALT: Contracts not locked. Run `/io-architect` first."
 
 ---
 
@@ -55,12 +59,13 @@ Before proceeding, output the following metadata:
 
 For each feature in `roadmap.md`:
 
-* **Read** the feature's acceptance criteria and `depends_on` list.
-* **Read** the CRC cards for all components involved in this feature.
-* **Identify** the function-level units of work implied by the CRC responsibilities.
-* **Group** related functions into the smallest independently-testable unit.
+- **Read** the feature's acceptance criteria and `depends_on` list.
+- **Read** the CRC cards for all components involved in this feature.
+- **Identify** the function-level units of work implied by the CRC responsibilities.
+- **Group** related functions into the smallest independently-testable unit.
 
 **Decomposition rules:**
+
 - One checkpoint = one component's core behavior, OR one well-defined integration seam
 - A checkpoint must not span multiple architectural layers unless the seam between them is exactly what's being tested
 - If a component has 5 methods and they can all be built and tested as a unit → one checkpoint
@@ -73,6 +78,7 @@ For each feature in `roadmap.md`:
 ### Step C: BUILD CHECKPOINT DEPENDENCY GRAPH
 
 For each checkpoint pair, determine:
+
 - Does checkpoint B require checkpoint A's gate to be green before B can begin?
 - Can B and A be built concurrently in separate worktrees without write target conflicts?
 
@@ -105,10 +111,12 @@ gate: pytest tests/connectivity/test_[cp_a]_[cp_b].py::[function_name]
 ```
 
 **Rules for connectivity test signatures:**
+
 - The assertion must be precise enough that `/io-execute` can build the test without ambiguity
 - The assertion describes the observable contract boundary — return type, key invariants, no ORM types leaking through domain layer, etc.
 - `fixture_deps` must name real fixtures or factories that will exist after CP-A is complete
 - Every dependency edge in the checkpoint graph must have at least one connectivity test
+- The downstream checkpoint's **gate command** MUST include the CT file path from the `file:` field. If the CT file does not exist at execution time, the gate will fail — this is intentional. Example: if CT-001 verifies the CP-01→CP-02 seam, CP-02's gate command must be `uv run rtk pytest tests/domain/test_dag_resolver.py tests/connectivity/test_cp01_cp02.py`, not just `uv run rtk pytest tests/domain/test_dag_resolver.py`.
 
 **Present all connectivity test signatures. Do not write any file yet.**
 
@@ -175,6 +183,7 @@ Propose the full content of `plans/plan.md`:
 **Present the full proposed `plan.md`. Do not write the file.**
 
 Output: "PROPOSAL READY. Review the checkpoint plan above. Confirm:
+
 1. Are the checkpoint boundaries correct?
 2. Are the connectivity test signatures precise enough?
 3. Are the parallelization groupings safe?
@@ -185,9 +194,9 @@ Reply with approval to write, or provide corrections."
 
 ### Step F: [HUMAN GATE] APPROVAL REQUIRED
 
-* **WAIT** for explicit human approval.
-* If corrections requested: revise and re-present. Do not write until approved.
-* On approval: write `plans/plan.md` exactly as approved.
+- **WAIT** for explicit human approval.
+- If corrections requested: revise and re-present. Do not write until approved.
+- On approval: write `plans/plan.md` exactly as approved.
 
 ---
 

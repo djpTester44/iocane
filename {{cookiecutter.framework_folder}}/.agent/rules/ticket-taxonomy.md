@@ -26,6 +26,8 @@ globs: plans/backlog.md
     *   *Examples:* Async migration for a sync prototype, optimizing a dev-only tool.
 
 *   **`[TEST]`** — Missing test coverage.
+    *   *Connectivity test (CT) gaps:* Create the CT file from the spec in `plans/plan.md` and run the gate command. If `/io-ct-remediate` exists, use it.
+    *   *Unit test gaps:* Amend the relevant checkpoint in `plans/plan.md` to include the missing test file in its write targets (or add a new checkpoint), then route through `/validate-plan` -> `/io-plan-batch` -> `/io-orchestrate`.
 
 ## 2. Gate Enforcement Rules
 

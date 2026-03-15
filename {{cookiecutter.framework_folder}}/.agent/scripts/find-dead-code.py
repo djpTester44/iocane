@@ -335,7 +335,7 @@ def print_markdown_report(report: ReportItems) -> None:
     print("\n")
 
     print(
-        "---\n**Instructions:** Review the Tier 1 and Tier 2 findings. Pass accepted changes to `/io-tasking` for execution."
+        "---\n**Instructions:** Review the Tier 1 and Tier 2 findings. Pass accepted changes to `/io-plan-batch` for execution."
     )
 
 

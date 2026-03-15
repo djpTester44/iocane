@@ -92,8 +92,12 @@ Before proceeding:
 
 ### Step E: CONNECTIVITY TESTS
 
-- **Action:** If `## Connectivity Tests to Keep Green` lists any gate commands in the task file, run each one.
-- **Rule:** If any previously passing connectivity test goes red, this is an escalation trigger. Do not attempt autonomous remediation. Escalate immediately (see Section 3).
+- **Action:** For each CT entry in `## Connectivity Tests to Keep Green` in the task file:
+  1. Check whether the CT test file exists at the `file:` path specified in the CT spec.
+  2. If it does **not** exist, create it: write the test at that path using the `function:`, `fixture_deps:`, `contract_under_test:`, and `assertion:` fields from the CT spec. Both sides of the seam must use real implementations — no mocking either side. Create the `tests/connectivity/` directory if it does not exist.
+  3. Run the gate command from the `gate:` field.
+- **Rule:** All CT gates must pass. Any failure is an escalation trigger. Do not attempt autonomous remediation. Escalate immediately (see Section 3).
+- **If `## Connectivity Tests to Keep Green` contains "None for this checkpoint":** skip this step entirely.
 - **On completion:** Mark `- [x] E` in `## Step Progress` of the task file.
 
 ---

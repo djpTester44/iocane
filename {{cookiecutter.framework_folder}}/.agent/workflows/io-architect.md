@@ -10,7 +10,7 @@ description: Design CRC cards, Protocols, and the Interface Registry. Tier 1 —
 
 > **[CRITICAL] CONTEXT LOADING**
 > 1. Load planning rules: `view_file .agent/rules/planning.md`
-> 2. Load the Design Skill: `view_file .agent/skills/mini-spec/SKILL.md`
+> 2. Load the Design Skill: `view_file .claude/skills/mini-spec/SKILL.md`
 > 3. Load the PRD: `view_file plans/PRD.md`
 > 4. Load the Roadmap: `view_file plans/roadmap.md`
 > 5. Load current Architecture Spec (if exists): `view_file plans/project-spec.md`
@@ -220,30 +220,9 @@ Next step: Run /io-checkpoint to define atomic checkpoints and connectivity test
 
 ### Step I: GENERATE NAVIGATION ARTIFACTS
 
-After Step H-post, generate two navigation artifacts from the approved design. These are derived outputs — generated from `project-spec.md` and the Interface Registry. Do not invent content; extract and reformat only.
+After Step H-post, generate navigation artifacts from the approved design. These are derived outputs — generated from `project-spec.md` and the Interface Registry. Do not invent content; extract and reformat only.
 
-**Step I-1: Write `ARCHITECTURE.md` at the project root.**
-
-Content: the dependency graph (Mermaid) and layer map only. Nothing else.
-
-```markdown
-# Architecture
-
-## Layer Map
-
-| Layer | Path | Responsibility |
-|-------|------|----------------|
-| 1 — Foundation | `src/core/` | Config, types, domain primitives |
-| 2 — Utility | `src/lib/` | Stateless clients, external adapters |
-| 3 — Domain | `src/domain/` | Business logic, orchestrators |
-| 4 — Entrypoint | `src/main.py` / `src/jobs/` | CLI, API handlers, job runners |
-
-## Dependency Graph
-
-[Mermaid diagram — copied verbatim from project-spec.md Section 4]
-```
-
-**Step I-2: Write a `CLAUDE.md` into each `src/` subdirectory** that contains at least one registered component.
+**Step I-1: Write a `CLAUDE.md` into each `src/` subdirectory** that contains at least one registered component.
 
 Use `.agent/templates/dir-claude.md` as the structure. For each directory:
 - `Layer`: from the Interface Registry layer column
@@ -253,6 +232,17 @@ Use `.agent/templates/dir-claude.md` as the structure. For each directory:
 - `Key files`: list only files with registered components, one line each
 
 **Rule:** These files are generated artifacts — overwrite on every `/io-architect` run. They must stay under 20 lines. If content would exceed 20 lines, the directory has too many responsibilities and should be flagged as a `[DESIGN]` finding.
+
+**Step I-2: Update `plans/seams.md`.**
+
+For each component added or modified in this architect run (identified from the Interface Registry delta), update its entry in `plans/seams.md`:
+- `Receives (DI)`: derive from the CRC card Collaborators list
+- `External terminal`: derive from CRC card Responsibilities (any external system explicitly mentioned) and Must NOT constraints
+- `Key failure modes`: derive from Protocol method docstrings (exception types documented)
+- `Backlog refs`: leave blank — backlog is populated by `/io-review`, not `/io-architect`
+
+If `plans/seams.md` does not exist, create it from `.agent/templates/seams.md`.
+Derive from `plans/project-spec.md` only — do not read source code.
 
 ---
 

@@ -18,6 +18,7 @@ description: Validate plans/plan.md checkpoint structure against CDD principles 
 * Trigger: Run before `/io-plan-batch` to catch structural violations before task files are generated. Iterate until PASS.
 
 **Position in chain:**
+
 ```
 /io-checkpoint -> [/validate-plan] -> /io-plan-batch -> /io-orchestrate
 ```
@@ -34,33 +35,22 @@ description: Validate plans/plan.md checkpoint structure against CDD principles 
 
 ---
 
-### Step 2: LOAD ANCHORS
+### Step 2: PHASE 1 — STRUCTURAL CONTEXT LOAD
 
-For every component referenced across all checkpoints in `plans/plan.md`:
+Load the following — and only the following — before running Phase 1 checks:
 
-* Read its **CRC Card** from `plans/project-spec.md`.
-* Read its **Protocol** from `interfaces/*.pyi`.
-* Read the **Interface Registry** in `plans/project-spec.md` to verify file path mappings.
-* For each component's implementation file, run `python extract_structure.py <file>` to load its structural skeleton (signatures, decorators, docstrings) into context. Do not load full file contents.
+* **Interface Registry table** from `plans/project-spec.md` — load the registry section only, not the full file. This provides file path mappings for write-target verification.
+* **`pyproject.toml`** — load the `[tool.importlinter]` section to understand `root_packages` and all `[[tool.importlinter.contracts]]` entries (type `independence` and type `layers`).
+
+`plans/plan.md` is already in context from Step 1.
+
+Do NOT load CRC cards, Protocol files, `plans/seams.md`, or run `extract_structure.py` here. Those belong to Phase 2.
 
 Files loaded in this step remain in context for all subsequent steps — do not re-read any file already loaded unless it has been modified during this run.
 
 ---
 
-### Step 3: LOAD LAYER CONTRACTS
-
-Read `pyproject.toml` section `[tool.importlinter]` to understand:
-
-* Which packages are `root_packages`.
-* All `[[tool.importlinter.contracts]]` entries. For each, note:
-  * `type = "independence"` — these packages cannot import each other.
-  * `type = "layers"` — packages are ordered top-to-bottom; lower layers cannot import higher.
-
-Use this to inform checks 4–10 below.
-
----
-
-### Step 4: CHECK — Private Method Gate
+### Step 4: CHECK — Private Method Gate [Phase 1]
 
 > **[HARD]** `_`-prefixed methods are internal implementation details.
 
@@ -69,26 +59,7 @@ Use this to inform checks 4–10 below.
 
 ---
 
-### Step 5: CHECK — CRC-Protocol Symmetry per Checkpoint
-
-For each checkpoint:
-
-* Every Protocol method listed in the checkpoint's Contract section must have a corresponding CRC responsibility in `project-spec.md`.
-* Every CRC responsibility named in the checkpoint must map to at least one Protocol method.
-* **Flag:** Protocol method with no CRC anchor = `UNANCHORED_CONTRACT`
-* **Flag:** CRC responsibility with no Protocol method = `ORPHANED_DESIGN` (acceptable only for private helpers)
-
----
-
-### Step 6: CHECK — Checkpoint Atomicity
-
-* Each checkpoint must reference components from a single CRC card, or if multi-component, the components must be explicitly named and their Protocols cross-referenced.
-* CRC + Protocol changes for the same component must appear in the same checkpoint, not split across multiple.
-* **Flag:** CRC and Protocol for the same component in separate ungrouped checkpoints = `ATOMICITY_VIOLATION`
-
----
-
-### Step 7: CHECK — Write Target Registry Alignment
+### Step 7: CHECK — Write Target Registry Alignment [Phase 1]
 
 For every write target listed in every checkpoint:
 
@@ -97,9 +68,9 @@ For every write target listed in every checkpoint:
 
 ---
 
-### Step 8: CHECK — Layer Boundary Compliance
+### Step 8: CHECK — Layer Boundary Compliance [Phase 1]
 
-Using the contracts loaded in Step 3:
+Using the contracts loaded in Step 2 (`pyproject.toml`):
 
 * Verify that all write targets respect layer and independence contracts.
 * **Flag:** Plan proposes a write target that would introduce a lower-to-higher import = `LAYER_VIOLATION`
@@ -107,7 +78,7 @@ Using the contracts loaded in Step 3:
 
 ---
 
-### Step 9: CHECK — Connectivity Test Completeness
+### Step 9: CHECK — Connectivity Test Completeness [Phase 1]
 
 For the Connectivity Tests section of `plan.md`:
 
@@ -118,12 +89,59 @@ For the Connectivity Tests section of `plan.md`:
 
 ---
 
-### Step 10: CHECK — DI Compliance Preview
+### [PHASE 1 HALT GATE]
+
+After running Steps 4, 7, 8, and 9:
+
+* If any Phase 1 check produced a **non-auto-remediable VIOLATION**: HALT immediately. Do not load Phase 2 context. Output findings and escalate to user.
+* If all Phase 1 violations are auto-remediable: apply auto-fixes, mark `[AUTO-AMENDED]`, and re-run Steps 4, 7, 8, 9 only (no Phase 2 reload per self-heal iteration). See Step 12 for loop procedure.
+* Only when Phase 1 is clean (zero Phase 1 VIOLATIONs): proceed to Phase 2.
+
+---
+
+### Step 2B: PHASE 2 — BEHAVIORAL CONTEXT LOAD
+
+Load the following before running Phase 2 checks:
+
+* **CRC cards** from `plans/project-spec.md` for every component referenced across all checkpoints that survived Phase 1.
+* **Protocol files** (`interfaces/*.pyi`) for those same components.
+* **`plans/seams.md`** — load now, not earlier. Steps 4, 7, 8, 9 do not require seam data.
+
+Do NOT run `extract_structure.py` here. It runs at Step 10 only, scoped to checkpoints with new collaborators.
+
+---
+
+### Step 5: CHECK — CRC-Protocol Symmetry per Checkpoint [Phase 2 — requires CRC/Protocol context loaded above]
+
+For each checkpoint:
+
+* Every Protocol method listed in the checkpoint's Contract section must have a corresponding CRC responsibility in `project-spec.md`.
+* Every CRC responsibility named in the checkpoint must map to at least one Protocol method.
+* For each Protocol method in the checkpoint's Contract section, run `symbol_tracer.py --symbol <MethodName> --root src/ --imports-only` to verify an implementation file imports and references it.
+* **Flag:** Protocol method with no CRC anchor = `UNANCHORED_CONTRACT`
+* **Flag:** CRC responsibility with no Protocol method = `ORPHANED_DESIGN` (acceptable only for private helpers)
+
+---
+
+### Step 6: CHECK — Checkpoint Atomicity [Phase 2 — requires CRC/Protocol context loaded above]
+
+* Each checkpoint must reference components from a single CRC card, or if multi-component, the components must be explicitly named and their Protocols cross-referenced.
+* CRC + Protocol changes for the same component must appear in the same checkpoint, not split across multiple.
+* **Flag:** CRC and Protocol for the same component in separate ungrouped checkpoints = `ATOMICITY_VIOLATION`
+
+---
+
+### Step 10: CHECK — DI Compliance Preview [Phase 2 — requires CRC/Protocol context loaded above]
+
+`plans/seams.md` is already in context from Step 2B.
 
 If any checkpoint introduces a new collaborator:
 
+* Run `python extract_structure.py <file>` **only for checkpoints that introduce a new collaborator** — do not run it for all implementation files. Load structural skeletons (signatures, decorators, docstrings) into context for those files only.
 * Verify the task description specifies injection via `__init__` parameter, not inline instantiation.
+* Cross-reference the collaborator name against the `Receives (DI)` list for the receiving component in `plans/seams.md`. If the collaborator is absent from that list, flag `HARDCODED_DEPENDENCY` — the collaborator is either undeclared or being wired outside the approved DI contract.
 * **Flag:** New collaborator described as instantiated inline = `HARDCODED_DEPENDENCY`
+* **Flag:** New collaborator not present in the component's `Receives (DI)` entry in `plans/seams.md` = `HARDCODED_DEPENDENCY`
 * **Flag:** `os.environ` / `os.getenv` described outside Entrypoint layer = `ENV_LEAK`
 
 ---
@@ -169,7 +187,7 @@ Generate a Plan Validation report:
 
 **Loop Procedure:**
 
-1. If all VIOLATIONs are auto-remediable: amend `plan.md`, mark each change `[AUTO-AMENDED]`, and re-run checks 4–10.
+1. If all VIOLATIONs are auto-remediable: amend `plan.md`, mark each change `[AUTO-AMENDED]`, and re-run **Phase 1 checks only** (Steps 4, 7, 8, 9). Do not reload Phase 2 context on each loop iteration — Phase 2 context remains in context from initial load.
 2. If any non-auto-remediable VIOLATION exists: stop immediately and escalate to user with findings.
 3. After each pass, compare violation set to previous pass. If no new violations appear, the loop has converged — proceed to Step 13.
 4. If the same violation recurs across 3 passes: the violation is structural. Execute the 3x-failure path below.
@@ -204,14 +222,15 @@ CRC cards with no shared Protocol anchor. The CRC card for ComponentX may need
 to be split, or the checkpoint boundary redrawn at /io-checkpoint."]
 ```
 
-3. Inform the user:
+1. Inform the user:
+
 ```
 VALIDATE-PLAN: 3x self-heal failure. Plan stamped FAIL.
 
 Architect Brief written to plans/plan.md — open the file and read the
 ## Architect Brief section. Then run /io-architect to correct the design.
 
-Path forward: /io-architect → /io-checkpoint → /validate-plan
+Path forward: /io-architect -> /io-checkpoint -> /validate-plan
 ```
 
 Do NOT offer to re-run `/validate-plan`. The loop cannot converge without a design change.
@@ -237,8 +256,8 @@ Do NOT offer to re-run `/validate-plan`. The loop cannot converge without a desi
 
 Write the stamp using the following strictly sequential steps. Do NOT parallelize — the sentinel must exist before the Edit tool call fires.
 
-- **Step 13-pre:** `bash: mkdir -p .iocane && touch .iocane/validating`
-- **Step 13:** On **PASS**, stamp `plans/plan.md` with: `**Plan Validated:** PASS (YYYY-MM-DD)`. On **FAIL**, stamp `plans/plan.md` with: `**Plan Validated:** FAIL (YYYY-MM-DD)` and list the blocking violations.
+* **Step 13-pre:** `bash: mkdir -p .iocane && touch .iocane/validating`
+* **Step 13:** On **PASS**, stamp `plans/plan.md` with: `**Plan Validated:** PASS (YYYY-MM-DD)`. On **FAIL**, stamp `plans/plan.md` with: `**Plan Validated:** FAIL (YYYY-MM-DD)` and list the blocking violations.
 
 The sentinel prevents `reset-on-plan-write.sh` from immediately reverting a PASS stamp back to FAIL. The hook auto-deletes the sentinel when it detects the `**Plan Validated:** PASS` or `**Plan Validated:** FAIL` stamp write — no explicit cleanup step required.
 
@@ -253,11 +272,15 @@ The sentinel prevents `reset-on-plan-write.sh` from immediately reverting a PASS
 
 ## 2. CONSTRAINTS
 
-- Target artifact is `plans/plan.md` — not any session-specific plan document.
-- Files loaded into context are not re-read unless the file has been modified during the current run.
-- Auto-amend only the violations classified as auto-remediable above.
-- Do not expand scope beyond what `plan.md` proposes.
-- Do not route findings to `plans/backlog.md` — this is a pre-orchestration gate, not a post-implementation review.
-- Do not execute the plan. Amend and validate only.
-- `UNREGISTERED_WRITE_TARGET` findings must route to `/io-architect`, not be auto-amended.
-- `MISSING_CONNECTIVITY_TEST` findings must route to `/io-checkpoint` amendment, not be auto-amended.
+* Target artifact is `plans/plan.md` — not any session-specific plan document.
+* Files loaded into context are not re-read unless the file has been modified during the current run.
+* Auto-amend only the violations classified as auto-remediable above.
+* Do not expand scope beyond what `plan.md` proposes.
+* Do not route findings to `plans/backlog.md` — this is a pre-orchestration gate, not a post-implementation review.
+* Do not execute the plan. Amend and validate only.
+* `UNREGISTERED_WRITE_TARGET` findings must route to `/io-architect`, not be auto-amended.
+* `MISSING_CONNECTIVITY_TEST` findings must route to `/io-checkpoint` amendment, not be auto-amended.
+* Phase 1 context load (Step 2) does not load CRC cards, Protocol files, seams.md, or run extract_structure.py.
+* Phase 2 context load (Step 2B) does not re-load anything already in context from Phase 1.
+* Self-healing loop re-validates Phase 1 checks only — no Phase 2 context reload per iteration.
+* `extract_structure.py` runs only at Step 10, and only for checkpoints that introduce a new collaborator.

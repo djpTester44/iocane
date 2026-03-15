@@ -64,6 +64,15 @@
             "command": "bash .claude/hooks/escalation-gate.sh"
           }
         ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/on-approved-marker.sh"
+          }
+        ]
       }
     ]
   }
