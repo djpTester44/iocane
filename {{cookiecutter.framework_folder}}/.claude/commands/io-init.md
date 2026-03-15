@@ -1,1 +1,1 @@
-Read and execute the workflow defined in `.agent/workflows/io-init.md`. Follow every step in that file exactly, including the clarification gate, layer mapping, the stub `plans/roadmap.md` generation, the empty `plans/backlog.md` initialization, and the constraint that this workflow produces only the stub roadmap and backlog — never `plans/project-spec.md`, `plans/plan.md`, or any checkpoint artifacts. Route to `/io-specify` on completion.
+@.agent/workflows/io-init.md

@@ -1,1 +1,1 @@
-Read and execute the workflow defined in `.agent/workflows/io-replan.md`. Follow every step in that file exactly, including the clarification gate, the structured NEW/MODIFIED/REMOVED change report with mandatory user confirmation, the deprecation-not-deletion rule for removed items, and the prohibition against generating `.pyi` files in this workflow.
+@.agent/workflows/io-replan.md

@@ -1,1 +1,1 @@
-Read and execute the workflow defined in `.agent/workflows/doc-sync.md`. Follow every step in that file exactly, including using `extract_structure.py` for token-efficient scans, the auto-reconciliation rules for the backlog, and the requirement to present a diff and obtain user approval before applying any checkpoint or roadmap changes.
+@.agent/workflows/doc-sync.md

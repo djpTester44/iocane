@@ -1,1 +1,1 @@
-Read and execute the workflow defined in `.agent/workflows/io-orchestrate.md`. Follow every step exactly, including the escalation flag check (Step A), the pending task file presence check in `plans/tasks/` (Step B), the dispatch delegation to `uv run rtk bash .claude/scripts/dispatch-agents.sh` (Step C), and the outcome report (Step D). This workflow does not generate task files, score confidence rubrics, or modify plan artifacts — those responsibilities belong to `/io-plan-batch`.
+@.agent/workflows/io-orchestrate.md

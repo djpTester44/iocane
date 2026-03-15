@@ -1,1 +1,1 @@
-Read and execute the workflow defined in `.agent/workflows/io-checkpoint.md`. Follow every step exactly, including the contracts-locked gate, the checkpoint decomposition rules, the collision validation for parallelizable pairs, the connectivity test signature format requirements, the mandatory human approval gate before any file is written, and the constraint that write targets must derive from the Interface Registry.
+@.agent/workflows/io-checkpoint.md
