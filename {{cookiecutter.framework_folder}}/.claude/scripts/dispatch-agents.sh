@@ -11,7 +11,7 @@
 #   7. Reports batch summary
 #
 # Usage:
-#   uv run rtk bash .claude/scripts/dispatch-agents.sh
+#   uv run bash .claude/scripts/dispatch-agents.sh
 #
 # Environment (all optional, override config when config is absent):
 #   IOCANE_PARALLEL_LIMIT  -- max concurrent agents (fallback when config unreadable)
@@ -86,6 +86,17 @@ if [ -z "$REPO_ROOT" ]; then
     exit 1
 fi
 
+# --- Clean-tree gate ---
+# Worktrees branch from HEAD; uncommitted changes won't propagate to sub-agents.
+if ! git -C "$REPO_ROOT" diff --quiet HEAD 2>/dev/null || \
+   ! git -C "$REPO_ROOT" diff --cached --quiet HEAD 2>/dev/null || \
+   [ -n "$(git -C "$REPO_ROOT" ls-files --others --exclude-standard 2>/dev/null)" ]; then
+    echo "ERROR: Working tree is not clean. Commit or stash changes before dispatching." >&2
+    echo "       Worktrees branch from HEAD — uncommitted changes will not reach sub-agents." >&2
+    git -C "$REPO_ROOT" status --short >&2
+    exit 1
+fi
+
 # Capture the branch that was checked out when the user ran this script.
 # Completed checkpoint branches are merged back here on PASS.
 PARENT_BRANCH=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD)
@@ -148,6 +159,7 @@ for CP_ID in "${BATCH[@]}"; do
         export IOCANE_ATTEMPT="$ATTEMPT"
         export IOCANE_REPO_ROOT="$REPO_ROOT"
         export IOCANE_LOG_FILE="$LOG_FILE"
+        export IOCANE_MODEL_NAME="$MODEL"
         # Unset VIRTUAL_ENV so uv uses the worktree venv, not the parent repo venv.
         unset VIRTUAL_ENV
 
@@ -216,5 +228,5 @@ if [ "$FAILED" -gt 0 ]; then
     exit 1
 fi
 
-echo "All checkpoints passed. Run /review to verify outputs."
+echo "All checkpoints passed. Run /io-review to verify outputs."
 exit 0

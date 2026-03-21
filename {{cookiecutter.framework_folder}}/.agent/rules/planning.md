@@ -46,6 +46,7 @@ globs: plans/**, interfaces/**
 - **Dependency injection:** Pass dependencies as constructor/function arguments; avoid hardcoded instantiation.
 - **Testability by design:** If a component is hard to test in isolation, redesign it.
 - **Single source of configuration:** When tempted to create a new configuration file (e.g., `settings.container.yaml`), ask: "Can the existing file work with deployment-layer adjustments (volume mounts, ConfigMaps) instead?" Prefer one config file with environment-specific wiring over two files that can drift.
+- Prefer simple solutions. Do not over-engineer with new workflows, sub-fields, or abstractions unless the user explicitly asks. When in doubt, ask before adding complexity.
 
 ## ANTI-PATTERNS
 

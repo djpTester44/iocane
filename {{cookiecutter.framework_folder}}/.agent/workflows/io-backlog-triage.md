@@ -21,7 +21,16 @@ post /io-review -> [/io-backlog-triage] -> human approves routing -> /io-archite
 This workflow can also be invoked independently of `/io-review` for periodic triage
 (e.g., before a new `/io-plan-batch` cycle). The input section below applies in all cases.
 
-**Input:** All open `[ ]` items from `plans/backlog.md`, OR a subset pasted by the human.
+**Input sources (checked in order):**
+
+1. `plans/review-output.md` (staging file) — primary source for new findings from
+   `/io-review` and `/gap-analysis`. If the staging file exists and contains
+   unprocessed `### From CP-XXX` sections, those findings are the default input.
+   The human may specify which sections to process; unprocessed sections remain
+   in the staging file for a future triage cycle.
+2. All open `[ ]` items from `plans/backlog.md` (each identified by its `**BL-NNN**`
+   header) — used for periodic re-triage or when staging is empty.
+3. A subset pasted by the human — overrides both sources above.
 
 ---
 
@@ -30,6 +39,8 @@ This workflow can also be invoked independently of `/io-review` for periodic tri
 ### Step 1 — STATE INITIALIZATION
 
 Load all open `[ ]` items from `plans/backlog.md` (or accept a pasted subset from the human).
+Each item is identified by its `**BL-NNN**` header line. Use BL-IDs when referencing
+specific items throughout this workflow.
 
 Output a count of open items by tag:
 
@@ -56,6 +67,13 @@ If any `[DESIGN]` or `[REFACTOR]` items are open, flag immediately:
 ```
 WARNING: N orchestration blocker(s) open. /io-plan-batch will halt until resolved.
 ```
+
+Exclude items that already have a `Routed:` or `Triaged:` annotation from the
+blocker count — these are in-flight remediation items, not active blockers.
+
+Items with a `Triaged:` annotation (from a previous triage cycle) should be
+listed separately as "Previously triaged — awaiting human action" and skipped
+in Steps 2-4 unless the human explicitly includes them.
 
 ---
 
@@ -94,7 +112,35 @@ For each open item:
   described coverage. Do not execute tests — existence and assertion shape are sufficient.
 - `[CLEANUP]` / `[REFACTOR]` items: read the referenced source location.
 
-#### 2c. Classification
+#### 2c. Inter-item dependency check
+
+Before classifying, check for blocking relationships between open items in the
+current triage scope. Two items are in a blocking relationship when:
+
+- They share one or more files in their `Files:` field, AND one item must be
+  resolved before the other can be safely implemented (e.g., a `[DESIGN]` item
+  that changes a contract must precede a `[CLEANUP]` item that implements
+  against that contract on the same file), OR
+- One item's `Detail:` explicitly describes a fix that is a prerequisite for
+  another item's fix (logical sequencing — e.g., a type annotation fix must
+  land before a downstream consumer fix on the same boundary).
+
+For each blocking pair, identify which item is the **blocker** and which is
+the **dependent**. Flag the dependent as blocked:
+
+```
+BLOCKED ITEM: "[dependent item description]"
+  Blocked by: "[blocker item description]"
+  Reason: [shared file / logical prerequisite]
+  Action: route blocker first; dependent cannot be routed until blocker is
+  resolved and its remediation CP is complete.
+```
+
+Blocked items are excluded from Steps 3–4 routing. They appear in the Step 5
+summary under "Blocked — awaiting resolution" only. Only unblocked items
+proceed to risk classification and routing.
+
+#### 2d. Classification
 
 Classify each item as one of:
 
@@ -128,18 +174,24 @@ a risk category:
 
 For each `STILL OPEN` or `PARTIALLY RESOLVED` item, determine the routing:
 
-| Tag | Routing |
-|-----|---------|
-| `[DESIGN]` | `/io-architect` — contract changes require design review |
-| `[REFACTOR]` | `/io-architect` (CRC only) then `/validate-plan` |
-| `[CLEANUP]` | `/validate-plan` -> `/io-plan-batch` — no contract change |
-| `[TEST]` CT gap | `/io-ct-remediate` |
-| `[TEST]` unit gap | Human amends a checkpoint in `plan.md`, then `/validate-plan` |
-| Item requiring a new checkpoint | Flag for human scoping decision — no prompt available |
+| Tag | CP Status | Routing |
+|-----|-----------|---------|
+| `[DESIGN]` | any | `/io-architect` then `/io-checkpoint` |
+| `[REFACTOR]` | any | `/io-architect` (CRC only) then `/io-checkpoint` |
+| `[CLEANUP]` | pending | `/validate-plan` -> `/io-plan-batch` -- sub-agent picks it up |
+| `[CLEANUP]` | done | `/io-checkpoint` -- remediation checkpoint for completed CP |
+| `[TEST]` CT gap | any | `/io-ct-remediate` |
+| `[TEST]` unit gap | pending | Human amends CP scope in `plan.md`, then `/validate-plan` |
+| `[TEST]` unit gap | done | `/io-checkpoint` -- remediation checkpoint for completed CP |
+| Item requiring new CP | any | Flag for human scoping -- no prompt available |
 
 **`[TEST]` disambiguation:** A `[TEST]` item is a **CT gap** if its `Files:` field
 references `tests/connectivity/` or if the Detail mentions a connectivity test ID
 (CT-NNN). All other `[TEST]` items are **unit gaps**.
+
+**CP status check:** Read `plans/plan.md` to determine whether the parent
+checkpoint is `[ ] pending` or `[x] done`. The routing table above uses this
+status to select the correct path.
 
 ---
 
@@ -152,12 +204,12 @@ Present the following structured summary to the human. Do not write any files in
 
 ### Potential Duplicates
 For each group of items flagged in Step 2a:
-- Items: "[item A]", "[item B]"
+- Items: "BL-NNN [item A]", "BL-NNN [item B]"
   Recommendation: [merge / keep separate]
 
 ### Likely Resolved (verify and close)
 For each LIKELY RESOLVED item:
-- [item description] -- [reason the issue appears resolved]
+- BL-NNN [item description] -- [reason the issue appears resolved]
   Action: confirm manually by reading the referenced file, then mark [x] in backlog.md.
 
 ### Partially Resolved
@@ -167,15 +219,38 @@ For each PARTIALLY RESOLVED item:
   Remaining: [what gap persists]
   Action: [update Detail in backlog.md | split into new entry] then route as STILL OPEN.
 
-### Route Immediately
-For each STILL OPEN item with a clear routing:
+### Blocked — awaiting resolution
+For each item excluded in Step 2c:
+- BL-NNN [TAG] [short description]
+  Blocked by: BL-NNN [blocker item description]
+  Reason: [shared file / logical prerequisite]
+  Action: route blocker first; re-triage this item after blocker's remediation
+  CP is complete.
 
-- [TAG] [ID if applicable] [short description]
+### Route Immediately
+For each STILL OPEN item with a clear routing (unblocked items only):
+
+- BL-NNN [TAG] [short description]
   Risk: [Orchestration blocker | Destructive | Low urgency]
   Prompt: `[exact command to run]`
   Context to provide: "[any context the downstream workflow needs to begin]"
 
 (See REFERENCE: Routing Examples at the end of this document for format examples.)
+
+### Remediation Routing (done CPs — via /io-checkpoint)
+For each completed CP with STILL OPEN items:
+
+**Items requiring design gate first (DESIGN/REFACTOR -> CLEANUP):**
+- BL-NNN [CLEANUP] [short description] (was [ORIGINAL TAG])
+  Step 1: `/io-architect` — [context: what contract/CRC change is needed]
+  Step 2: `/io-checkpoint` — [context: remediation CP scope, write targets,
+  gate inherited from parent CP, Source BL: BL-NNN]
+
+**Items routable directly (CLEANUP/TEST on done CP):**
+- BL-NNN [TAG] [short description]
+  Prompt: `/io-checkpoint`
+  Context: "Remediation checkpoint for CP-NN. Source BL: BL-NNN. Scope: [backlog item description].
+  Write targets: [Files from backlog item]. Gate: inherited from CP-NN."
 
 ### Requires Human Scoping (no prompt available -- plan.md amendment needed first)
 For each item that requires a new checkpoint or amendment to an existing checkpoint:
@@ -209,19 +284,56 @@ The human reviews the summary and for each item:
   active postponement decision with a stated reason.
 - **Confirms likely-resolved:** triage workflow changes `[ ]` to `[x]` in
   `plans/backlog.md` with a brief resolution note.
+- **Approves routing (done CP):** For items on completed checkpoints, triage:
+  (a) Writes routing prompts as annotations on the backlog item — the full
+  playbook the human needs to execute (see Step 5 format). The routing prompts
+  persist in `plans/backlog.md` so the human can return to them later without
+  re-running triage. Use this annotation format for the `Routed:` field:
+
+      - Routed:
+        - Step 1: '/io-architect [context]'
+        - Step 2: '/io-checkpoint [context]'
+
+  The entire prompt including context MUST be wrapped in single quotes so it
+  is copy-pasteable directly from the markdown file. Do NOT use backticks or
+  double quotes.
+  (b) **Atomic splitting** for items with non-None `Contract impact` (from
+  `plans/review-output.md` staging format): instead of re-tagging a single
+  item, produce separate atomic BL items:
+    - A `[DESIGN]` item with `/io-architect` routing prompt for the contract
+      change. Tags are permanent — no re-tagging.
+    - One or more `[CLEANUP]`/`[TEST]` items with `/io-checkpoint` routing
+      prompts for the implementation work. Each gets a `Blocked: BL-NNN`
+      annotation referencing the `[DESIGN]` item, so they cannot be routed
+      until the design gate clears.
+  For items with `Contract impact: None`, write routing prompts directly
+  as before (no splitting needed).
+  (c) For items from `plans/review-output.md` that have NO contract impact
+  and are tagged `[CLEANUP]` or `[TEST]`, write a single-step routing prompt:
+
+      - Routed: CP-NNRN (YYYY-MM-DD)
+        - '/io-checkpoint [context]'
 
 After processing all items, output an audit table summarizing every decision:
 
 ```
 ## Triage Decisions
 
-| # | Item | Classification | Human Decision | Action Taken |
-|---|------|----------------|----------------|--------------|
-| 1 | [TAG] short description | STILL OPEN | APPROVE | Route to /validate-plan |
-| 2 | [TAG] short description | LIKELY RESOLVED | CONFIRM | Marked [x] in backlog.md |
-| 3 | [TAG] short description | STILL OPEN | DEFER | Tagged [DEFERRED] in backlog.md |
-| 4 | [TAG] short description | STILL OPEN | ACKNOWLEDGE | No change — remains open |
+| # | Item | Classification | Human Decision | Tag Change | Action Taken |
+|---|------|----------------|----------------|------------|--------------|
+| 1 | [CLEANUP] description | STILL OPEN | APPROVE | [REFACTOR]->[CLEANUP] | Routing prompts written |
+| 2 | [CLEANUP] description | STILL OPEN | APPROVE | -- | Routing prompt written |
 ```
+
+**Remediation completion handoff:**
+
+When `/io-review` reviews a completed remediation checkpoint (identified by the
+presence of a `**Remediates:**` field in `plans/plan.md`):
+- If review approves: `/io-review` marks each source backlog item `[x]` in
+  `plans/backlog.md` with `Remediated: CP-NNR (YYYY-MM-DD)`.
+- If review finds new issues: standard review flow — findings appended to
+  `plans/backlog.md` under a `From CP-NNR` section. Source items remain `[ ]`
+  with their `Routed:` annotation until the follow-up resolves.
 
 **The triage workflow TERMINATES after Step 6.** It does not perform any implementation
 or invoke any downstream workflow itself. All subsequent execution flows through the
@@ -236,12 +348,32 @@ Human triggers each downstream workflow in sequence.
 
 ---
 
+### Step 7 — ARCHIVE STAGING FILE
+
+After all items from `plans/review-output.md` have been processed (or the human
+confirms partial processing is complete for now):
+
+1. If all `### From CP-XXX` sections in `plans/review-output.md` were processed:
+   move the file to `plans/archive/review-output-YYYY-MM-DD-HHMM.md`.
+2. If only some sections were processed: remove the processed sections from
+   `plans/review-output.md` and archive them to
+   `plans/archive/review-output-YYYY-MM-DD-HHMM.md`. Unprocessed sections
+   remain in the staging file.
+
+This step is skipped if the input source was `plans/backlog.md` directly
+(periodic re-triage mode) or a human-pasted subset.
+
+---
+
 ## CONSTRAINTS
 
 - Steps 1-5 are ANALYSIS AND PROPOSAL ONLY. No writes until Step 6 human approval.
 - Does NOT modify `plans/plan.md`, any `interfaces/*.pyi`, or any source or test file.
-- Writes ONLY to `plans/backlog.md` (Step 6: tagging deferred items, closing
-  confirmed-resolved items).
+- Writes to `plans/backlog.md` (Step 6: tagging deferred items, closing
+  confirmed-resolved items, writing routing prompt annotations, atomic BL items
+  from staging).
+- Archives processed staging sections from `plans/review-output.md` to
+  `plans/archive/` (Step 7).
 - Does not execute implementation work, invoke downstream workflows, or run gate commands.
 - Relevance scan reads are targeted -- use line bounds or section reads, not full-file loads.
 - If the human provides a subset of items rather than the full backlog, scope the analysis
@@ -257,18 +389,18 @@ Human triggers each downstream workflow in sequence.
 These examples illustrate the format for Step 5 "Route Immediately" entries:
 
 ```
-- [TEST] CT-NNN -- ComponentA CP-XX->CP-YY seam
+- BL-012 [TEST] CT-NNN -- ComponentA CP-XX->CP-YY seam
   Risk: Destructive if unremediated (seam unverified)
   Prompt: `/io-ct-remediate CT-NNN`
 
-- [CLEANUP] ComponentB docstring out of sync with implementation
+- BL-015 [CLEANUP] ComponentB docstring out of sync with implementation
   Risk: Low urgency
   Prompt: `/validate-plan`
   Context to provide: "CLEANUP items require no plan.md amendment -- route directly."
 
-- [DESIGN] ComponentC error types not exported from Protocol
+- BL-003 [DESIGN] ComponentC error types not exported from Protocol
   Risk: Orchestration blocker
   Prompt: `/io-architect`
   Context to provide: "ErrorTypeX and ErrorTypeY need to be exported from
-  interfaces/component_c.pyi. See backlog item [date]."
+  interfaces/component_c.pyi. See BL-003."
 ```

@@ -22,27 +22,37 @@ INPUT=$(cat)
 # NUL-delimited to survive newlines in command/stderr values.
 # On any parse failure the raw payload is written so there is always
 # something useful in the log.
-PARSED=$(printf '%s' "$INPUT" | uv run rtk python -c "
-import sys, json, os
+# --- Parse payload with Python; output one field per line for Git Bash compat ---
+PARSED=$(printf '%s' "$INPUT" | uv run python -c "
+import sys, json
 
 raw = sys.stdin.read()
-NUL = chr(0)
+SEP = '<<<FIELD>>>'
 try:
     d = json.loads(raw)
     resp = d.get('tool_response', {})
-    code = resp.get('exit_code', d.get('exit_code', 'UNKNOWN'))
+    code = resp.get('exit_code', d.get('exit_code', None))
     tool = d.get('tool_name', 'Bash')
     cmd  = d.get('tool_input', {}).get('command', '(unknown command)')
     err  = resp.get('stderr', '') or resp.get('output', '') or ''
-    print(str(code) + NUL + tool + NUL + cmd[:500] + NUL + err[:3000].strip())
+    if code is None:
+        # exit_code absent from payload = normal successful command; skip silently
+        print('SKIP')
+        sys.exit(0)
+    print(str(code) + SEP + tool + SEP + cmd[:500] + SEP + err[:3000].strip())
 except Exception as e:
-    print('PARSE_ERROR' + NUL + 'Bash' + NUL + '(parse failed: ' + str(e) + ')' + NUL + raw[:2000])
-" 2>/dev/null || printf 'EXEC_ERROR\0Bash\0(uv run rtk python failed in hook)\0%s' "$INPUT")
+    print('PARSE_ERROR' + SEP + 'Bash' + SEP + '(parse failed: ' + str(e) + ')' + SEP + raw[:2000])
+" 2>/dev/null || echo "EXEC_ERROR<<<FIELD>>>Bash<<<FIELD>>>(uv run python failed in hook)<<<FIELD>>>$INPUT")
 
-EXIT_CODE=$(printf '%s' "$PARSED" | cut -d$'\0' -f1)
-TOOL_NAME=$(printf '%s' "$PARSED" | cut -d$'\0' -f2)
-COMMAND=$(printf '%s'   "$PARSED" | cut -d$'\0' -f3)
-STDERR_SNIPPET=$(printf '%s' "$PARSED" | cut -d$'\0' -f4-)
+# --- Silent skip when exit_code was absent (normal for successful commands) ---
+if [ "$PARSED" = "SKIP" ]; then
+    exit 0
+fi
+
+EXIT_CODE=$(printf '%s' "$PARSED" | awk -F'<<<FIELD>>>' '{print $1}')
+TOOL_NAME=$(printf '%s' "$PARSED" | awk -F'<<<FIELD>>>' '{print $2}')
+COMMAND=$(printf '%s'   "$PARSED" | awk -F'<<<FIELD>>>' '{print $3}')
+STDERR_SNIPPET=$(printf '%s' "$PARSED" | awk -F'<<<FIELD>>>' '{for(i=4;i<=NF;i++){printf "%s",$i;if(i<NF)printf "<<<FIELD>>>"}}')
 
 [ -z "$EXIT_CODE" ] && EXIT_CODE="UNKNOWN"
 [ -z "$TOOL_NAME" ] && TOOL_NAME="Bash"
@@ -52,7 +62,7 @@ STDERR_SNIPPET=$(printf '%s' "$PARSED" | cut -d$'\0' -f4-)
 if [ "$EXIT_CODE" -eq 0 ] 2>/dev/null; then
     exit 0
 fi
-# UNKNOWN / PARSE_ERROR / EXEC_ERROR cannot be compared numerically — treat as non-zero and log it
+# PARSE_ERROR / EXEC_ERROR cannot be compared numerically — treat as non-zero and log it
 
 # CP-ID is injected by dispatch-agents.sh into the sub-agent environment
 CP_ID="${IOCANE_CP_ID:-unknown}"
@@ -72,9 +82,12 @@ LOG_FILE="$PARENT_ROOT/.iocane/escalation.log"
 FLAG_FILE="$PARENT_ROOT/.iocane/escalation.flag"
 DEBUG_LOG="$PARENT_ROOT/.iocane/hook-debug.log"
 
-# --- Route non-numeric / non-positive exit codes to debug log only ---
+# --- Route non-numeric exit codes to debug log only ---
+# PARSE_ERROR / EXEC_ERROR = hook infrastructure problem.
+# Written to hook-debug.log but never trigger escalation.flag.
+# UNKNOWN (absent exit_code) is already handled above via SKIP.
 if ! printf '%s' "$EXIT_CODE" | grep -qE '^[1-9][0-9]*$'; then
-    printf '%s exit_code=%s tool=%s command=%s\n' "$TIMESTAMP" "$EXIT_CODE" "$TOOL_NAME" "$COMMAND" >> "$DEBUG_LOG"
+    printf '%s exit_code=%s tool=%s command=%s detail=%s\n' "$TIMESTAMP" "$EXIT_CODE" "$TOOL_NAME" "$COMMAND" "$STDERR_SNIPPET" >> "$DEBUG_LOG"
     exit 0
 fi
 

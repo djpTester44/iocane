@@ -66,6 +66,15 @@ For every write target listed in every checkpoint:
 * Verify the file path appears in the Interface Registry of `plans/project-spec.md`.
 * **Flag:** Write target not in Interface Registry = `UNREGISTERED_WRITE_TARGET`
 
+**Exemptions (INFO only, not VIOLATION):**
+
+* `tests/` files — test infrastructure is not an architectural component.
+* Project tooling files outside `src/` (e.g. `pyproject.toml`, `ui/src/`).
+
+**Not exempt under any circumstances:**
+
+* Any file under `src/` — including internal utilities annotated "no Protocol." A `src/` file absent from the Interface Registry is always `UNREGISTERED_WRITE_TARGET` (VIOLATION), regardless of prior log precedents or "internal utility" annotations. Route to `/io-architect` for explicit registration or exemption before orchestration.
+
 ---
 
 ### Step 8: CHECK — Layer Boundary Compliance [Phase 1]
@@ -117,7 +126,7 @@ For each checkpoint:
 
 * Every Protocol method listed in the checkpoint's Contract section must have a corresponding CRC responsibility in `project-spec.md`.
 * Every CRC responsibility named in the checkpoint must map to at least one Protocol method.
-* For each Protocol method in the checkpoint's Contract section, run `symbol_tracer.py --symbol <MethodName> --root src/ --imports-only` to verify an implementation file imports and references it.
+* For each Protocol method in the checkpoint's Contract section, run `symbol_tracer.py --symbol "<Symbol1>,<Symbol2>" --root src/ --imports-only` to verify an implementation file imports and references it.
 * **Flag:** Protocol method with no CRC anchor = `UNANCHORED_CONTRACT`
 * **Flag:** CRC responsibility with no Protocol method = `ORPHANED_DESIGN` (acceptable only for private helpers)
 

@@ -19,7 +19,7 @@ Execution follows a strict chronology. Design is locked before any code is writt
 
 [Tier 2 — Harness Autonomous]
   5. /io-plan-batch   — compose batch, score confidence rubric, generate task files, human approves
-  6. /io-orchestrate or uv run rtk bash .claude/scripts/dispatch-agents.sh  — human executes; sub-agents run in git worktrees
+  6. /io-orchestrate or uv run bash .claude/scripts/dispatch-agents.sh  — human executes; sub-agents run in git worktrees
 
 [Tier 1 — Human Review]
   7. /io-review          — per-checkpoint behavioral + connectivity review
@@ -40,7 +40,7 @@ The human is required at these moments and only these:
 | Roadmap proposal | `/io-specify` | Approve or correct `roadmap.md` |
 | Design proposal | `/io-architect` | Approve CRC + Protocols — contract lock |
 | Checkpoint boundaries | `/io-checkpoint` | Approve `plan.md` + connectivity signatures |
-| Run sub-agents | post `/io-plan-batch` | `/io-orchestrate` or `uv run rtk bash .claude/scripts/dispatch-agents.sh` |
+| Run sub-agents | post `/io-plan-batch` | `/io-orchestrate` or `uv run bash .claude/scripts/dispatch-agents.sh` |
 | Checkpoint review | `/io-review` | Approve or route findings to backlog |
 | Escalation | session start | Review `.iocane/escalation.log`, clear flag |
 | Replanning | `/io-replan` | Approve PRD delta propagation |
@@ -78,7 +78,7 @@ Sub-agents do not attempt autonomous remediation for these conditions — they w
 - `# noqa: DI` required with no backlog entry
 - Layer violation detected
 
-The `PostToolUse` hook captures failures to `.iocane/escalation.log`. Session start surfaces the flag.
+The `PostToolUse` hook (`escalation-gate.sh`) captures failures to `.iocane/escalation.log`. Session start surfaces the flag. Non-numeric exit codes that indicate infrastructure problems (`PARSE_ERROR`, `EXEC_ERROR`) are logged to `.iocane/hook-debug.log`. Commands with no `exit_code` in the payload (normal for successful runs) are silently skipped.
 
 ---
 
@@ -127,7 +127,7 @@ When removing redundant or dead code, prove unused status before deletion.
 1. **Prove dead status:**
 
    ```bash
-   uv run rtk python .claude/skills/symbol-tracer/scripts/symbol_tracer.py --symbol <SymbolName> --root src/ --summary
+   uv run python .claude/skills/symbol-tracer/scripts/symbol_tracer.py --symbol "<SymbolName1>,<SymbolName2>" --root src/ --summary
    ```
 
    Zero usages + zero imports = dead. For module-level checks, also verify zero integration test usage with `--include-tests`.
@@ -148,21 +148,54 @@ When removing redundant or dead code, prove unused status before deletion.
 
 ## 5. Backlog Lifecycle
 
-`plans/backlog.md` is the formal tracking record for all `/io-review` and `/gap-analysis` findings. It is append-only and survives across all sessions.
+`plans/backlog.md` is the formal tracking record for all `/io-review` and `/gap-analysis` findings. Findings first land in `plans/review-output.md` (staging) via `/review-capture`, then drain to `backlog.md` via `/io-backlog-triage`. The backlog is append-only and survives across all sessions.
+
+### Item Identifiers
+
+Every backlog item has a unique `**BL-NNN**` identifier (zero-padded 3-digit, monotonically
+increasing). IDs are assigned automatically by the `backlog-id-assign.sh` PostToolUse hook
+on every write to `plans/backlog.md`. Items are never renumbered.
+
+Format in `plans/backlog.md`:
+
+```
+**BL-005**
+- [ ] [CLEANUP] ComponentName — one-line description
+  - Source: /io-review CP-06
+  - Severity: HIGH
+  - Files: `src/lib/component.py`
+  - Detail: What to fix and why.
+```
+
+To reference a specific item: `grep 'BL-005' plans/backlog.md` -- read downward from the ID line.
+
+### Deterministic Operations
+
+| Operation | Mechanism |
+|-----------|-----------|
+| Assign BL-IDs to new entries | `backlog-id-assign.sh` PostToolUse hook (auto) |
+| Route backlog item to remediation CP | `bash .claude/scripts/route-backlog-item.sh BL-NNN CP-NNR` |
+| Mark item remediated + flip checkbox | `bash .claude/scripts/archive-approved.sh CP-NNR` (reads `Source BL:` from plan.md) |
+
+### Flow
 
 ```
 /io-review or /gap-analysis  --> surfaces findings
-/review-capture              --> appends [ ] items to plans/backlog.md with taxonomy tags
-/io-backlog-triage           --> assesses open items, outputs prioritized routing summary
+/review-capture              --> appends structured findings to plans/review-output.md (staging)
+/io-backlog-triage           --> drains staging to plans/backlog.md with BL-NNN IDs,
+                                 assesses open items, outputs prioritized routing summary
                                  with explicit prompts per item (Tier 1 -- plan mode)
+/io-checkpoint (remediation) --> writes Source BL: BL-NNN in CP section, runs
+                                 route-backlog-item.sh to add Routed: annotation
 /io-orchestrate              --> reads backlog.md, warns on [DESIGN]/[REFACTOR] conflicts
+/io-review (remediation CP)  --> archive-approved.sh resolves BL item via Source BL: lookup
 /doc-sync                    --> human marks resolved items [x] after verification
 ```
 
 ### Using the Triage Output
 
 `/io-backlog-triage` produces a structured summary with an explicit `Prompt:` block for each
-routable item.
+routable item, referenced by BL-ID.
 
 - **Route Immediately items:** copy the `Prompt:` verbatim and run it. The downstream workflow
   receives the full item description from the summary as context.
@@ -195,8 +228,8 @@ routable item.
 Projects created before Session 3 used `plans/tasks.json`. The converter script migrates to the new per-checkpoint format:
 
 ```bash
-uv run rtk python .agent/scripts/tasks_json_to_md.py --dry-run   # preview
-uv run rtk python .agent/scripts/tasks_json_to_md.py             # write
+uv run python .agent/scripts/tasks_json_to_md.py --dry-run   # preview
+uv run python .agent/scripts/tasks_json_to_md.py             # write
 ```
 
 After conversion, review each generated `plans/tasks/[CP-ID].md` and fill in `[REQUIRED: fill in]` placeholders:

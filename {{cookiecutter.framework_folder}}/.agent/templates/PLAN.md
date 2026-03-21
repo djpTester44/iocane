@@ -57,6 +57,37 @@
 
 ---
 
+## Remediation Checkpoints
+
+Checkpoints that fix defects found during code review. Ordered by severity —
+HIGH items first. These items MUST be cleared before continuing onto roadmap
+checkpoints.
+
+---
+
+### CP-[NN]R1: [Remediation Checkpoint Name]
+**Remediates:** CP-[NN]
+**Source:** plans/backlog.md (From CP-[NN] -- YYYY-MM-DD)
+**Source BL:** BL-NNN
+**Severity:** HIGH | MEDIUM | LOW
+**Description:** [One sentence — what defect is fixed]
+**Status:** [ ] pending
+
+**Write targets:**
+- `src/[path]/[module].py`
+- `tests/[path]/test_[module].py`
+
+**Context files (read-only):**
+- `interfaces/[protocol].pyi`
+- `plans/project-spec.md` (CRC card for [ComponentName] only)
+
+**Gate command:** `pytest tests/[path]/test_[module].py`
+
+**Depends on:** none
+**Parallelizable with:** none
+
+---
+
 ## Connectivity Tests
 
 ### CT-001: CP-01 → CP-02

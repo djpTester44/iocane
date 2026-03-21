@@ -52,14 +52,14 @@ If any checkpoint gate or connectivity test is failing, output a warning and con
 
 For every entry in the Interface Registry (`plans/project-spec.md`):
 
-- **Action:** Run `uv run rtk python .agent/scripts/extract_structure.py <implementation_file>` to map the public surface area.
+- **Action:** Run `uv run python .agent/scripts/extract_structure.py <implementation_file>` to map the public surface area.
 
 - **Check:** Does the implementation surface match the Protocol signature exactly?
   - Missing methods → HIGH finding
   - Signature mismatch (wrong types, wrong return) → HIGH finding
   - Extra public methods not in Protocol → MEDIUM finding (scope creep)
 
-- **Check:** Run `uv run rtk python .agent/scripts/check_design_anchors.py` to verify CRC-to-Protocol alignment.
+- **Check:** Run `uv run python .agent/scripts/check_design_anchors.py` to verify CRC-to-Protocol alignment.
 
 ---
 
@@ -73,7 +73,7 @@ For every entry in the Interface Registry (`plans/project-spec.md`):
 
 ### Step D: DI COMPLIANCE AUDIT
 
-- **Action:** Run `uv run rtk python .agent/scripts/check_di_compliance.py` across the full codebase.
+- **Action:** Run `uv run python .agent/scripts/check_di_compliance.py` across the full codebase.
 - **Check:** Any untracked `# noqa: DI` suppressions → HIGH finding.
 - **Check:** Any `[CRITICAL]` or `[WARNING]` findings not already in `plans/backlog.md` → new findings.
 

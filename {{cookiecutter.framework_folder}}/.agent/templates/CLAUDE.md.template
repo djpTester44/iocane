@@ -2,7 +2,7 @@
 
 ## System Context
 
-This is **__PROJECT_NAME__** — __PROJECT_DESCRIPTION__. Claude must treat this as a **live project**: files here are active sources to develop, test, and evolve. The `.agent/` directory at the repo root contains the active Iocane harness governing this project's workflows and rules. The `.claude/` directory contains hooks, slash commands, and skills active for this project.
+This is **__PROJECT_NAME__** — __PROJECT_DESCRIPTION__. Claude must treat this as a **live project**: files here are active sources to develop, test, and evolve. The `.agent/` directory at the repo root contains the active Iocane harness governing this project's workflows, rules, and skills. The `.claude/` directory contains hooks and slash commands active for this project.
 
 ---
 

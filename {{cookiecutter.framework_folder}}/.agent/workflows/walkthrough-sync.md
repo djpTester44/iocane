@@ -17,7 +17,7 @@ description: Generate or refresh the evaluator-facing architectural walkthrough 
 >
 > ```bash
 > // turbo
-> uv run rtk python .agent/scripts/generate_walkthrough_context.py
+> uv run python .agent/scripts/generate_walkthrough_context.py
 > ```
 >
 > 1. Load the existing walkthrough (if it exists): `view_file docs/current-state-walkthrough.md`

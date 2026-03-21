@@ -23,7 +23,7 @@ Analyze codebase for architectural risks and dependencies before implementation.
    - Which Protocols (from interfaces/) are affected
    - Existing patterns (Factories, Adapters) that must be used
    - Potential circular dependencies
-   - Use the symbol-tracer skill (`symbol_tracer.py --symbol <Component> --root src/ --summary`) to trace cross-file references instead of reading implementation files directly
+   - Use the symbol-tracer skill (`uv run symbol_tracer.py --symbol "<Symbol1>,<Symbol2>" --root src/ --summary`) to trace cross-file references instead of reading implementation files directly
 3. **Output** - Produce an "Impact Report" containing:
    - Affected Modules
    - Affected Protocols

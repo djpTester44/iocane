@@ -8,7 +8,7 @@ description: Dispatch sub-agents for the current batch. Thin alias for dispatch-
 
 # WORKFLOW: IO-ORCHESTRATE
 
-**Objective:** Dispatch sub-agents for all pending checkpoints in `plans/tasks/` via isolated git worktrees. This workflow is a thin alias for `uv run rtk bash .claude/scripts/dispatch-agents.sh`.
+**Objective:** Dispatch sub-agents for all pending checkpoints in `plans/tasks/` via isolated git worktrees. This workflow is a thin alias for `uv run bash .claude/scripts/dispatch-agents.sh`.
 
 **Position in chain:**
 
@@ -62,7 +62,7 @@ HALT.
 Run:
 
 ```bash
-uv run rtk bash .claude/scripts/dispatch-agents.sh
+uv run bash .claude/scripts/dispatch-agents.sh
 ```
 
 This script owns the full dispatch lifecycle: parallel limit enforcement, worktree setup, headless `claude -p` invocation, result collection, and worktree cleanup. Do not re-implement any of that logic here.

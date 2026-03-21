@@ -53,6 +53,10 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/reset-on-pyi-write.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/backlog-id-assign.sh"
           }
         ]
       },
@@ -62,15 +66,6 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/escalation-gate.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/on-approved-marker.sh"
           }
         ]
       }

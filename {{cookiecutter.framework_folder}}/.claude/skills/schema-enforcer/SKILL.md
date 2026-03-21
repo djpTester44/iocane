@@ -13,7 +13,7 @@ Provides utilities to generate Pydantic models from data files and enforce schem
 Auto-detects schema from a parquet file and generates a Pydantic model definition.
 
 ```bash
-uv run rtk python .claude/skills/schema-enforcer/scripts/generate_model.py --input <parquet_path> --name <ModelName> [--nullable]
+uv run python .claude/skills/schema-enforcer/scripts/generate_model.py --input <parquet_path> --name <ModelName> [--nullable]
 ```
 Use the `--nullable` flag to wrap all generated types in `Optional[...]`.
 
@@ -21,7 +21,7 @@ Use the `--nullable` flag to wrap all generated types in `Optional[...]`.
 Auto-detects schema from a YAML file and generates Pydantic model definitions.
 
 ```bash
-uv run rtk python .claude/skills/schema-enforcer/scripts/generate_yaml_model.py --input <yaml_path> --name <ModelName>
+uv run python .claude/skills/schema-enforcer/scripts/generate_yaml_model.py --input <yaml_path> --name <ModelName>
 ```
 
 ### 3. Validate DataFrame against Model

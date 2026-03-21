@@ -107,7 +107,7 @@ Before proceeding:
 - **Action:** Run the following checks in order:
 
 ```bash
-uv run rtk python .agent/scripts/check_di_compliance.py
+uv run python .agent/scripts/check_di_compliance.py
 uv run rtk mypy src/[implementation_path]
 uv run rtk ruff check --fix src/[implementation_path]
 uv run rtk lint-imports
@@ -131,7 +131,7 @@ uv run rtk lint-imports
 ```bash
 git add -A
 git commit -m "CP-[CP-ID]: [one-line summary of what was implemented]"
-echo "PASS" > ../../plans/tasks/[CP-ID].status
+bash "$IOCANE_REPO_ROOT/.claude/scripts/write-status.sh" [CP-ID] PASS
 ```
 
 Output: "CP-[ID] COMPLETE. Gate passing. Status: PASS."
@@ -155,7 +155,7 @@ Escalation triggers — do NOT attempt autonomous remediation for these:
 **On any escalation trigger:**
 
 ```bash
-echo "FAIL: [one line describing exact trigger and what failed]" > ../../plans/tasks/[CP-ID].status
+bash "$IOCANE_REPO_ROOT/.claude/scripts/write-status.sh" [CP-ID] "FAIL: [one line describing exact trigger and what failed]"
 ```
 
 Output: "CP-[ID] FAILED. Reason: [trigger]. Status written. Terminating."

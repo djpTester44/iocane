@@ -90,6 +90,18 @@ Do NOT run linters against `.` (the whole repo) or against any path outside your
 
 ---
 
+## Source (remediation checkpoints only)
+
+For remediation checkpoints, the source backlog item is referenced by its BL-ID:
+
+```
+Source: plans/backlog.md BL-NNN
+```
+
+To read the source item context: `grep 'BL-NNN' plans/backlog.md` — read downward from the ID line.
+
+---
+
 ## Execution Notes
 
 [Any checkpoint-specific guidance the sub-agent needs that is not captured in the contract or acceptance criteria. e.g., "The collaborator is injected via __init__ as `store: StateStoreProtocol`. Do not instantiate it internally." Leave blank if none.]

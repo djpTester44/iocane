@@ -8,7 +8,7 @@
 
 INPUT=$(cat)
 
-FILE_PATH=$(echo "$INPUT" | uv run rtk python -c "
+FILE_PATH=$(echo "$INPUT" | uv run python -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -33,7 +33,7 @@ if [ ! -f ".agent/scripts/check_di_compliance.py" ]; then
     exit 0
 fi
 
-OUTPUT=$(uv run rtk python .agent/scripts/check_di_compliance.py 2>&1)
+OUTPUT=$(uv run python .agent/scripts/check_di_compliance.py 2>&1)
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then

@@ -29,7 +29,7 @@ uv sync
 source .venv/bin/activate
 
 # 3. Run the main entry point
-uv run rtk python -m src.main
+uv run python -m src.main
 ```
 
 ## Development

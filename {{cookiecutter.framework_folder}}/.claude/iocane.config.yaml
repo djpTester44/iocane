@@ -1,7 +1,7 @@
 # Iocane project configuration
 
 parallel:
-  limit: 2  # Maximum concurrent sub-agents per dispatch batch
+  limit: 4  # Maximum concurrent sub-agents per dispatch batch
 
 agents:
   max_turns: 70  # Per-agent turn budget. Increase if agents hit the limit mid-refactor; decrease to tighten cost on simple checkpoints.

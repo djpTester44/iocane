@@ -11,7 +11,9 @@
       "Bash(rtk git:*)",
       "Bash(rtk find:*)",
       "Bash(uv run rtk:*)",
-      "Bash(rtk grep:*)"
+      "Bash(rtk grep:*)",
+      "Bash(rtk ls:*)",
+      "Bash(mkdir -p C:/Users/danny/projects/030926_claude-harness-testing/.iocane && touch C:/Users/danny/projects/030926_claude-harness-testing/.iocane/validating)"
     ]
   }
 }

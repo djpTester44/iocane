@@ -25,10 +25,10 @@ Run profiler to establish baseline:
 
 ```bash
 # Function-level timing
-uv run rtk python -m cProfile -s cumtime <script.py> 2>&1 | head -30
+uv run python -m cProfile -s cumtime <script.py> 2>&1 | head -30
 
 # Or for specific function timing
-uv run rtk python -c "import timeit; print(timeit.timeit('<code>', number=1000))"
+uv run python -c "import timeit; print(timeit.timeit('<code>', number=1000))"
 ```
 
 Record:

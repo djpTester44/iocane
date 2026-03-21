@@ -13,9 +13,9 @@ Verifies the Macro/Meso/Micro Hierarchy across two axes:
      (Protocol without Registration → Unregistered Protocol)
 
 Usage:
-    uv run rtk python .agent/scripts/check_design_anchors.py
-    uv run rtk python .agent/scripts/check_design_anchors.py --json
-    uv run rtk python .agent/scripts/check_design_anchors.py --spec plans/project-spec.md
+    uv run python .agent/scripts/check_design_anchors.py
+    uv run python .agent/scripts/check_design_anchors.py --json
+    uv run python .agent/scripts/check_design_anchors.py --spec plans/project-spec.md
 """
 
 import argparse

@@ -43,6 +43,50 @@ Before proceeding, output the following metadata:
 - **Existing plan.md:** [Present / Not present]
 - **Mode:** [Greenfield | Extending existing plan]
 
+**Remediation mode:** When invoked with backlog items as scope (rather than
+roadmap features), generate a remediation checkpoint (`CP-NNR`) for each item:
+
+- Use naming convention `CP-{parent}R{N}` (e.g., CP-06R1, CP-06R2). Check
+  existing `plans/plan.md` for entries matching `CP-{parent}R*` and increment
+  `N` to avoid naming collisions with previously generated remediation CPs.
+- Include `**Remediates:** CP-NN` field in the checkpoint entry
+- Include `**Source:** plans/backlog.md (From CP-NN -- YYYY-MM-DD)` field
+- Include `**Source BL:** BL-NNN` field — the backlog item's unique identifier, read
+  from the `**BL-NNN**` header line above the source item in `plans/backlog.md`
+- Include `**Severity:** HIGH | MEDIUM | LOW` field — inherit from the source
+  backlog item's `Severity:` field
+- Include `**Status:** [ ] pending` field
+- Derive write targets from the backlog item's `Files:` field plus the parent
+  CP's test files
+- **[HARD] Forward-target guard:** Before finalising write targets, check whether
+  each candidate file is owned by a pending roadmap checkpoint (present in another
+  CP's `write_targets` in `plan.md`, or not yet existing but clearly scoped to a
+  future CP). If so, exclude it — that checkpoint is responsible for implementing
+  its own CRC requirements. Do not bundle forward-checkpoint work into a remediation
+  CP. If a CRC update implies a behaviour change in a pending checkpoint's files,
+  add a note to that checkpoint's description; do not create a cross-checkpoint
+  write dependency.
+- Inherit gate command from the parent CP
+- Do not make parallelizability claims — leave for `/io-plan-batch`
+- Insert into the `## Remediation Checkpoints` section of `plans/plan.md`,
+  ordered by severity (HIGH first, then MEDIUM, then LOW). If the section does
+  not exist, create it immediately after the last `---` separator in the
+  `## Checkpoints` section and before `## Connectivity Tests`, with this header:
+
+  ```
+  ## Remediation Checkpoints
+
+  Checkpoints that fix defects found during code review. Ordered by severity —
+  HIGH items first. These items MUST be cleared before continuing onto roadmap
+  checkpoints.
+
+  ---
+  ```
+
+- After writing the checkpoint to `plans/plan.md`, run:
+  `bash .claude/scripts/route-backlog-item.sh BL-NNN CP-NNR`
+  where `BL-NNN` is the backlog item's ID from the `**Source BL:**` field.
+
 ---
 
 ## 2. PROCEDURE
@@ -221,7 +265,9 @@ The orchestrator will read plan.md, score the confidence rubric, and dispatch su
 ## 3. CONSTRAINTS
 
 - This workflow produces ONLY `plans/plan.md`. No `.pyi` edits, no `project-spec.md` edits.
+- In remediation mode, also writes to `plans/backlog.md` via `route-backlog-item.sh` (Routed annotation only).
 - Connectivity tests are signatures only — no test code is written here.
 - Write targets per checkpoint must be derived from the Interface Registry in `project-spec.md`. A checkpoint may not write to a file not registered there.
 - If decomposing a feature reveals a gap in the Interface Registry (a required component has no Protocol), HALT and route to `/io-architect` before continuing.
 - `plan.md` is the orchestrator's only input for delegation decisions. Vague checkpoints will produce low confidence scores and stall execution.
+- Remediation CP write targets must be a strict subset of files already implemented by the parent CP or its predecessors. Any file belonging to a pending roadmap checkpoint is off-limits — that forward dependency is a design error, not a valid remediation scope.

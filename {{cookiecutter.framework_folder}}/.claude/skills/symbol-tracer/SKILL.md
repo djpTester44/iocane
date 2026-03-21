@@ -35,15 +35,15 @@ Reach for this skill any time the conversation involves:
 
    | Question | Flags |
    |----------|-------|
-   | Where is `<Symbol>` defined/used? | `--symbol <Symbol>` (default mode) |
-   | What imports `<Symbol>`? | `--symbol <Symbol> --imports-only` |
-   | What implements `<Protocol>`? | `--symbol <Protocol> --find-implementors` |
+   | Where is `<Symbol>` defined/used? | `--symbol "<Symbol>"` (default mode) |
+   | What imports `<Symbol>`? | `--symbol "<Symbol>" --imports-only` |
+   | What implements `<Protocol>`? | `--symbol "<Protocol>" --find-implementors` |
    | Trace multiple symbols at once | `--symbol "<A>,<B>,<C>"` |
-   | Quick triage (count only) | `--symbol <Symbol> --summary` |
+   | Quick triage (count only) | `--symbol "<Symbol>" --summary` |
 
 4. **Run the script**:
    ```bash
-   uv run rtk python .claude/skills/symbol-tracer/scripts/symbol_tracer.py --symbol <SymbolName> --root <root>
+   uv run python .claude/skills/symbol-tracer/scripts/symbol_tracer.py --symbol "<SymbolName>" --root <root>
    ```
 
 5. **Parse the JSON output** and group results:
@@ -62,7 +62,7 @@ Reach for this skill any time the conversation involves:
 
 | Flag | Description |
 |------|-------------|
-| `--symbol <name>` | Symbol name to trace (required). Comma-separated for multiple. |
+| `--symbol "<name>"` | Symbol name to trace (required). Comma-separated for multiple. |
 | `--root <path>` | Search root directory (default: `.`) |
 | `--summary` | Prepend a one-line count summary to the output |
 | `--imports-only` | Filter results to import statements only |

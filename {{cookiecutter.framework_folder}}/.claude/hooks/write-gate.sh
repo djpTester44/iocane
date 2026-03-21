@@ -14,7 +14,7 @@ INPUT=$(cat)
 
 # Extract file_path, absolute CWD, and absolute file path in a single Python call.
 # Output is NUL-delimited: FILE_PATH\0ABS_CWD\0ABS_FILE
-PARSED=$(printf '%s' "$INPUT" | uv run rtk python -c "
+PARSED=$(printf '%s' "$INPUT" | uv run python -c "
 import sys, json, os
 
 raw = sys.stdin.read()
@@ -72,7 +72,7 @@ fi
 # --- v2: tasks/ directory present — use CP-ID.md format ---
 if [ -d "$TASKS_DIR" ]; then
 
-    RESULT=$(uv run rtk python -c "
+    RESULT=$(uv run python -c "
 import os, sys, re
 
 file_path = '''$FILE_PATH'''

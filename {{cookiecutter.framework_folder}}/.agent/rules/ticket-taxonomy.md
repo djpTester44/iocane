@@ -7,6 +7,8 @@ globs: plans/backlog.md
 # TICKET TAXONOMY & ROUTING RULES
 
 > **Context:** All items in `plans/backlog.md` MUST be prefixed with one of the following exact tags to govern workflow routing.
+> Each item has a unique `**BL-NNN**` identifier on the line above it, auto-assigned by the
+> `backlog-id-assign.sh` PostToolUse hook. Reference items by BL-ID in all downstream workflows.
 
 ## 1. Valid Tags & Definitions
 

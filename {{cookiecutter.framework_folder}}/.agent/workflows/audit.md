@@ -27,8 +27,8 @@ Before scanning, you must output the following metadata:
     - **Python Pitfalls:** Check for `pickle`, `yaml.load` (without SafeLoader), and subprocess shell execution.
 2. **ARCHITECTURE ANALYSIS:**
     - **Macro Audit:** Run `uv run rtk lint-imports` to verify Layered Architecture compliance.
-    - **Anchor Verification:** Run `uv run rtk python .agent/scripts/check_design_anchors.py` to find Unanchored Protocols.
-    - **DI Compliance:** Run `uv run rtk python .agent/scripts/check_di_compliance.py` to detect God Objects.
+    - **Anchor Verification:** Run `uv run python .agent/scripts/check_design_anchors.py` to find Unanchored Protocols.
+    - **DI Compliance:** Run `uv run python .agent/scripts/check_di_compliance.py` to detect God Objects.
 3. **REPORT GENERATION:** Generate an Audit Report including:
     - **Executive Summary:** Overall health score.
     - **Findings Tables:** Security and Architecture risks categorized by severity.

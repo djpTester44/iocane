@@ -61,7 +61,7 @@ fi
 #
 # Also handles inline checkpoint sections with connectivity test sub-blocks.
 
-CT_DATA=$(uv run rtk python -c "
+CT_DATA=$(uv run python -c "
 import re, sys
 
 with open('$PLAN_FILE') as f:
@@ -158,7 +158,7 @@ TOTAL=$((PASS_COUNT + FAIL_COUNT))
 # --- Output ---
 if $JSON_OUTPUT; then
     # Machine-readable JSON for /review and /gap-analysis tooling
-    uv run rtk python -c "
+    uv run python -c "
 import json, sys
 rows = [$(IFS=,; echo "${JSON_ROWS[*]:-}")]
 print(json.dumps({

@@ -96,3 +96,5 @@ Before writing implementation code, STOP and confirm:
 Lessons are recorded in `AGENTS.md` (project root). The lifecycle is:
 
 * **Capture:** New lessons are extracted during `/meta-gap-analysis` (Step 5), added manually by the user, or discovered during retrospectives.
+
+---

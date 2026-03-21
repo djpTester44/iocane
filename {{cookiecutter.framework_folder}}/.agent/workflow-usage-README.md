@@ -3,8 +3,17 @@
 ## Orchestration Chain
 
 ```
-/io-clarify -> /io-init -> /io-specify -> /io-architect -> /io-checkpoint -> /validate-plan -> /io-plan-batch -> /io-orchestrate (or direct dispatch)
-                                              └── [.pyi OOB change] -> /validate-spec ───────────> /io-checkpoint
+Primary Path:
+/io-clarify -> /io-init -> /io-specify -> /io-architect -> /io-checkpoint -> /validate-plan -> /io-plan-batch -> /io-orchestrate -> /io-review
+
+Batch Loop (repeat until all checkpoints complete):
+/io-review -> /io-plan-batch -> /io-orchestrate -> /io-review
+
+Closeout (after final batch review):
+/io-review -> /gap-analysis -> /doc-sync
+
+Recovery Path (only for out-of-band .pyi changes):
+/io-architect -> /validate-spec -> /io-checkpoint
 ```
 
 ---
@@ -22,10 +31,38 @@ After `/io-plan-batch` accepts a batch and writes task files, you have two equiv
 **Option B — Direct script invocation:**
 
 ```bash
-uv run rtk bash .claude/scripts/dispatch-agents.sh
+uv run bash .claude/scripts/dispatch-agents.sh
 ```
 
 Both options are equivalent. `/io-orchestrate` is a thin alias for the script invocation provided for discoverability. Direct invocation is preferred if you are comfortable with the CLI.
+
+---
+
+## Standalone Scripts (Run Explicitly)
+
+These are operator-facing scripts. Run them directly when you need the behavior.
+
+- `uv run bash .claude/scripts/dispatch-agents.sh`: direct alternative to `/io-orchestrate`; dispatches pending checkpoint tasks.
+- `bash .claude/scripts/reset-failed-checkpoints.sh`: resets failed checkpoints for re-queue.
+- `bash .claude/scripts/archive-approved.sh`: archives approved checkpoint artifacts from `plans/tasks/` into `plans/archive/` and updates `plans/plan.md` status from `[ ] pending` to `[x] complete`. For remediation CPs, resolves the source backlog item via `Source BL:` lookup.
+- `bash .claude/scripts/assign-backlog-ids.sh`: assigns `BL-NNN` identifiers to any backlog items missing them. Idempotent -- safe to re-run.
+- `bash .claude/scripts/route-backlog-item.sh BL-NNN CP-NNR`: adds a `Routed:` annotation to the specified backlog item. Fails if the item is not found or already routed to that CP.
+
+Do not run `.claude/scripts/setup-worktree.sh` directly. It is an internal helper invoked by `dispatch-agents.sh`.
+
+---
+
+## Autonomous Hooks (Run by Claude)
+
+These are hook-driven and configured in `.claude/settings.json`. They are executed automatically by Claude on matching events.
+
+- `SessionStart`: `.claude/hooks/session-start.sh`
+- `PreToolUse (Edit|Write)`: `.claude/hooks/write-gate.sh`, `.claude/hooks/di-gate.sh`
+- `PreToolUse (Bash)`: `.claude/hooks/forbidden-tools.sh`
+- `PostToolUse (Edit|Write)`: `.claude/hooks/reset-on-prd-write.sh`, `.claude/hooks/reset-on-project-spec-write.sh`, `.claude/hooks/reset-on-plan-write.sh`, `.claude/hooks/reset-on-pyi-write.sh`, `.claude/hooks/backlog-id-assign.sh`
+- `PostToolUse (Bash)`: `.claude/hooks/escalation-gate.sh`
+
+Use hooks as autonomous guardrails. Use standalone scripts as explicit operational commands.
 
 ---
 
@@ -98,17 +135,34 @@ The sentinel is automatically cleared on session start. If it is unexpectedly pr
 | Workflow | Purpose | Writes to |
 |----------|---------|-----------|
 | `/io-clarify` | Clarify PRD ambiguities and critique against quality rubric | `plans/PRD.md` |
+| `/io-adopt` | Adopt an existing codebase into Iocane with extracted current-state + draft PRD | `plans/current-state.md`, `plans/PRD.md` |
 | `/io-init` | Bootstrap project structure and stub roadmap from clarified PRD | `plans/roadmap.md`, `plans/backlog.md` |
 | `/io-specify` | Propose feature roadmap from clarified PRD | `plans/roadmap.md` |
 | `/io-architect` | Design CRC cards, Protocols, Interface Registry | `plans/project-spec.md`, `interfaces/*.pyi` |
-| `/io-checkpoint` | Define atomic checkpoints and connectivity tests | `plans/plan.md` |
+| `/io-replan` | Propagate PRD deltas into roadmap/spec and route impacts | `plans/roadmap.md`, `plans/project-spec.md`, `plans/backlog.md` |
+| `/io-checkpoint` | Define atomic checkpoints and connectivity tests | `plans/plan.md`, `plans/backlog.md` (remediation: Routed annotation via script) |
 | `/validate-plan` | Validate `plan.md` CDD compliance before batch composition | `plans/plan.md` (stamp only) |
 | `/io-plan-batch` | Compose dispatch batch, score confidence, get human approval | `plans/tasks/CP-XX.md` (on acceptance) |
 | `/io-orchestrate` | Dispatch agents (alias for `dispatch-agents.sh`) | none |
+| `/io-execute` | Tier 3 sub-agent workflow that executes one checkpoint task file | `plans/tasks/CP-XX.status`, checkpoint write targets |
 | `/validate-spec` | Detect CRC-Protocol drift and re-earn `**Approved:** True` (recovery path) | `plans/project-spec.md` (stamp only) |
 | `/doc-sync` | Reconcile docs with codebase after feature completion | `plans/project-spec.md`, `plans/roadmap.md`, `README.md` |
-| `/io-review` | Post-implementation review | `plans/backlog.md` |
-| `/gap-analysis` | Identify gaps between implementation and spec | `plans/backlog.md` |
+| `/io-review` | Post-implementation review | `plans/review-output.md` (via `/review-capture`) |
+| `/io-backlog-triage` | Drain staging + triage open backlog items with approved routing decisions | `plans/backlog.md` (reads `plans/review-output.md` staging) |
+| `/io-ct-remediate` | Create missing connectivity test(s) from CT spec for archived checkpoints | CT file path from `plans/plan.md`, `plans/backlog.md` |
+| `/gap-analysis` | Identify gaps between implementation and spec | `plans/review-output.md` (via `/review-capture`) |
+
+---
+
+## Additional Workflow Paths
+
+These workflows are part of the full lifecycle and are intentionally outside the single linear happy path:
+
+- Brownfield adoption path: `/io-adopt` -> `/io-clarify` -> `/io-init` -> `/io-specify` -> `/io-architect`.
+- Execution internals: `/io-orchestrate` dispatches Tier 3 sub-agents that run `/io-execute` per checkpoint task file.
+- Post-review backlog routing: `/io-review` -> `/review-capture` (staging) -> `/io-backlog-triage` (drain to backlog) -> (`/io-architect` | `/validate-plan` | `/io-ct-remediate`) based on tag/risk.
+- Archived checkpoint CT recovery: `/io-review` (detect missing CT) -> `/io-ct-remediate` -> backlog item resolved.
+- PRD-change replan path (non-linear): `/io-replan` when requirements change after initial planning.
 
 ---
 

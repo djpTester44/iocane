@@ -199,7 +199,9 @@ The sentinel prevents `reset-on-project-spec-write.sh` and `reset-on-pyi-write.s
 
 **Step H-4:** Stamp `plans/project-spec.md` with `**Approved:** True` in the doc header.
 
-The hook auto-deletes the sentinel when it detects the `**Approved:** True` stamp write — no explicit cleanup step required.
+**Step H-5:** `bash: rm -f .iocane/validating`
+
+Explicit sentinel cleanup. Do not rely on the hook to auto-delete — if the stamp was already `True` before H-4, no write event fires and the sentinel is left dangling.
 
 **Output:**
 

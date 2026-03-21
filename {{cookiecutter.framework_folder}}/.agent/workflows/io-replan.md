@@ -47,7 +47,7 @@ description: Propagate PRD changes to roadmap.md and project-spec.md without des
 | Category | Description |
 |----------|-------------|
 | **NEW** | Requirements, features, or components in the PRD that have no match in roadmap or spec |
-| **MODIFIED** | Features or components that exist but whose definition has changed. For each MODIFIED component, run `symbol_tracer.py --symbol <ComponentName> --root src/ --summary` to assess blast radius before proposing changes. |
+| **MODIFIED** | Features or components that exist but whose definition has changed. For each MODIFIED component, run `symbol_tracer.py --symbol "<ComponentName1>,<ComponentName2>" --root src/ --summary` to assess blast radius before proposing changes. |
 | **REMOVED** | Items in roadmap or spec no longer referenced by the PRD |
 
 Present the Change Report to the human for confirmation before proceeding.
@@ -62,7 +62,7 @@ For each change in the delta:
 * **MODIFIED items:** Propose updated acceptance criteria or description. Flag if the change invalidates any completed checkpoint — this becomes a `[DESIGN]` backlog item.
 * **REMOVED items:** Propose marking the feature `[DEPRECATED]` with a note. Do not delete historical entries.
 
-**Rule:** Every new or modified feature must cite the PRD section it traces to (e.g., `PRD §3.4`).
+**Rule:** Every new or modified feature must cite the PRD section it traces to (e.g., `PRD 3.4`).
 
 Present proposed roadmap changes. Wait for human approval before write.
 

@@ -15,12 +15,34 @@ INPUT=$(cat)
 # If present at session start, the reset hooks would be permanently disabled.
 rm -f .iocane/validating
 
+# Dump raw payload for schema debugging (overwritten every session start).
+mkdir -p .iocane
+printf '%s' "$INPUT" > .iocane/session-start-payload.json
+
 # Write model name so write-gate can exempt interactive (non-haiku) sessions.
-echo "$INPUT" | uv run rtk python -c "import sys,json; d=json.load(sys.stdin); open(\".iocane/session-model\",\"w\").write(d.get(\"model\",\"unknown\"))" 2>/dev/null || true
+# Sub-agents: dispatch-agents.sh exports IOCANE_MODEL_NAME with the real model string.
+# Interactive: fall back to payload parsing (best-effort) then "interactive".
+if [ -n "${IOCANE_MODEL_NAME:-}" ]; then
+    echo -n "$IOCANE_MODEL_NAME" > .iocane/session-model
+else
+    printf '%s' "$INPUT" | uv run python -c "
+import sys, json, os
+raw = sys.stdin.read()
+d = json.loads(raw) if raw.strip() else {}
+model = (
+    d.get('model')
+    or d.get('session', {}).get('model')
+    or d.get('config', {}).get('model')
+    or d.get('metadata', {}).get('model')
+    or 'interactive'
+)
+open('.iocane/session-model', 'w').write(model)
+" 2>/dev/null || echo -n "interactive" > .iocane/session-model
+fi
 
 output_json() {
     local content="$1"
-    uv run rtk python -c "
+    uv run python -c "
 import json, sys
 content = sys.stdin.read()
 print(json.dumps({'systemPrompt': content}))
@@ -152,7 +174,7 @@ suggest_next_workflow() {
     done | grep -v "^$" || echo "")
 
     if [ -n "$MISSING" ]; then
-        echo "Task files ready but not yet dispatched. Run: uv run rtk bash .claude/scripts/dispatch-agents.sh"
+        echo "Task files ready but not yet dispatched. Run: uv run bash .claude/scripts/dispatch-agents.sh"
         return
     fi
 

@@ -3,7 +3,7 @@ description: Per-checkpoint behavioral review and connectivity verification. Fin
 ---
 
 > **[NO PLAN MODE]**
-> Read-only analysis. No file writes except via /review-capture at the end.
+> Read-only analysis. No file writes except `plans/seams.md` (Step F) and via /review-capture at the end.
 
 > **[CRITICAL] CONTEXT LOADING**
 >
@@ -11,7 +11,7 @@ description: Per-checkpoint behavioral review and connectivity verification. Fin
 > 2. Load the checkpoint being reviewed from `plans/plan.md`
 > 3. Load CRC cards for checkpoint components from `plans/project-spec.md`
 > 4. Load relevant Protocol contracts from `interfaces/*.pyi`
-> 5. Load the Integration Seams reference: `view_file plans/seams.md` (read-only — io-review does not update seams.md)
+> 5. Load the Integration Seams reference: `view_file plans/seams.md`
 
 # WORKFLOW: REVIEW
 
@@ -72,11 +72,12 @@ Before proceeding, output:
 
 For each implementation file in the checkpoint's write targets:
 
-- Run `uv run rtk python .agent/scripts/extract_structure.py <file>` — map public surface area
+- Run `uv run python .agent/scripts/extract_structure.py <file>` — map public surface area
 - Run `uv run rtk lint-imports` — verify layer compliance
-- Run `uv run rtk python .agent/scripts/check_di_compliance.py` — verify DI compliance
+- Run `uv run python .agent/scripts/check_di_compliance.py` — verify DI compliance
 - Run `uv run rtk mypy <file>` — verify type correctness
-- Run `uv run rtk python .claude/skills/symbol-tracer/scripts/symbol_tracer.py --symbol <ProtocolName> --root src/ --summary` — verify Protocol is consumed
+- Run `uv run python .claude/skills/symbol-tracer/scripts/symbol_tracer.py --symbol "<Symbol1>,<Symbol2>" --root src/ --summary` — verify Protocol is consumed
+- **Interface Registry check:** For each write target under `src/`, verify the file path (or its parent component) appears in the Interface Registry of `plans/project-spec.md`. A `src/` file absent from the registry is a HIGH finding: `UNREGISTERED_WRITE_TARGET` — route to `/io-architect` before the checkpoint can be considered approved. `tests/` files and tooling files outside `src/` are exempt.
 
 Flag any violations. Do not fix — record for findings.
 
@@ -95,7 +96,26 @@ For each component in scope, verify:
 
 ---
 
-### Step F: CORRECTNESS REVIEW
+### Step F: SEAMS SYNC
+
+For each component in scope, compare the actual `__init__` signature in `src/` against the component's entry in `plans/seams.md`.
+
+**Check each field for drift:**
+
+- **Receives (DI):** Compare `__init__` parameters against the `Receives (DI)` field. Flag any parameter added, removed, renamed, or re-typed since the last `/io-architect` run.
+- **External terminal:** Scan the implementation for direct client instantiation (e.g., `httpx.AsyncClient()`, `boto3.client()`, `create_async_engine()`) that is not reflected in the `External terminal` field.
+- **Key failure modes:** Compare raised exception types in the implementation against the `Key failure modes` field. Flag any new exception type not listed, or any listed exception no longer raised.
+
+**Actions:**
+
+- If drift is detected: update `plans/seams.md` in place for each affected component. Record each change as a LOW-severity finding in Step H ("Seams drift — updated `plans/seams.md`").
+- If a component in scope has no entry in `plans/seams.md` at all: create the entry using the same field schema. Record as MEDIUM-severity ("Missing seam entry — created in `plans/seams.md`").
+- Do **not** modify the `Backlog refs` field — that is populated by `/review-capture` only.
+- Do **not** update seam entries for components outside the current checkpoint's scope.
+
+---
+
+### Step G: CORRECTNESS REVIEW
 
 - Logic errors, edge cases not covered by tests
 - Error handling — are failure modes handled or silently swallowed?
@@ -104,7 +124,7 @@ For each component in scope, verify:
 
 ---
 
-### Step G: OUTPUT FINDINGS
+### Step H: OUTPUT FINDINGS
 
 Generate a findings report:
 
@@ -141,14 +161,14 @@ Generate a findings report:
 
 ---
 
-### Step H: ROUTE FINDINGS
+### Step I: ROUTE FINDINGS
 
-- **Action:** Run `/review-capture` to classify and log all HIGH and MEDIUM findings to `plans/backlog.md`.
-- **Rule:** Findings not captured in `backlog.md` are invisible to subsequent workflows. This step is mandatory if any HIGH or MEDIUM findings exist.
+- **Action:** Run `/review-capture` to classify and log all HIGH and MEDIUM findings to `plans/review-output.md` (staging file).
+- **Rule:** Findings not captured in staging are invisible to subsequent workflows. This step is mandatory if any HIGH or MEDIUM findings exist. Findings flow from staging to `plans/backlog.md` via `/io-backlog-triage`.
 
 ---
 
-### Step I: CHECKPOINT APPROVAL DECISION
+### Step J: CHECKPOINT APPROVAL DECISION
 
 Present to the human:
 
@@ -166,7 +186,7 @@ Options:
 ```
 
 - **Human decides.** Do not auto-approve.
-- **If option 1 selected:** Write `plans/tasks/[CP-ID].approved` containing `APPROVED YYYY-MM-DD` (today's date). This marker is the trigger for `archive-approved.sh`.
+- **If option 1 selected:** Run `bash .claude/scripts/archive-approved.sh [CP-ID]` — this flips the status in `plan.md` to `[x] complete`, moves task artifacts to `plans/archive/[CP-ID]/`, and for remediation checkpoints automatically marks all corresponding backlog items as `[x]` with a `Remediated:` annotation.
 
 ---
 
@@ -174,6 +194,6 @@ Options:
 
 - Scope is strictly limited to the current checkpoint's components
 - Do not review components from other checkpoints even if they appear in the same files
-- Do not make fixes — output findings only
+- Do not make fixes — output findings only (exception: `plans/seams.md` is updated in Step F to stay in sync with implementation)
 - Do not route findings to `plans/plan.md` — backlog goes to `plans/backlog.md` only
 - No git operations

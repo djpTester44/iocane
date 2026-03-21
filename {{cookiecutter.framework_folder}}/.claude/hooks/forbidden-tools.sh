@@ -8,7 +8,7 @@
 
 INPUT=$(cat)
 
-COMMAND=$(echo "$INPUT" | uv run rtk python -c "
+COMMAND=$(echo "$INPUT" | uv run python -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -26,15 +26,15 @@ if [ "${IOCANE_SUBAGENT:-0}" = "1" ]; then
 fi
 
 if echo "$COMMAND" | grep -qE '(^|[[:space:];&|])(pip3?[[:space:]]|python[0-9.]* -m pip|uv pip[[:space:]])'; then
-    echo "BLOCKED: Use uv add or uv run rtk instead. Direct pip invocations and uv pip are forbidden — they bypass the lockfile."
+    echo "BLOCKED: Use uv add or uv run instead. Direct pip invocations and uv pip are forbidden — they bypass the lockfile."
     exit 2
 fi
 
-# Block bare python/python3 invocations — use uv run rtk python instead (AGENTS.md rule #10).
-# Strip all 'uv run rtk python' occurrences first so they are not matched as bare python.
-STRIPPED=$(echo "$COMMAND" | sed 's/uv run rtk python[0-9.]*//g')
+# Block bare python/python3 invocations — use uv run python instead (AGENTS.md rule #10).
+# Strip all 'uv run python' occurrences first so they are not matched as bare python.
+STRIPPED=$(echo "$COMMAND" | sed 's/uv run python[0-9.]*//g')
 if echo "$STRIPPED" | grep -qE '(^|[[:space:];&|])(python3?[[:space:]]|python3?\.[0-9]+[[:space:]])'; then
-    echo "BLOCKED: Use uv run rtk python instead of bare python/python3. Naked interpreter calls resolve to the wrong environment on Windows." >&2
+    echo "BLOCKED: Use uv run python instead of bare python/python3. Naked interpreter calls resolve to the wrong environment on Windows." >&2
     exit 2
 fi
 

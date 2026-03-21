@@ -21,7 +21,7 @@ description: Apply Iocane framework to an existing codebase with intelligent con
 ### 1. CURRENT STATE ANALYSIS (Token Protection)
 
 * **Constraint:** You are strictly forbidden from reading full legacy source files in bulk.
-* **Action:** Run `uv run rtk python .agent/scripts/extract_structure.py <dir>` to map the existing classes, function signatures, and data structures.
+* **Action:** Run `uv run python .agent/scripts/extract_structure.py <dir>` to map the existing classes, function signatures, and data structures.
 * **Action:** Create `plans/current-state.md` using the template `.agent/templates/current-state.md`.
 * **Goal:** Capture the raw capabilities and data structures of the legacy code efficiently.
 

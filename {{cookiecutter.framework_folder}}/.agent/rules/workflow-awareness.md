@@ -31,7 +31,7 @@ Human owns all Tier 1 decisions. Nothing in Tier 2 or Tier 3 executes until the 
 | Task Files | `plans/tasks/[CP-ID].md` | Orchestrator | Per-checkpoint sub-agent work packages |
 | Dispatch Script | `plans/tasks/run.sh` | Orchestrator | Worktree setup and sub-agent invocation |
 | Status Files | `plans/tasks/[CP-ID].status` | Sub-agent | PASS/FAIL per checkpoint |
-| Backlog | `plans/backlog.md` | Review workflows | Bugs, issues, enhancements from /io-review and /gap-analysis |
+| Backlog | `plans/backlog.md` | Review workflows | Bugs, issues, enhancements from /io-review and /gap-analysis. Each item has a `**BL-NNN**` identifier (auto-assigned by hook). |
 | Escalation Log | `.iocane/escalation.log` | Hook | Sub-agent failure records |
 | Progress Log | `plans/progress.md` | Append-only | Historical task completion ledger |
 
@@ -115,7 +115,7 @@ When no workflow is invoked, recommend based on project state:
 | `plans/plan.md` | Only via `/io-checkpoint` with human approval |
 | `plans/tasks/[CP-ID].md` | Written by `/io-orchestrate` — not edited manually |
 | `plans/tasks/run.sh` | Written by `/io-orchestrate` — not edited manually |
-| `plans/backlog.md` | Append via `/review-capture` — never delete entries |
+| `plans/backlog.md` | Append via `/review-capture` — never delete entries. Route via `route-backlog-item.sh`. |
 | `plans/progress.md` | Append only — never read into context during execution |
 | `src/`, `tests/` | Only during execution, scoped to checkpoint write_targets |
 

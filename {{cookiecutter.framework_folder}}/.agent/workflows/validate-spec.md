@@ -50,7 +50,7 @@ Four classes of finding:
 
 1. **MISSING_CRC_METHOD** — Method present in `.pyi` Protocol but not listed in the CRC card.
 2. **STALE_SIGNATURE** — Method listed in CRC card with a signature that does not match the `.pyi` Protocol method.
-3. **ORPHANED_CRC_METHOD** — Method listed in CRC card but absent from the `.pyi` Protocol (possible `.pyi` regression or intentional removal). For ORPHANED_CRC_METHOD findings, run `symbol_tracer.py --symbol <MethodName> --root src/` to check if the method is still referenced in implementation code despite being absent from the `.pyi` Protocol.
+3. **ORPHANED_CRC_METHOD** — Method listed in CRC card but absent from the `.pyi` Protocol (possible `.pyi` regression or intentional removal). For ORPHANED_CRC_METHOD findings, run `symbol_tracer.py --symbol "<Symbol1>,<Symbol2>" --root src/` to check if the method is still referenced in implementation code despite being absent from the `.pyi` Protocol.
 4. **PROTOCOL_MISMATCH** — Entire Protocol class in `.pyi` with no corresponding CRC card, or a CRC card with no corresponding Protocol in `.pyi`.
 
 ---
