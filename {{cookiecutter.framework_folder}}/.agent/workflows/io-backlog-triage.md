@@ -325,16 +325,6 @@ After processing all items, output an audit table summarizing every decision:
 | 2 | [CLEANUP] description | STILL OPEN | APPROVE | -- | Routing prompt written |
 ```
 
-**Remediation completion handoff:**
-
-When `/io-review` reviews a completed remediation checkpoint (identified by the
-presence of a `**Remediates:**` field in `plans/plan.md`):
-- If review approves: `/io-review` marks each source backlog item `[x]` in
-  `plans/backlog.md` with `Remediated: CP-NNR (YYYY-MM-DD)`.
-- If review finds new issues: standard review flow — findings appended to
-  `plans/backlog.md` under a `From CP-NNR` section. Source items remain `[ ]`
-  with their `Routed:` annotation until the follow-up resolves.
-
 **The triage workflow TERMINATES after Step 6.** It does not perform any implementation
 or invoke any downstream workflow itself. All subsequent execution flows through the
 existing harness:
