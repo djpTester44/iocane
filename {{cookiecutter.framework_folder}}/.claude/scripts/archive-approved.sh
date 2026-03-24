@@ -80,7 +80,7 @@ for CP_ID in "${TARGETS[@]}"; do
     if [ -f "$PLAN_FILE" ]; then
         if uv run python -c "
 import re, sys
-sys.path.insert(0, '${REPO_ROOT}/.agent/scripts')
+sys.path.insert(0, '${REPO_ROOT}/.claude/scripts')
 from backlog_parser import extract_cp_section
 path = sys.argv[1]
 cp_id = sys.argv[2]
@@ -104,7 +104,7 @@ with open(path, 'w', encoding='utf-8') as f:
     if [ -f "$PLAN_FILE" ] && [ -f "$BACKLOG_FILE" ]; then
         IS_REMEDIATION=$(uv run python -c "
 import sys
-sys.path.insert(0, '${REPO_ROOT}/.agent/scripts')
+sys.path.insert(0, '${REPO_ROOT}/.claude/scripts')
 from backlog_parser import extract_cp_section
 path = sys.argv[1]
 cp_id = sys.argv[2]
@@ -117,7 +117,7 @@ print('yes' if section and '**Remediates:**' in section else 'no')
         if [ "$IS_REMEDIATION" = "yes" ]; then
             if uv run python -c "
 import re, sys
-sys.path.insert(0, '${REPO_ROOT}/.agent/scripts')
+sys.path.insert(0, '${REPO_ROOT}/.claude/scripts')
 from backlog_parser import (
     read_lines, write_lines, extract_cp_section, extract_bl_ids_from_text,
     build_bl_index, find_summary_line, walk_subfields, insert_subfield, shift_bl_index,

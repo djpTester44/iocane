@@ -30,7 +30,7 @@ fi
 
 uv run python -c "
 import sys
-sys.path.insert(0, '${REPO_ROOT}/.agent/scripts')
+sys.path.insert(0, '${REPO_ROOT}/.claude/scripts')
 from backlog_parser import read_lines, write_lines, find_bl_anchor, find_summary_line, walk_subfields, insert_subfield
 
 backlog_path = sys.argv[1]

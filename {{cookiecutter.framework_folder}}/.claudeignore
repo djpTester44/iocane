@@ -82,53 +82,17 @@ htmlcov/
 # These are only loaded explicitly when running skill evals. Indexing them
 # globally adds ~2000 tokens of noise to every session
 
-.agent/skills/skill-creator/scripts/
-.agent/skills/skill-creator/agents/
-.agent/skills/skill-creator/assets/
-.agent/skills/skill-creator/eval-viewer/
-.agent/skills/skill-creator/references/
-.agent/skills/skill-creator/LICENSE.txt
+.claude/skills/skill-creator/scripts/
+.claude/skills/skill-creator/agents/
+.claude/skills/skill-creator/assets/
+.claude/skills/skill-creator/eval-viewer/
+.claude/skills/skill-creator/references/
+.claude/skills/skill-creator/LICENSE.txt
 
-# Keep: .agent/skills/skill-creator/SKILL.md
+# Keep: .claude/skills/skill-creator/SKILL.md
 
 # Rationale: the SKILL.md is the interface — Claude needs to know the skill
 # exists and how to invoke it. The implementation scripts do not need indexing
-
-# -----------------------------------------------------------------------------
-
-# Iocane: project-specific gap analysis script
-
-# -----------------------------------------------------------------------------
-
-# gap_analysis_gen.py contains hardcoded component-to-filepath mappings from
-# a specific project (CMAB). It is not a general harness tool and will confuse
-# Claude when working on unrelated projects
-
-.agent/scripts/gap_analysis_gen.py
-
-# -----------------------------------------------------------------------------
-
-# Iocane: sync utilities
-
-# -----------------------------------------------------------------------------
-
-# These scripts manage .github/ <-> .agent/ synchronization. Claude does not
-# need to read them to use or evolve the harness — they are maintenance tools
-# run manually or via CI
-
-.agent/scripts/github_to_agent_sync.py
-
-# -----------------------------------------------------------------------------
-
-# Iocane: walkthrough generation
-
-# -----------------------------------------------------------------------------
-
-# generate_walkthrough_context.py extracts Protocol definitions, src structure,
-# and layer map into a JSON blob. Sub-agents invoke it via Bash as a preamble
-# step in io-execute — they run it, not read it. Source kept out of context.
-
-.agent/scripts/generate_walkthrough_context.py
 
 # -----------------------------------------------------------------------------
 
@@ -141,7 +105,7 @@ htmlcov/
 # Indexing them globally causes Claude to treat forward-declaration stubs as
 # actual project state, which produces false gap analysis findings
 
-.agent/templates/
+.claude/templates/
 
 # -----------------------------------------------------------------------------
 

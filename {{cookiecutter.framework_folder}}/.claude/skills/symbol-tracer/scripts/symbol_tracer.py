@@ -270,7 +270,7 @@ def main() -> None:
     args = parser.parse_args()
 
     root_path = Path(args.root)
-    skip_dirs = {".git", "__pycache__", ".agent", "venv", ".venv", "node_modules"}
+    skip_dirs = {".git", "__pycache__", ".claude", "venv", ".venv", "node_modules"}
 
     py_files = _collect_files(
         root_path,

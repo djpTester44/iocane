@@ -13,28 +13,7 @@ paths:
 ## [HARD] State Management & Architecture
 
 1. **The Living Document**: `plans/project-spec.md` is the ultimate authority and the core of the project's state.
-2. **Design Before Contract**: You **MUST** define the **Component Specification (CRC & Sequence)** in `plans/project-spec.md` *before* generating or modifying `.pyi` files.
-    - **Constraint:** Use the standard defined in `.claude/skills/mini-spec/SKILL.md`.
-3. **Mandatory Updates**: You **MUST** update `plans/project-spec.md` (Interface Registry, Component Specifications, and Mermaid Graph) to reflect any new components or architectural shifts.
-4. **Atomic Scope**: Each Protocol (`.pyi`) should represent a single responsibility and map to a single Component Specification.
-5. **Interface Rules**:
-    - Use `typing.Protocol` or `abc.ABC`.
-    - Methods must be empty (`...`). NEVER write function bodies.
-    - ALL methods must have Google-style docstrings defining Args, Returns, and PRD business logic constraints.
-    - **Traceability:** Docstrings must explicitly reference the specific Responsibility from the CRC that the method satisfies.
-    - **Exemptions:** Private methods (`_`-prefixed) are excluded from both CRC Key Responsibilities and `.pyi` Protocols. Sequence Diagrams are only required for components with behavioral logic; immutable data containers and thin wrappers are exempt.
-    - You **MUST** export the new Protocol in `interfaces/__init__.pyi`.
-
-## [HARD] Orchestration Output Format
-
-`/io-orchestrate` generates per-checkpoint task files at `plans/tasks/[CP-ID].md` and a dispatch script at `plans/tasks/run.sh`. Do not manually create or edit these files — they are orchestrator artifacts.
-
-Each task file contains: objective, write targets, context files, and gate command. Sub-agents read only their assigned task file.
-
-## [HARD] Requirements Analysis
-
-1. **No Speculation**: Do not assume a library or function exists. Verify strictly using a search tool before proceeding.
-2. **Integration Integrity**: If a Checkpoint modifies the critical path (Input -> Logic -> Output), you **MUST** include a task to run/update `tests/test_integration_golden_path.py`.
+2. **Atomic Scope**: Each Protocol represents a single responsibility, mapping to one CRC card.
 
 ## DESIGN PRINCIPLES
 

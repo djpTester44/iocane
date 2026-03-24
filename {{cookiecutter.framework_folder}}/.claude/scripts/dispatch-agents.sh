@@ -147,7 +147,7 @@ for CP_ID in "${BATCH[@]}"; do
         EXIT_FILE="$TASKS_DIR/$CP_ID.exit"
 
         # Deterministic io-execute invocation string -- same for every checkpoint.
-        INVOKE_PROMPT="Read and execute the workflow defined in .agent/workflows/io-execute.md. Your task file is plans/tasks/${CP_ID}.md. Follow every step exactly. Terminate after writing the status file."
+        INVOKE_PROMPT="Read and execute the workflow defined in .claude/commands/io-execute.md. Your task file is plans/tasks/${CP_ID}.md. Follow every step exactly. Terminate after writing the status file."
 
         ATTEMPT_FILE="$REPO_ROOT/.iocane/$CP_ID.attempts"
         ATTEMPT=$(cat "$ATTEMPT_FILE" 2>/dev/null || echo "0")

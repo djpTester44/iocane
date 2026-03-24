@@ -1,0 +1,44 @@
+[project]
+name = "__PROJECT_NAME__"
+version = "0.1.0"
+description = "__PROJECT_DESCRIPTION__"
+readme = "README.md"
+requires-python = ">=__PYTHON_VERSION__"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "import-linter>=2.10",
+    "mypy>=1.19.1",
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "pytest-mock>=3.15.1",
+    "ruff>=0.14.13",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py__PYTHON_VERSION_NODOT__"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"
+pythonpath = ["."]
+
+[tool.mypy]
+python_version = "__PYTHON_VERSION__"
+strict = true
+
+[tool.importlinter]
+root_packages = [__ROOT_PACKAGES__]
+
+# [[tool.importlinter.contracts]] populated by /io-architect

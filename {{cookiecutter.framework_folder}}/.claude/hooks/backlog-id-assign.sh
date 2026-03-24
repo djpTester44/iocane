@@ -21,9 +21,9 @@ if [ -z "$FILE_PATH" ]; then
     exit 0
 fi
 
-MATCH=$(uv run python -c "
+MATCH=$(FILE_PATH="$FILE_PATH" uv run python -c "
 import os, sys
-p = os.path.normpath('$FILE_PATH').replace('\\\\', '/')
+p = os.path.normpath(os.environ['FILE_PATH']).replace('\\\\', '/')
 print('yes' if p.endswith('plans/backlog.md') else 'no')
 ")
 

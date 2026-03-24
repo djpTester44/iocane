@@ -72,11 +72,11 @@ fi
 # --- v2: tasks/ directory present — use CP-ID.md format ---
 if [ -d "$TASKS_DIR" ]; then
 
-    RESULT=$(uv run python -c "
+    RESULT=$(FILE_PATH="$FILE_PATH" TASKS_DIR="$TASKS_DIR" uv run python -c "
 import os, sys, re
 
-file_path = '''$FILE_PATH'''
-tasks_dir = '$TASKS_DIR'
+file_path = os.environ.get('FILE_PATH', '')
+tasks_dir = os.environ.get('TASKS_DIR', 'plans/tasks')
 
 def normalize(p):
     return os.path.normpath(p).replace('\\\\', '/')

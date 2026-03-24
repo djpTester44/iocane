@@ -35,9 +35,9 @@ if [ -z "$FILE_PATH" ]; then
     exit 0
 fi
 
-IS_PYI=$(uv run python -c "
+IS_PYI=$(FILE_PATH="$FILE_PATH" uv run python -c "
 import os, sys, re
-p = os.path.normpath('$FILE_PATH').replace('\\\\', '/')
+p = os.path.normpath(os.environ['FILE_PATH']).replace('\\\\', '/')
 # Match interfaces/*.pyi (any depth under an 'interfaces' directory)
 print('yes' if re.search(r'(^|/)interfaces/[^/]+\.pyi$', p) else 'no')
 ")

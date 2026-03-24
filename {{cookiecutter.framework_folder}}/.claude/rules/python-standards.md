@@ -11,39 +11,28 @@ You are **FORBIDDEN** from weakening test assertions to force a GREEN state. Cat
 
 ## Async I/O
 
-- Use `httpx`, `aiofiles`, `asyncpg` for I/O.
-- **NEVER** block the event loop with synchronous calls in async contexts.
+Blocking the event loop with synchronous calls in async contexts causes deadlocks. Use httpx/aiofiles/asyncpg for I/O.
 
 ## Error Handling
 
-- Raise specific, custom exceptions defined in `interfaces/exceptions.pyi`.
-- **NEVER** return `None` or sentinel values (`-1`, `False`) to indicate failure.
-- Validate all inputs at function entry points.
+Sentinel returns (None, -1, False) hide failures from callers. Raise specific custom exceptions from interfaces/exceptions.pyi.
 
 ## File Operations
 
-- Use `pathlib.Path` for ALL path manipulation.
-- **NEVER** concatenate strings to build paths.
+String-concatenated paths break across OS boundaries. Use pathlib.Path exclusively.
 
 ## Module Docstrings
 
-Every `.py` file you create **MUST** begin with a module-level docstring as the first statement, before any imports. One sentence stating what this module owns — not what it does step-by-step.
+A module docstring is a navigation aid: state what this module owns (not how), and which Protocol it implements or collaborates with.
 
-```python
-"""Owns the inference routing logic. Routes validated payloads to the correct handler via InferenceRouterProtocol."""
+## Code Quality Defaults
 
-from __future__ import annotations
-```
+These defaults reduce hidden state and improve testability -- not style preferences:
 
-The docstring must state:
+- **Type hints:** All signatures must use modern syntax (`list[str]`, not `List[str]`). `Any` is forbidden -- if you don't know the type, define an interface.
+- **Dataclasses:** Use `frozen=True` by default. Mutable dataclasses require explicit justification.
+- **Dicts vs models:** Prefer Pydantic models over raw dicts at system boundaries. Dicts are acceptable for internal, ephemeral data.
 
-- What the module is responsible for (ownership)
-- Which Protocol it implements or collaborates with, if any
+## Logging
 
-Do not describe implementation mechanics. The docstring is a navigation aid, not a tutorial.
-
-## Naming Conventions
-
-- **Functions/Variables**: `snake_case`
-- **Classes**: `PascalCase`
-- **Constants**: `UPPER_SNAKE`
+print() lacks log levels, structured output, and production-safe suppression -- production logs become unfiltered noise.

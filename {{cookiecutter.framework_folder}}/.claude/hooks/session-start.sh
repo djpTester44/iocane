@@ -145,12 +145,17 @@ suggest_next_workflow() {
 
     # No plan.md yet
     if [ ! -f "$PLAN_FILE" ]; then
+        if [ ! -f "plans/PRD.md" ]; then
+            echo "No PRD found. Start with /brainstorm or create plans/PRD.md, then run /io-clarify."
+            return
+        fi
+        # Check Clarified stamp before suggesting downstream workflows
+        if ! grep -q "Clarified: True" "plans/PRD.md" 2>/dev/null; then
+            echo "PRD present but not clarified. Run /io-clarify to resolve ambiguities and stamp Clarified: True."
+            return
+        fi
         if [ ! -f "plans/roadmap.md" ]; then
-            if [ ! -f "plans/PRD.md" ]; then
-                echo "No PRD found. Start with /brainstorm or create plans/PRD.md, then run /io-clarify."
-            else
-                echo "PRD present. Run /io-clarify to resolve ambiguities, then /io-specify to generate roadmap.md."
-            fi
+            echo "PRD clarified. Run /io-specify to generate roadmap.md."
         elif [ ! -f "plans/project-spec.md" ] || [ ! -d "interfaces" ]; then
             echo "Roadmap present but contracts not locked. Run /io-architect."
         else
@@ -209,8 +214,8 @@ ${BACKLOG_ALERT}
 $NEXT_STEP
 
 ---
-Workflow reference: .agent/workflows/
-Rules reference: .agent/rules/AGENTS.md
+Workflow reference: .claude/commands/
+Rules reference: .claude/rules/
 "
 
 output_json "$BRIEFING"

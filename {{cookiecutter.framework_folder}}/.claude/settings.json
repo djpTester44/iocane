@@ -21,6 +21,34 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/di-gate.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/secret-scan.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/environ-gate.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/py-create-context.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/backslash-path.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/emoji-scan.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/architect-boundary.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/design-before-contract.sh"
           }
         ]
       },
@@ -57,6 +85,10 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/backlog-id-assign.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/backlog-tag-validate.sh"
           },
           {
             "type": "command",

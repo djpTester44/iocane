@@ -10,6 +10,8 @@
 # NOTE: Designed to run from a generated project root.
 # This script is a harness template artifact.
 
+INPUT=$(cat)
+
 if [ -f ".iocane/validating" ]; then
     # If this write IS the Plan Validated stamp itself, the sentinel's job is done.
     # Auto-delete so the agent does not need an explicit cleanup step.
@@ -28,8 +30,6 @@ except Exception:
     exit 0
 fi
 
-INPUT=$(cat)
-
 FILE_PATH=$(uv run python -c "
 import sys, json
 try:
@@ -43,9 +43,9 @@ if [ -z "$FILE_PATH" ]; then
     exit 0
 fi
 
-MATCH=$(uv run python -c "
+MATCH=$(FILE_PATH="$FILE_PATH" uv run python -c "
 import os, sys
-p = os.path.normpath('$FILE_PATH').replace('\\\\', '/')
+p = os.path.normpath(os.environ['FILE_PATH']).replace('\\\\', '/')
 print('yes' if p.endswith('plans/plan.md') else 'no')
 ")
 

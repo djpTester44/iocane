@@ -76,7 +76,7 @@ Reach for this skill any time the conversation involves:
 - Static analysis: does not resolve `getattr`, dynamic dispatch, or string-based lookups
 - Simple name matching -- does not track import aliases (`from x import Foo as Bar`: searching `Foo` finds the import, but usages of `Bar` will not be found)
 - `--find-implementors` checks direct base class names only, not resolved imports of bases
-- Skips `.git`, `__pycache__`, `.agent`, `venv`, `.venv`, `node_modules` -- symbols in `.agent/scripts/` are invisible to the tracer
+- Skips `.git`, `__pycache__`, `.claude`, `venv`, `.venv`, `node_modules` -- symbols in those directories are invisible to the tracer
 - `--include-tests` resolves `tests/` relative to the working directory -- run from the project root
 
 When these limitations matter, note them in the report.

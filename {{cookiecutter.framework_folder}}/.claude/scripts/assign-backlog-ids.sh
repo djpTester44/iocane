@@ -20,7 +20,7 @@ fi
 uv run python -c "
 import re
 import sys
-sys.path.insert(0, '${REPO_ROOT}/.agent/scripts')
+sys.path.insert(0, '${REPO_ROOT}/.claude/scripts')
 from backlog_parser import read_lines, write_lines, find_max_bl_id
 
 backlog_path = sys.argv[1]

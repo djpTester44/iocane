@@ -29,11 +29,11 @@ if [[ "$SESSION_MODEL" != *"haiku"* ]]; then
 fi
 
 # Compliance script must exist to run the gate.
-if [ ! -f ".agent/scripts/check_di_compliance.py" ]; then
+if [ ! -f ".claude/scripts/check_di_compliance.py" ]; then
     exit 0
 fi
 
-OUTPUT=$(uv run python .agent/scripts/check_di_compliance.py 2>&1)
+OUTPUT=$(uv run python .claude/scripts/check_di_compliance.py 2>&1)
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then
