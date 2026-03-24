@@ -50,6 +50,15 @@ These are operator-facing scripts. Run them directly when you need the behavior.
 
 Do not run `.claude/scripts/setup-worktree.sh` directly. It is an internal helper invoked by `dispatch-agents.sh`.
 
+The following are internal helper scripts. Do not run them directly unless debugging:
+
+- `write-status.sh` -- internal: writes checkpoint status files during /io-execute
+- `backlog_parser.py` -- internal: parses plans/backlog.md for programmatic queries
+- `extract_structure.py` -- internal: AST-based project structure extraction
+- `smart_search.sh` -- internal: targeted codebase search utility
+- `pre-invoke-io-plan-batch.sh` -- internal: pre-invocation gate before /io-plan-batch
+- `check_di_compliance.py` -- internal: DI compliance checker used in REFACTOR gate
+
 ---
 
 ## Autonomous Hooks (Run by Claude)
@@ -57,9 +66,9 @@ Do not run `.claude/scripts/setup-worktree.sh` directly. It is an internal helpe
 These are hook-driven and configured in `.claude/settings.json`. They are executed automatically by Claude on matching events.
 
 - `SessionStart`: `.claude/hooks/session-start.sh`
-- `PreToolUse (Edit|Write)`: `.claude/hooks/write-gate.sh`, `.claude/hooks/di-gate.sh`
+- `PreToolUse (Edit|Write)`: `.claude/hooks/write-gate.sh`, `.claude/hooks/di-gate.sh`, `.claude/hooks/secret-scan.sh`, `.claude/hooks/environ-gate.sh`, `.claude/hooks/py-create-context.sh`, `.claude/hooks/backslash-path.sh`, `.claude/hooks/emoji-scan.sh`, `.claude/hooks/architect-boundary.sh`, `.claude/hooks/design-before-contract.sh`
 - `PreToolUse (Bash)`: `.claude/hooks/forbidden-tools.sh`
-- `PostToolUse (Edit|Write)`: `.claude/hooks/reset-on-prd-write.sh`, `.claude/hooks/reset-on-project-spec-write.sh`, `.claude/hooks/reset-on-plan-write.sh`, `.claude/hooks/reset-on-pyi-write.sh`, `.claude/hooks/backlog-id-assign.sh`
+- `PostToolUse (Edit|Write)`: `.claude/hooks/reset-on-prd-write.sh`, `.claude/hooks/reset-on-project-spec-write.sh`, `.claude/hooks/reset-on-plan-write.sh`, `.claude/hooks/reset-on-pyi-write.sh`, `.claude/hooks/backlog-id-assign.sh`, `.claude/hooks/backlog-tag-validate.sh`, `.claude/hooks/archive-sync.sh`
 - `PostToolUse (Bash)`: `.claude/hooks/escalation-gate.sh`
 
 Use hooks as autonomous guardrails. Use standalone scripts as explicit operational commands.
@@ -72,7 +81,7 @@ Project-level orchestration config lives in `.claude/iocane.config.yaml`.
 
 ```yaml
 parallel:
-  limit: 3   # Maximum number of checkpoints dispatched concurrently in a single batch
+  limit: 4   # Maximum number of checkpoints dispatched concurrently in a single batch
 ```
 
 ### `parallel.limit`
@@ -80,13 +89,13 @@ parallel:
 Controls how many checkpoints `/io-plan-batch` may include in a single batch. `/io-plan-batch` and `dispatch-agents.sh` both respect this value.
 
 - Default if config file is missing: `1`
-- Increase with caution — parallelization safety is checked per batch, but higher limits increase the blast radius of a bad batch composition.
+- Increase with caution -- parallelization safety is checked per batch, but higher limits increase the blast radius of a bad batch composition.
 
 ### `agents.max_turns`
 
 Controls the maximum number of turns a sub-agent may take before the dispatcher terminates it. See `.claude/iocane.config.yaml` for the current value.
 
-- If an agent exhausts its budget mid-run, no `.status` file is written — the checkpoint remains pending and will be re-picked on the next dispatch, resuming from the last completed `## Step Progress` checkbox.
+- If an agent exhausts its budget mid-run, no `.status` file is written -- the checkpoint remains pending and will be re-picked on the next dispatch, resuming from the last completed `## Step Progress` checkbox.
 - If turn exhaustion recurs on a particular checkpoint, increase `agents.max_turns` in `.claude/iocane.config.yaml` before re-dispatching.
 - The `IOCANE_MAX_TURNS` environment variable overrides this value for ad-hoc runs.
 
@@ -111,22 +120,22 @@ Tier 1 artifacts carry validation stamps that gate downstream workflows. Any sub
 | `plans/project-spec.md` | `**Approved:** True/False` | `/io-architect` (primary) or `/validate-spec` (recovery) | `/io-checkpoint` |
 | `plans/plan.md` | `**Plan Validated:** PASS/FAIL` | `/validate-plan` | `/io-plan-batch` |
 
-Note: `/io-architect` writes `**Approved:** True` on the primary path. `/validate-spec` is the recovery path — it re-earns the stamp after an out-of-band `.pyi` change resets it, without requiring a full redesign.
+Note: `/io-architect` writes `**Approved:** True` on the primary path. `/validate-spec` is the recovery path -- it re-earns the stamp after an out-of-band `.pyi` change resets it, without requiring a full redesign.
 
 ### Exempting a write from stamp reset
 
 Workflows that write stamps (not substantive content) must bracket all writes in the approval step with sentinel file creation and deletion to prevent a reset loop:
 
     Step N-pre:  bash: mkdir -p .iocane && touch .iocane/validating
-    Step N:      [Edit/Write operations — strictly sequential, never parallel]
+    Step N:      [Edit/Write operations -- strictly sequential, never parallel]
 
-The sentinel must cover ALL writes in the approval step, not just the stamp itself. For example, `/io-architect` Step H writes CRC cards, `.pyi` files, AND the Approved stamp — the sentinel is active for the entire sequence.
+The sentinel must cover ALL writes in the approval step, not just the stamp itself. For example, `/io-architect` Step H writes CRC cards, `.pyi` files, AND the Approved stamp -- the sentinel is active for the entire sequence.
 
-**Auto-cleanup:** For workflows that end their sentinel window with a recognized stamp write, the hook auto-deletes the sentinel when it detects that write — no explicit cleanup step is needed. Workflows with auto-cleanup: `/io-clarify` (`**Clarified:** True`), `/io-architect` (`**Approved:** True`), `/validate-plan` (`**Plan Validated:** PASS/FAIL`).
+**Auto-cleanup:** For workflows that end their sentinel window with a recognized stamp write, the hook auto-deletes the sentinel when it detects that write -- no explicit cleanup step is needed. Workflows with auto-cleanup: `/io-clarify` (`**Clarified:** True`), `/io-architect` (`**Approved:** True`), `/validate-plan` (`**Plan Validated:** PASS/FAIL`).
 
-**Explicit cleanup required:** `/doc-sync` writes factual corrections without a trailing stamp write, so the hook cannot detect completion. The agent must run `bash: rm -f .iocane/validating` after all doc-sync writes. See `BACKLOG.md` for a tracked item to revisit this.
+**Explicit cleanup required:** `/doc-sync` writes factual corrections without a trailing stamp write, so the hook cannot detect completion. The agent must run `bash: rm -f .iocane/validating` after all doc-sync writes. See `plans/backlog.md` for a tracked item to revisit this.
 
-The sentinel is automatically cleared on session start. If it is unexpectedly present at session start, it means a previous session crashed mid-stamp — the session-start hook clears it.
+The sentinel is automatically cleared on session start. If it is unexpectedly present at session start, it means a previous session crashed mid-stamp -- the session-start hook clears it.
 
 ---
 
@@ -166,8 +175,6 @@ These workflows are part of the full lifecycle and are intentionally outside the
 
 ---
 
----
-
 ## Model Allocation
 
 Model assignments are defined in `.claude/iocane.config.yaml` under the `models` key:
@@ -186,7 +193,7 @@ models:
 
 ---
 
-## Workflows that never run as sub-agents (Tier 1 — interactive only)
+## Workflows that never run as sub-agents (Tier 1 -- interactive only)
 
 The following workflows require human interaction and must never be dispatched headlessly:
 

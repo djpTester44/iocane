@@ -11,23 +11,23 @@ Execution follows a strict chronology. Design is locked before any code is writt
 ### Canonical Sequence
 
 ```
-[Tier 1 — Human + Plan Mode]
-  1. /io-clarify      — resolve PRD ambiguities, stamp Clarified: True
-  2. /io-specify      — PLAN MODE — propose roadmap.md, human approves
-  3. /io-architect    — PLAN MODE — propose CRC + Protocols, human approves (contract lock)
-  4. /io-checkpoint   — PLAN MODE — propose plan.md + connectivity test signatures, human approves
+[Tier 1 -- Human + Plan Mode]
+  1. /io-clarify      -- resolve PRD ambiguities, stamp Clarified: True
+  2. /io-specify      -- PLAN MODE -- propose roadmap.md, human approves
+  3. /io-architect    -- PLAN MODE -- propose CRC + Protocols, human approves (contract lock)
+  4. /io-checkpoint   -- PLAN MODE -- propose plan.md + connectivity test signatures, human approves
 
-[Tier 2 — Harness Autonomous]
-  5. /io-plan-batch   — compose batch, score confidence rubric, generate task files, human approves
-  6. /io-orchestrate or uv run bash .claude/scripts/dispatch-agents.sh  — human executes; sub-agents run in git worktrees
+[Tier 2 -- Harness Autonomous]
+  5. /io-plan-batch   -- compose batch, score confidence rubric, generate task files, human approves
+  6. /io-orchestrate or uv run bash .claude/scripts/dispatch-agents.sh  -- human executes; sub-agents run in git worktrees
 
-[Tier 1 — Human Review]
-  7. /io-review          — per-checkpoint behavioral + connectivity review
-  8. repeat /io-plan-batch → /io-orchestrate → /io-review for each checkpoint batch
+[Tier 1 -- Human Review]
+  7. /io-review          -- per-checkpoint behavioral + connectivity review
+  8. repeat /io-plan-batch -> /io-orchestrate -> /io-review for each checkpoint batch
 
 [Full-system close]
-  9. /gap-analysis    — integration correctness across entire codebase
- 10. /doc-sync        — reconcile project-spec.md + roadmap.md with codebase state
+  9. /gap-analysis    -- integration correctness across entire codebase
+ 10. /doc-sync        -- reconcile project-spec.md + roadmap.md with codebase state
 ```
 
 ### Human Attention Contract
@@ -38,7 +38,7 @@ The human is required at these moments and only these:
 |--------|----------|--------|
 | PRD ambiguities | `/io-clarify` | Answer questions, approve stamp |
 | Roadmap proposal | `/io-specify` | Approve or correct `roadmap.md` |
-| Design proposal | `/io-architect` | Approve CRC + Protocols — contract lock |
+| Design proposal | `/io-architect` | Approve CRC + Protocols -- contract lock |
 | Checkpoint boundaries | `/io-checkpoint` | Approve `plan.md` + connectivity signatures |
 | Run sub-agents | post `/io-plan-batch` | `/io-orchestrate` or `uv run bash .claude/scripts/dispatch-agents.sh` |
 | Checkpoint review | `/io-review` | Approve or route findings to backlog |
@@ -49,29 +49,29 @@ The human is required at these moments and only these:
 
 ## 2. Atomic Execution: The Iocane Loop (Tier 3)
 
-Sub-agents execute one checkpoint at a time in isolated git worktrees. Each sub-agent receives a self-contained task file and terminates after writing a status file. The loop is the per-checkpoint orchestration cycle — not a single continuous session.
+Sub-agents execute one checkpoint at a time in isolated git worktrees. Each sub-agent receives a self-contained task file and terminates after writing a status file. The loop is the per-checkpoint orchestration cycle -- not a single continuous session.
 
 ### Red-Green-Refactor State Machine
 
 | State | Goal | Gate |
 |-------|------|------|
-| **RED** | Write a failing test | `pytest` MUST fail — if it passes, the test is invalid |
+| **RED** | Write a failing test | `pytest` MUST fail -- if it passes, the test is invalid |
 | **GREEN** | Write minimum implementation to pass the test | `pytest` passes |
 | **GATE** | Run the checkpoint's acceptance gate command | Must pass cleanly |
-| **REFACTOR** | DI compliance, type correctness, lint | `check_di_compliance.py`, `mypy`, `ruff`, `lint-imports` all pass |
+| **REFACTOR** | DI compliance, type correctness, lint | `.claude/scripts/check_di_compliance.py`, `mypy`, `ruff`, `lint-imports` all pass |
 
 ### Status Reporting
 
 On completion, the sub-agent writes one of:
 
-- `plans/tasks/[CP-ID].status` → `PASS`
-- `plans/tasks/[CP-ID].status` → `FAIL: [one-line reason]`
+- `plans/tasks/[CP-ID].status` -> `PASS`
+- `plans/tasks/[CP-ID].status` -> `FAIL: [one-line reason]`
 
-The orchestrator reads status files — never logs.
+The orchestrator reads status files -- never logs.
 
 ### Escalation Triggers
 
-Sub-agents do not attempt autonomous remediation for these conditions — they write FAIL and terminate:
+Sub-agents do not attempt autonomous remediation for these conditions -- they write FAIL and terminate:
 
 - Gate failing after 3 attempts
 - Connectivity test goes red
@@ -88,11 +88,11 @@ Sub-agents run in dedicated git worktrees to prevent filesystem collisions durin
 
 ```
 .worktrees/
-  CP-01/    ← branch: iocane/CP-01
-  CP-02/    ← branch: iocane/CP-02
+  CP-01/    <- branch: iocane/CP-01
+  CP-02/    <- branch: iocane/CP-02
 ```
 
-Each worktree is a full checkout. Two checkpoints can run concurrently only if their `write_targets` are completely disjoint — this is enforced at `/io-checkpoint` time, not at runtime.
+Each worktree is a full checkout. Two checkpoints can run concurrently only if their `write_targets` are completely disjoint -- this is enforced at `/io-checkpoint` time, not at runtime.
 
 After a checkpoint batch completes and `/io-review` approves:
 
@@ -105,7 +105,7 @@ The merge is a human action at the `/io-review` boundary. The orchestrator does 
 
 When a sub-agent writes a FAIL status (or exhausts its turn budget without writing any status), the worktree is preserved at `.worktrees/[CP-ID]` for inspection.
 
-**Step Progress resumability:** Task files contain a `## Step Progress` section with checkboxes for each execution step (B–G). The sub-agent marks each step complete as it goes. On re-dispatch, the agent reads the checkboxes and resumes from the first unchecked step — skipping already-completed work.
+**Step Progress resumability:** Task files contain a `## Step Progress` section with checkboxes for each execution step (B-G). The sub-agent marks each step complete as it goes. On re-dispatch, the agent reads the checkboxes and resumes from the first unchecked step -- skipping already-completed work.
 
 **To reset and re-dispatch a failed checkpoint:**
 
@@ -116,7 +116,7 @@ bash .claude/scripts/reset-failed-checkpoints.sh CP-XX    # reset a specific che
 
 This removes the worktree, deletes the `iocane/CP-XX` branch, clears the `.status` and `.exit` files, and resets the attempt counter. Log files are preserved for post-mortem. After reset, run `/io-plan-batch` to generate a fresh task file, then re-dispatch.
 
-**Turn budget exhaustion:** If an agent hits `agents.max_turns` mid-run without writing a status file, no `.status` file is created — the checkpoint appears pending and will be picked up on the next dispatch. If the existing worktree is still intact and Step Progress shows partial completion, re-dispatch reuses the worktree and resumes from the last unchecked step. If resumption is not viable, run `reset-failed-checkpoints.sh` first. Adjust `agents.max_turns` in `.claude/iocane.config.yaml` if turn exhaustion recurs on complex checkpoints.
+**Turn budget exhaustion:** If an agent hits `agents.max_turns` mid-run without writing a status file, no `.status` file is created -- the checkpoint appears pending and will be picked up on the next dispatch. If the existing worktree is still intact and Step Progress shows partial completion, re-dispatch reuses the worktree and resumes from the last unchecked step. If resumption is not viable, run `reset-failed-checkpoints.sh` first. Adjust `agents.max_turns` in `.claude/iocane.config.yaml` if turn exhaustion recurs on complex checkpoints.
 
 ---
 
@@ -137,9 +137,9 @@ When removing redundant or dead code, prove unused status before deletion.
 3. **Verify integrity:**
 
    ```bash
-   uv run rtk lint-imports       # broken internal references
+   uv run rtk lint-imports       # broken internal references (requires import-linter; optional)
    uv run rtk mypy .             # type signature drift
-   uv run rtk pytest         # behavioral regressions
+   uv run rtk pytest             # behavioral regressions
    ```
 
 4. **Cleanup spec:** Remove the entry from the Interface Registry in `plans/project-spec.md`. Run `/doc-sync` to reconcile.
@@ -160,7 +160,7 @@ Format in `plans/backlog.md`:
 
 ```
 **BL-005**
-- [ ] [CLEANUP] ComponentName — one-line description
+- [ ] [CLEANUP] ComponentName -- one-line description
   - Source: /io-review CP-06
   - Severity: HIGH
   - Files: `src/lib/component.py`
@@ -199,8 +199,8 @@ routable item, referenced by BL-ID.
 
 - **Route Immediately items:** copy the `Prompt:` verbatim and run it. The downstream workflow
   receives the full item description from the summary as context.
-- **Requires Human Scoping items:** amend `plans/plan.md` manually first — add the target file
-  to a checkpoint's write targets or add a new checkpoint — then run `/validate-plan`.
+- **Requires Human Scoping items:** amend `plans/plan.md` manually first -- add the target file
+  to a checkpoint's write targets or add a new checkpoint -- then run `/validate-plan`.
 - **Likely Resolved items:** confirm by reading the referenced file at the described location.
   If resolved, change `[ ]` to `[x]` in `plans/backlog.md` with a brief resolution note.
 - **Deferred items:** triage workflow tags them `[DEFERRED]` in `plans/backlog.md` with a
@@ -210,33 +210,24 @@ routable item, referenced by BL-ID.
 
 | Tag | Meaning | Blocks orchestration? | Routing workflow |
 |-----|---------|----------------------|-----------------|
-| `[DESIGN]` | CRC or Protocol gap — requires `/io-architect` | Yes (warning) | `/io-architect` |
+| `[DESIGN]` | CRC or Protocol gap -- requires `/io-architect` | Yes (warning) | `/io-architect` |
 | `[REFACTOR]` | DI, layer, or SOLID violation | Yes (warning) | `/io-architect` (CRC only) then `/validate-plan` |
-| `[CLEANUP]` | Minor improvement | No | `/validate-plan` → `/io-plan-batch` |
+| `[CLEANUP]` | Minor improvement | No | `/validate-plan` -> `/io-plan-batch` |
 | `[TEST]` | Missing test coverage | No | `/io-ct-remediate` (CT gaps) or checkpoint amendment (unit test gaps) |
-| `[DEFERRED]` | Acknowledged, intentionally postponed | No | — |
+| `[DEFERRED]` | Acknowledged, intentionally postponed | No | -- |
 
 **Rules:**
 
-- Items are never deleted — the backlog is a permanent audit trail.
+- Items are never deleted -- the backlog is a permanent audit trail.
 - `[x]` items = resolved history. `[ ]` items = active work queue.
 
 ---
 
-## 6. Migration: tasks.json → tasks/[CP-ID].md
+## 6. Legacy Migration (Completed)
 
-Projects created before Session 3 used `plans/tasks.json`. The converter script migrates to the new per-checkpoint format:
-
-```bash
-uv run python .agent/scripts/tasks_json_to_md.py --dry-run   # preview
-uv run python .agent/scripts/tasks_json_to_md.py             # write
-```
-
-After conversion, review each generated `plans/tasks/[CP-ID].md` and fill in `[REQUIRED: fill in]` placeholders:
-
-- Protocol contract path
-- Connectivity test signatures
-- Gate command (if not inferrable from write targets)
+Projects created before Session 3 used `plans/tasks.json`. Migration to
+per-checkpoint `plans/tasks/[CP-ID].md` files is complete. The converter
+script (`tasks_json_to_md.py`) has been retired.
 
 ---
 
@@ -246,10 +237,10 @@ Doc-sync reconciles `project-spec.md` and `roadmap.md` with actual codebase stat
 
 ### Verification Checklist
 
-1. **README sync:** Update `README.md` against `.agent/templates/README.md` — identity and quick start only, no checkpoint lists.
+1. **README sync:** Update `README.md` against `.claude/templates/README.md` -- identity and quick start only, no checkpoint lists.
 2. **Interface Registry reconciliation:** Verify every entry points to an existing file. Remove stale entries. Add entries for new implementations.
 3. **CRC card reconciliation:** Verify responsibilities match implementation. Flag unanchored behavior as MEDIUM backlog items.
-4. **Roadmap status:** Propose feature status updates (`[COMPLETE]` or `[COMPLETE - PENDING REMEDIATION]`) — human approval required.
+4. **Roadmap status:** Propose feature status updates (`[COMPLETE]` or `[COMPLETE - PENDING REMEDIATION]`) -- human approval required.
 5. **Link integrity:** Scan for broken markdown links, auto-fix where target exists at a new path.
 
 **Constraint:** `project-spec.md` reflects current codebase state only. No future-state items, no debt tracking artifacts.

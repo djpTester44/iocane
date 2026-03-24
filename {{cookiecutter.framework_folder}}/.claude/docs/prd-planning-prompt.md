@@ -77,11 +77,11 @@ Here is the required template format you must use for the final output:
 
 ## 6. Features (Roadmap Inputs)
 
-[User-facing capabilities to deliver. /io-specify will use these to generate plans/roadmap.md with dependency ordering and acceptance criteria. Keep strictly high-level — no checkpoints, no subtasks.]
+[User-facing capabilities to deliver. /io-specify will use these to generate plans/roadmap.md with dependency ordering and acceptance criteria. Keep strictly high-level -- no checkpoints, no subtasks.]
 
-* **F-01: [Feature Name]** — [One sentence: what the user can do or observe when this is complete.]
-* **F-02: [Feature Name]** — [One sentence.]
-* **F-03: [Feature Name]** — [One sentence.]
+* **F-01: [Feature Name]** -- [One sentence: what the user can do or observe when this is complete.]
+* **F-02: [Feature Name]** -- [One sentence.]
+* **F-03: [Feature Name]** -- [One sentence.]
 
 > Note: Dependency ordering, acceptance criteria, and checkpoint decomposition are the responsibility of /io-specify and /io-checkpoint respectively. The PRD names capabilities only.
 
