@@ -138,7 +138,7 @@ When removing redundant or dead code, prove unused status before deletion.
 
    ```bash
    uv run rtk lint-imports       # broken internal references (requires import-linter; optional)
-   uv run rtk mypy .             # type signature drift
+   uv run mypy .             # type signature drift
    uv run rtk pytest             # behavioral regressions
    ```
 

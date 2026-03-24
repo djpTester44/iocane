@@ -76,7 +76,7 @@ For each implementation file in the checkpoint's write targets:
 - Run `uv run python .claude/scripts/extract_structure.py <file>` — map public surface area
 - Run `uv run rtk lint-imports` — verify layer compliance
 - Run `uv run python .claude/scripts/check_di_compliance.py` — verify DI compliance
-- Run `uv run rtk mypy <file>` — verify type correctness
+- Run `uv run mypy <file>` — verify type correctness
 - Run `uv run python .claude/skills/symbol-tracer/scripts/symbol_tracer.py --symbol "<Symbol1>,<Symbol2>" --root src/ --summary` — verify Protocol is consumed
 - **Interface Registry check:** For each write target under `src/`, verify the file path (or its parent component) appears in the Interface Registry of `plans/project-spec.md`. A `src/` file absent from the registry is a HIGH finding: `UNREGISTERED_WRITE_TARGET` — route to `/io-architect` before the checkpoint can be considered approved. `tests/` files and tooling files outside `src/` are exempt.
 

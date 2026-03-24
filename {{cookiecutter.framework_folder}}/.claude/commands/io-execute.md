@@ -109,7 +109,7 @@ Before proceeding:
 
 ```bash
 uv run python .claude/scripts/check_di_compliance.py
-uv run rtk mypy src/[implementation_path]
+uv run mypy src/[implementation_path]
 uv run rtk ruff check --fix src/[implementation_path]
 uv run rtk lint-imports
 ```

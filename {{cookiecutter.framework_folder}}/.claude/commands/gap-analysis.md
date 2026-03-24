@@ -82,7 +82,7 @@ For every entry in the Interface Registry (`plans/project-spec.md`):
 
 ### Step E: TYPE CORRECTNESS AUDIT
 
-- **Action:** Run `uv run rtk mypy .` across the full codebase.
+- **Action:** Run `uv run mypy .` across the full codebase.
 - **Output:** Any type errors not caught during per-checkpoint review → MEDIUM findings.
 
 ---

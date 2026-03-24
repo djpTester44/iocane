@@ -7,6 +7,7 @@ description: Per-checkpoint behavioral review and connectivity verification. Fin
 > Read-only analysis. No file writes except via /review-capture at the end.
 
 > **[CRITICAL] CONTEXT LOADING**
+>
 > 1. Load planning rules: `view_file .claude/rules/planning.md`
 > 2. Load the checkpoint being reviewed from `plans/plan.md`
 > 3. Load CRC cards for checkpoint components from `plans/project-spec.md`
@@ -19,6 +20,7 @@ description: Per-checkpoint behavioral review and connectivity verification. Fin
 **Scope:** Single checkpoint. Do not review components outside the current checkpoint's boundaries.
 
 **Position in chain:**
+
 ```
 (sub-agents complete) -> [/review] -> /io-orchestrate (next batch) | /gap-analysis (full system)
 ```
@@ -41,25 +43,25 @@ Before proceeding, output:
 
 ### Step A: GATE VERIFICATION
 
-* **Action:** Run the checkpoint's gate command from `plans/plan.md`.
-* **Rule:** If gate is not passing, the checkpoint is not complete. Stop.
-* **Output:** "GATE: [PASS/FAIL] — [gate command]"
+- **Action:** Run the checkpoint's gate command from `plans/plan.md`.
+- **Rule:** If gate is not passing, the checkpoint is not complete. Stop.
+- **Output:** "GATE: [PASS/FAIL] — [gate command]"
 
 ---
 
 ### Step B: CONNECTIVITY TEST VERIFICATION
 
-* **Action:** For each connectivity test listed in `plans/plan.md` at this checkpoint's output seams, run the gate command.
-* **Rule:** Every connectivity test must be green before this checkpoint is considered approved.
-* **Output:** For each CT: "CT-[NNN]: [PASS/FAIL] — [test file::function]"
+- **Action:** For each connectivity test listed in `plans/plan.md` at this checkpoint's output seams, run the gate command.
+- **Rule:** Every connectivity test must be green before this checkpoint is considered approved.
+- **Output:** For each CT: "CT-[NNN]: [PASS/FAIL] — [test file::function]"
 
 ---
 
 ### Step C: LOAD BEHAVIORAL ANCHORS
 
-* **Action:** Read the CRC card for each component in scope from `plans/project-spec.md`.
-* **Action:** Read the Protocol contract for each component from `interfaces/*.pyi`.
-* **Goal:** Establish the behavioral intent before reading implementation.
+- **Action:** Read the CRC card for each component in scope from `plans/project-spec.md`.
+- **Action:** Read the Protocol contract for each component from `interfaces/*.pyi`.
+- **Goal:** Establish the behavioral intent before reading implementation.
 
 ---
 
@@ -67,10 +69,10 @@ Before proceeding, output:
 
 For each implementation file in the checkpoint's write targets:
 
-* Run `uv run python .claude/scripts/extract_structure.py <file>` — map public surface area
-* Run `uv run rtk lint-imports` — verify layer compliance
-* Run `uv run python .claude/scripts/check_di_compliance.py` — verify DI compliance
-* Run `uv run rtk mypy <file>` — verify type correctness
+- Run `uv run python .claude/scripts/extract_structure.py <file>` — map public surface area
+- Run `uv run rtk lint-imports` — verify layer compliance
+- Run `uv run python .claude/scripts/check_di_compliance.py` — verify DI compliance
+- Run `uv run mypy <file>` — verify type correctness
 
 Flag any violations. Do not fix — record for findings.
 
@@ -80,21 +82,21 @@ Flag any violations. Do not fix — record for findings.
 
 For each component in scope, verify:
 
-* **CRC Responsibilities:** Does the implementation fulfill every responsibility listed in the CRC card? Flag any responsibility with no corresponding implementation.
-* **CRC Must-Nots:** Does the implementation violate any explicit constraint in the CRC card?
-* **Protocol compliance:** Does every public method match its Protocol signature exactly? Flag any signature deviation.
-* **Collaborators:** Are all collaborators received via `__init__`? Flag any that are instantiated internally.
-* **Sequence diagrams:** If a sequence diagram exists in `project-spec.md` for this component's flows, does the implementation follow it?
-* **Side effects:** Are there any observable side effects not described in the CRC?
+- **CRC Responsibilities:** Does the implementation fulfill every responsibility listed in the CRC card? Flag any responsibility with no corresponding implementation.
+- **CRC Must-Nots:** Does the implementation violate any explicit constraint in the CRC card?
+- **Protocol compliance:** Does every public method match its Protocol signature exactly? Flag any signature deviation.
+- **Collaborators:** Are all collaborators received via `__init__`? Flag any that are instantiated internally.
+- **Sequence diagrams:** If a sequence diagram exists in `project-spec.md` for this component's flows, does the implementation follow it?
+- **Side effects:** Are there any observable side effects not described in the CRC?
 
 ---
 
 ### Step F: CORRECTNESS REVIEW
 
-* Logic errors, edge cases not covered by tests
-* Error handling — are failure modes handled or silently swallowed?
-* Type correctness beyond what mypy catches (semantic type misuse)
-* Test quality — do tests assert meaningful behavior, or just "does not raise"?
+- Logic errors, edge cases not covered by tests
+- Error handling — are failure modes handled or silently swallowed?
+- Type correctness beyond what mypy catches (semantic type misuse)
+- Test quality — do tests assert meaningful behavior, or just "does not raise"?
 
 ---
 
@@ -127,6 +129,7 @@ Generate a findings report:
 ```
 
 **Severity guide:**
+
 - HIGH: Unanchored behavior (contradicts CRC), broken connectivity test, DI violation, layer violation
 - MEDIUM: Should fix — affects maintainability or contract completeness
 - LOW: Nice to fix — minor improvement
@@ -136,8 +139,8 @@ Generate a findings report:
 
 ### Step H: ROUTE FINDINGS
 
-* **Action:** Run `/review-capture` to classify and log all HIGH and MEDIUM findings to `plans/backlog.md`.
-* **Rule:** Findings not captured in `backlog.md` are invisible to subsequent workflows. This step is mandatory if any HIGH or MEDIUM findings exist.
+- **Action:** Run `/review-capture` to classify and log all HIGH and MEDIUM findings to `plans/backlog.md`.
+- **Rule:** Findings not captured in `backlog.md` are invisible to subsequent workflows. This step is mandatory if any HIGH or MEDIUM findings exist.
 
 ---
 
@@ -158,7 +161,7 @@ Options:
 3. Escalate to /io-architect — finding reveals a design gap
 ```
 
-* **Human decides.** Do not auto-approve.
+- **Human decides.** Do not auto-approve.
 
 ---
 
