@@ -7,13 +7,6 @@ description: Writes comprehensive unit tests based on Interface definitions from
 
 Write comprehensive unit tests based on Interface definitions.
 
-## Trigger Examples
-
-- "Write tests for X"
-- "Create unit tests for this Protocol"
-- "Add test coverage for the new component"
-- "Test the implementation against its interface"
-
 ## Workflow
 
 1. **Read** the target Protocol from `interfaces/<component>.pyi`
@@ -28,20 +21,6 @@ Write comprehensive unit tests based on Interface definitions.
 
 - [conftest_template.py](assets/conftest_template.py) - Common fixtures and configuration
 - [test_template.py](assets/test_template.py) - AAA structure test template
-
-## AAA Structure
-
-```python
-def test_feature_does_something():
-    # Arrange - Set up test data
-    input_data = {"key": "value"}
-    
-    # Act - Execute the code under test
-    result = function_under_test(input_data)
-    
-    # Assert - Verify expected outcomes
-    assert result == expected_value
-```
 
 ## Required Input
 
@@ -64,11 +43,3 @@ Return test file:
 ```
 
 Do NOT include explanations unless explicitly requested.
-
-## Coverage Checklist
-
-- [ ] Happy path returns expected result
-- [ ] Empty input handled gracefully
-- [ ] None/null input raises appropriate error
-- [ ] Boundary values tested
-- [ ] Dependency failures propagate correctly

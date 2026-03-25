@@ -64,6 +64,17 @@ Before proceeding, output the following metadata:
 
 ---
 
+### Step B.5: IMPORT TRACE (brownfield only)
+
+* **Gate:** If `plans/current-state.md` does not exist (greenfield), skip this step only and proceed to Step C. The rest of io-architect runs normally regardless.
+* **Action:** Trace import statements for each `src/` module.
+* **Output:** Two edge sets written to `plans/project-spec.md` under `## Import Trace`:
+  * **ACTUAL edges** — import relationships as they exist in the current code.
+  * **TARGET edges** — import relationships implied by the design in Step C.
+* **Purpose:** The overlay reveals where rewiring is needed between current and target architecture.
+
+---
+
 ### Step C: WRITE DEPENDENCY MAP
 
 * **Goal:** Capture how components depend on each other across architectural layers.
@@ -81,28 +92,10 @@ For incremental runs: mark any changed section with an HTML comment `<!-- CHANGE
 
 ### Step D: WRITE CRC CARDS
 
-For every component identified in Step B, write a CRC card to `plans/project-spec.md` under a `## CRC Cards` section:
+For every component identified in Step B, write a CRC card using the format defined in the `mini-spec` skill (Section 2: CRC Card Standard).
 
-```markdown
-### [ComponentName]
-**Layer:** [1-Foundation | 2-Utility | 3-Domain | 4-Entrypoint]
-**File:** `src/[path]/[module].py`
-**Protocol:** `interfaces/[protocol].pyi`
-
-**Responsibilities:**
-- [What this component does — observable behaviors only]
-- [Each responsibility maps to at least one method in the Protocol]
-
-**Collaborators:**
-- [ComponentName] via [ProtocolName] — [why needed]
-
-**Must NOT:**
-- [Explicit negative constraints — what this component must never do]
-```
-
-**Write all CRC cards to `plans/project-spec.md`. Do not print them to the terminal.**
-
-For incremental runs: mark each new or changed CRC card heading with `<!-- CHANGED -->`.
+* **Action:** Write all CRC cards to `plans/project-spec.md` under a `## CRC Cards` section. Do not print them to the terminal.
+* **Incremental runs:** Mark each new or changed CRC card heading with `<!-- CHANGED -->`.
 
 ---
 
@@ -268,3 +261,5 @@ If `project-spec.md` and `interfaces/*.pyi` already exist:
 - `project-spec.md` reflects current codebase state only — no debt tracking, no state artifacts.
 - Protocol files are binding contracts. They are the source of truth for sub-agent execution.
 - The human's approval at Step G is the point of no return for Tier 2 delegation.
+
+> `[HARD] Evidence citation rule:` Any spec claim citing existing code must include an explicit `file:line` citation. The architect must read the cited line before writing the claim. Uncited claims about existing code are forbidden.

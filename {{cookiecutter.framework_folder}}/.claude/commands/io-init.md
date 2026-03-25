@@ -57,7 +57,13 @@ Before proceeding to Step 2, output the following metadata to confirm the projec
 
 ### Step C: SCAFFOLD PYPROJECT.TOML
 
-- **Rule:** If `pyproject.toml` already exists, skip this step entirely.
+- **Rule:** If `pyproject.toml` already exists, do not scaffold — instead run:
+
+  ```bash
+  uv run .claude/scripts/merge_pyproject.py --write
+  ```
+
+  This merges only the missing harness-required config (dev packages, ruff, pytest, mypy sections) without touching existing keys. Surface any reported divergences to the user. Then skip to Step C1.
 - **Action:** Extract from `plans/PRD.md`:
   - Project name (snake_case)
   - One-line description

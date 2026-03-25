@@ -51,6 +51,7 @@ Before proceeding, output the following metadata:
   * **YES:** "User can authenticate via OAuth", "System processes payments"
   * **NO:** "Implement JWT middleware", "Add Redis cache"
 * **Output:** Enumerate capabilities as a flat list with one-line descriptions.
+* **Brownfield verification:** If `plans/current-state.md` exists, scan each capability for claims about existing behavior. Verify each claim against source cited in `current-state.md`. Tag unconfirmed claims as `[UNVERIFIED]`; these must not be treated as dependencies in Step C.
 
 ---
 
@@ -133,3 +134,4 @@ Next step: Run /io-architect to define CRC cards, Protocols, and the Interface R
 - Do not decompose features into checkpoints here — that is `/io-checkpoint`'s job.
 - Do not propose implementation approaches — roadmap entries describe outcomes, not mechanisms.
 - If the PRD is ambiguous about whether two things are one feature or two, flag it and ask before proceeding.
+- In brownfield repos, any PRD claim about existing behavior that cannot be verified against source must carry an `[UNVERIFIED]` tag through to `roadmap.md`.

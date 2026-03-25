@@ -10,19 +10,8 @@ Analyze errors to isolate the root cause.
 ## Workflow
 
 1. **Trace** - Follow the execution path in the stack trace
-   - Identify the failing line
-   - Trace back through call stack
-   - Identify variable states at each step
-
 2. **Hypothesize** - Identify the exact variable state or logic gap causing the failure
-   - What value was expected?
-   - What value was actual?
-   - Why did the discrepancy occur?
-
-3. **Reproduce** - Generate a minimal Python script or `pytest` case that triggers the exact error
-   - Isolate the failing condition
-   - Remove unrelated code
-   - Create minimal reproduction
+3. **Reproduce** - Generate a minimal `pytest` case that triggers the exact error
 
 ## Required Input
 

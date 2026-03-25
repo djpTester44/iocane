@@ -47,6 +47,13 @@ These are operator-facing scripts. Run them directly when you need the behavior.
 - `bash .claude/scripts/archive-approved.sh`: archives approved checkpoint artifacts from `plans/tasks/` into `plans/archive/` and updates `plans/plan.md` status from `[ ] pending` to `[x] complete`. For remediation CPs, resolves the source backlog item via `Source BL:` lookup.
 - `bash .claude/scripts/assign-backlog-ids.sh`: assigns `BL-NNN` identifiers to any backlog items missing them. Idempotent -- safe to re-run.
 - `bash .claude/scripts/route-backlog-item.sh BL-NNN CP-NNR`: adds a `Routed:` annotation to the specified backlog item. Fails if the item is not found or already routed to that CP.
+- `uv run .claude/scripts/merge_pyproject.py`: compares existing `pyproject.toml` against harness-required config and reports or applies only the missing pieces. Union merge for list fields (`ruff select/ignore`, dev packages); add-only for scalars; divergences reported but never auto-corrected. Called automatically by `/io-adopt` (step 1c) and `/io-init` (step C) when `pyproject.toml` already exists.
+
+  ```bash
+  uv run .claude/scripts/merge_pyproject.py           # check mode (default) -- exits 1 if gaps found
+  uv run .claude/scripts/merge_pyproject.py --write   # apply additions
+  uv run .claude/scripts/merge_pyproject.py --path path/to/pyproject.toml  # explicit path
+  ```
 
 Do not run `.claude/scripts/setup-worktree.sh` directly. It is an internal helper invoked by `dispatch-agents.sh`.
 

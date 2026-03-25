@@ -9,10 +9,7 @@ Optimize code for SOLID, DRY, and Readability.
 
 ## Workflow
 
-1. **Analyze** - Identify violations of:
-   - **DRY**: Duplicate logic should be abstracted
-   - **SRP** (Single Responsibility): Functions doing too much should be split
-   - **DIP** (Dependency Inversion): Hardcoded dependencies should be injected
+1. **Analyze** - Identify DRY, SRP, DIP violations
 2. **Refactor** - Rewrite code to fix identified issues
 3. **Verify** - Ensure strict type hinting (Pydantic/Typing) is applied
 
@@ -20,20 +17,17 @@ Optimize code for SOLID, DRY, and Readability.
 
 ### DRY Violations
 
-- [ ] Repeated code blocks (3+ lines appearing twice or more)
+- [ ] Repeated code blocks
 - [ ] Similar functions with minor variations
-- [ ] Copy-pasted logic with different variable names
 
 ### SRP Violations
 
 - [ ] Functions longer than 20 lines
-- [ ] Functions with multiple responsibilities (AND in description)
-- [ ] Classes with unrelated methods
+- [ ] Functions with multiple responsibilities
 
 ### DIP Violations
 
-- [ ] Direct instantiation of dependencies inside functions
-- [ ] Hardcoded configuration values
+- [ ] Direct instantiation of dependencies
 - [ ] Concrete types instead of abstractions in signatures
 
 ## Required Input
