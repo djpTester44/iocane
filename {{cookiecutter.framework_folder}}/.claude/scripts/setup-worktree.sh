@@ -53,7 +53,7 @@ TASK_FILE="$REPO_ROOT/plans/tasks/$CP_ID.md"
 # --- Preflight: task file must exist ---
 if [ ! -f "$TASK_FILE" ]; then
     echo "ERROR: Task file not found: $TASK_FILE" >&2
-    echo "Run /io-orchestrate to generate task files before dispatching." >&2
+    echo "Run /io-plan-batch to generate task files before dispatching." >&2
     exit 1
 fi
 

@@ -8,8 +8,6 @@ paths:
 
 # PLANNING MODE RULES
 
-> **Context:** You are in the DESIGN phase. You must NOT write implementation code.
-
 ## [HARD] State Management & Architecture
 
 1. **The Living Document**: `plans/project-spec.md` is the ultimate authority and the core of the project's state.

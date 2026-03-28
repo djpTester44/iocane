@@ -61,8 +61,8 @@ if [ -f "$ESCALATION_FLAG" ]; then
 One or more sub-agents failed in a previous execution batch.
 Log: $ESCALATION_LOG
 
-Read the log and resolve before running /io-orchestrate again.
-Clear $ESCALATION_FLAG after review to re-enable orchestration.
+Read the log and resolve before running dispatch-agents.sh again.
+Clear $ESCALATION_FLAG after review to re-enable dispatch.
 "
 fi
 
@@ -130,7 +130,7 @@ Open items requiring attention before next orchestration cycle:
 - [DESIGN] items: $DESIGN_ITEMS
 - [REFACTOR] items: $REFACTOR_ITEMS
 
-Run /review or inspect plans/backlog.md for details.
+Run /io-review or inspect plans/backlog.md for details.
 "
     fi
 fi
@@ -179,15 +179,15 @@ suggest_next_workflow() {
     done | grep -v "^$" || echo "")
 
     if [ -n "$MISSING" ]; then
-        echo "Task files ready but not yet dispatched. Run: uv run bash .claude/scripts/dispatch-agents.sh"
+        echo "Task files ready but not yet dispatched. Run: bash .claude/scripts/dispatch-agents.sh"
         return
     fi
 
     # All checkpoints complete — ready for review or next feature
     if [ -n "$PENDING_CHECKPOINTS" ] && [ "$PENDING_CHECKPOINTS" != "none" ]; then
-        echo "Unblocked checkpoints available. Run /io-orchestrate to generate next batch."
+        echo "Unblocked checkpoints available. Run /io-plan-batch then dispatch-agents.sh for next batch."
     else
-        echo "All checkpoints complete. Run /review, then /gap-analysis, then /doc-sync."
+        echo "All checkpoints complete. Run /io-review, then /gap-analysis, then /doc-sync."
     fi
 }
 

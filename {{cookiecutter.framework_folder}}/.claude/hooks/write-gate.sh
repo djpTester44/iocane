@@ -147,7 +147,7 @@ print('BLOCKED:' + active_cp_id)
 
     if [[ "$RESULT" == BLOCKED:* ]]; then
         CP_ID="${RESULT#BLOCKED:}"
-        echo "BLOCKED: $FILE_PATH is not in write_targets for checkpoint $CP_ID. Update plans/tasks/$CP_ID.md or run /io-orchestrate to regenerate." >&2
+        echo "BLOCKED: $FILE_PATH is not in write_targets for checkpoint $CP_ID. Update plans/tasks/$CP_ID.md or run /io-plan-batch to regenerate. Sub-agents may only write within their worktree." >&2
         exit 2
     fi
 

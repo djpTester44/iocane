@@ -138,7 +138,7 @@ echo "Note: .log files are preserved at $TASKS_DIR/CP-XX.log for post-mortem."
 echo ""
 echo "Next steps:"
 echo "  1. Run /io-plan-batch to generate fresh task files for the reset checkpoints."
-echo "  2. Run: uv run bash .claude/scripts/dispatch-agents.sh"
+echo "  2. Run: bash .claude/scripts/dispatch-agents.sh"
 
 if [ "$ERRORS" -gt 0 ]; then
     exit 1

@@ -112,7 +112,7 @@ plan.md checkpoint impact: [N checkpoints flagged for review]
 Next steps:
 - Run /io-architect to update or add Protocol contracts (.pyi files)
 - Run /io-checkpoint if new checkpoints are needed for new features
-- Review flagged checkpoints in plan.md before next /io-orchestrate
+- Review flagged checkpoints in plan.md before next dispatch-agents.sh run
 ```
 
 ---

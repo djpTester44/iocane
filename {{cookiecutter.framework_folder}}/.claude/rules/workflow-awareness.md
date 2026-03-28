@@ -39,19 +39,3 @@ The three-tier model ensures no generated code reaches the codebase without huma
 | Session End Log | `.iocane/session-end.log` | Hook | Session termination and cleanup records |
 
 ---
-
-## Edit Permissions
-
-| Artifact | Permission |
-|----------|------------|
-| `plans/PRD.md` | Only with explicit human approval |
-| `plans/roadmap.md` | Only via `/io-specify` with human approval |
-| `plans/project-spec.md` | Via `/io-architect` (design) or `/doc-sync` (reconciliation only) |
-| `interfaces/*.pyi` | Only via `/io-architect` with human approval -- never during execution |
-| `plans/plan.md` | Only via `/io-checkpoint` with human approval |
-| `plans/tasks/[CP-ID].md` | Written by `/io-orchestrate` -- not edited manually |
-| `plans/tasks/run.sh` | Written by `/io-orchestrate` -- not edited manually |
-| `plans/backlog.md` | Append via `/review-capture` -- never delete entries. Route via `route-backlog-item.sh`. |
-| `src/`, `tests/` | Only during execution, scoped to checkpoint write_targets |
-
----

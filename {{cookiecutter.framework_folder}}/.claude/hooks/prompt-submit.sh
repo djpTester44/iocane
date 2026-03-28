@@ -22,7 +22,7 @@ if [ -f ".iocane/active-task" ]; then
 fi
 
 if [ -f ".iocane/escalation.flag" ]; then
-    ESCALATION_NOTE="ESCALATION FLAG SET -- resolve before running /io-orchestrate."
+    ESCALATION_NOTE="ESCALATION FLAG SET -- resolve before running dispatch-agents.sh."
 fi
 
 # Exit cleanly with no output when there is nothing to inject

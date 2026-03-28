@@ -124,6 +124,10 @@
           {
             "command": "bash .claude/hooks/forbidden-tools.sh",
             "type": "command"
+          },
+          {
+            "command": "bash .claude/hooks/rtk-enforce.sh",
+            "type": "command"
           }
         ],
         "matcher": "Bash"

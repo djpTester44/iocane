@@ -24,7 +24,7 @@ except Exception:
 ")
 
 if [[ "$FILE_PATH" == *.py ]]; then
-    echo "BLOCKED: /io-architect is active. Python implementation files cannot be written during design phase."
+    echo "BLOCKED: /io-architect is active. Python implementation files cannot be written during design phase. Complete design in /io-architect before writing implementation files."
     exit 2
 fi
 

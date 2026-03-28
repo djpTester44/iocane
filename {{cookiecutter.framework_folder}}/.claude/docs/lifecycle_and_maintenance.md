@@ -19,11 +19,11 @@ Execution follows a strict chronology. Design is locked before any code is writt
 
 [Tier 2 -- Harness Autonomous]
   5. /io-plan-batch   -- compose batch, score confidence rubric, generate task files, human approves
-  6. /io-orchestrate or uv run bash .claude/scripts/dispatch-agents.sh  -- human executes; sub-agents run in git worktrees
+  6. bash .claude/scripts/dispatch-agents.sh  -- human executes; sub-agents run in git worktrees
 
 [Tier 1 -- Human Review]
   7. /io-review          -- per-checkpoint behavioral + connectivity review
-  8. repeat /io-plan-batch -> /io-orchestrate -> /io-review for each checkpoint batch
+  8. repeat /io-plan-batch -> dispatch-agents.sh -> /io-review for each checkpoint batch
 
 [Full-system close]
   9. /gap-analysis    -- integration correctness across entire codebase
@@ -40,7 +40,7 @@ The human is required at these moments and only these:
 | Roadmap proposal | `/io-specify` | Approve or correct `roadmap.md` |
 | Design proposal | `/io-architect` | Approve CRC + Protocols -- contract lock |
 | Checkpoint boundaries | `/io-checkpoint` | Approve `plan.md` + connectivity signatures |
-| Run sub-agents | post `/io-plan-batch` | `/io-orchestrate` or `uv run bash .claude/scripts/dispatch-agents.sh` |
+| Run sub-agents | post `/io-plan-batch` | `bash .claude/scripts/dispatch-agents.sh` |
 | Checkpoint review | `/io-review` | Approve or route findings to backlog |
 | Escalation | session start | Review `.iocane/escalation.log`, clear flag |
 | Replanning | `/io-replan` | Approve PRD delta propagation |
@@ -187,7 +187,7 @@ To reference a specific item: `grep 'BL-005' plans/backlog.md` -- read downward 
                                  with explicit prompts per item (Tier 1 -- plan mode)
 /io-checkpoint (remediation) --> writes Source BL: BL-NNN in CP section, runs
                                  route-backlog-item.sh to add Routed: annotation
-/io-orchestrate              --> reads backlog.md, warns on [DESIGN]/[REFACTOR] conflicts
+dispatch-agents.sh           --> reads backlog.md, warns on [DESIGN]/[REFACTOR] conflicts
 /io-review (remediation CP)  --> archive-approved.sh resolves BL item via Source BL: lookup
 /doc-sync                    --> human marks resolved items [x] after verification
 ```
@@ -223,59 +223,7 @@ routable item, referenced by BL-ID.
 
 ---
 
-## 6. Template Sync (iocane_build -> iocane_repo)
-
-Harness changes are developed and validated in `iocane_build`. Once stable, they are synced to the `iocane_repo` cookiecutter template so all new projects start with the current harness state.
-
-### Running the sync
-
-```bash
-# Dry-run: review what would change
-uv run python .claude/scripts/migrate-to-template-repo.py \
-  --source ~/projects/agent-frameworks/iocane_build \
-  --target ~/projects/agent-frameworks/iocane_repo \
-  --dry-run --verbose
-
-# Sync with backup
-uv run python .claude/scripts/migrate-to-template-repo.py \
-  --source ~/projects/agent-frameworks/iocane_build \
-  --target ~/projects/agent-frameworks/iocane_repo \
-  --backup
-```
-
-After sync, inspect and commit the changes in `iocane_repo`:
-
-```bash
-cd ~/projects/agent-frameworks/iocane_repo
-rtk git diff
-rtk git add -p && rtk git commit -m "sync: harness update from iocane_build"
-```
-
-### What is synced
-
-| Item | Action |
-|------|--------|
-| `hooks/`, `commands/`, `scripts/`, `skills/`, `rules/`, `docs/`, `tests/`, `templates/` | Copied verbatim; changed files overwritten |
-| `settings.json` | Merged: source hooks replace target hooks; stale event types removed |
-| `iocane.config.yaml` | Merged: `pipeline:` section added/updated; other sections source-wins on conflict |
-| `settings.local.json` | Copied only if absent in target; skipped with warning if both exist |
-| `snapshots/`, `__pycache__/`, `*.log` | Skipped (transient artifacts) |
-
-### iocane_build-only files
-
-`migrate-to-template-repo.py` lives under `.claude/scripts/` in `iocane_build` and is **not** synced to `iocane_repo`. It has no meaning in a generated project -- generated projects are consumers of the template, not maintainers of it.
-
----
-
-## 7. Legacy Migration (Completed)
-
-Projects created before Session 3 used `plans/tasks.json`. Migration to
-per-checkpoint `plans/tasks/[CP-ID].md` files is complete. The converter
-script (`tasks_json_to_md.py`) has been retired.
-
----
-
-## 8. Documentation Synchronization (/doc-sync)
+## 6. Documentation Synchronization (/doc-sync)
 
 Doc-sync reconciles `project-spec.md` and `roadmap.md` with actual codebase state. It runs after gap analysis closes a feature or full project.
 

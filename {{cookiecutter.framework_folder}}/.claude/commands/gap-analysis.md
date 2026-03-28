@@ -64,26 +64,12 @@ For every entry in the Interface Registry (`plans/project-spec.md`):
 
 ---
 
-### Step C: LAYER COMPLIANCE AUDIT
+### Step C: COMPLIANCE AUDIT
 
-- **Action:** Run `uv run rtk lint-imports` across the full codebase.
-- **Output:** Any layer violations as HIGH findings.
+- **Action:** Run `bash .claude/scripts/run-compliance.sh src/` — ruff, mypy, lint-imports, bandit, DI check.
+- **Output:** Any failures as findings (layer violations → HIGH, DI violations → HIGH, type errors → MEDIUM).
 - **Check:** Review `ignore_imports` list in `pyproject.toml`. Are all tracked deferrals still justified? Flag any that appear resolvable.
-
----
-
-### Step D: DI COMPLIANCE AUDIT
-
-- **Action:** Run `uv run python .claude/scripts/check_di_compliance.py` across the full codebase.
 - **Check:** Any untracked `# noqa: DI` suppressions → HIGH finding.
-- **Check:** Any `[CRITICAL]` or `[WARNING]` findings not already in `plans/backlog.md` → new findings.
-
----
-
-### Step E: TYPE CORRECTNESS AUDIT
-
-- **Action:** Run `uv run mypy .` across the full codebase.
-- **Output:** Any type errors not caught during per-checkpoint review → MEDIUM findings.
 
 ---
 

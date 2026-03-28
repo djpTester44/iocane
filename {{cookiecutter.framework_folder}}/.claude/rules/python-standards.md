@@ -17,22 +17,9 @@ Blocking the event loop with synchronous calls in async contexts causes deadlock
 
 Sentinel returns (None, -1, False) hide failures from callers. Raise specific custom exceptions from interfaces/exceptions.pyi.
 
-## File Operations
+## Data Modeling Defaults
 
-String-concatenated paths break across OS boundaries. Use pathlib.Path exclusively.
+These defaults reduce hidden state and improve testability:
 
-## Module Docstrings
-
-A module docstring is a navigation aid: state what this module owns (not how), and which Protocol it implements or collaborates with.
-
-## Code Quality Defaults
-
-These defaults reduce hidden state and improve testability -- not style preferences:
-
-- **Type hints:** All signatures must use modern syntax (`list[str]`, not `List[str]`). `Any` is forbidden -- if you don't know the type, define an interface.
 - **Dataclasses:** Use `frozen=True` by default. Mutable dataclasses require explicit justification.
-- **Dicts vs models:** Prefer Pydantic models over raw dicts at system boundaries. Dicts are acceptable for internal, ephemeral data.
-
-## Logging
-
-print() lacks log levels, structured output, and production-safe suppression -- production logs become unfiltered noise.
+- **Pydantic at boundaries:** Prefer Pydantic models over raw dicts at system boundaries (external input, API responses). Dicts are acceptable for internal, ephemeral data.

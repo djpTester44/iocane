@@ -8,6 +8,16 @@
 > You have no access to plan.md, roadmap.md, project-spec.md, or other task files.
 > Read this file completely before taking any action.
 > Implement via Red-Green-Refactor exactly as specified below.
+>
+> Context hygiene: Do not read files outside Context Files. Speculative reads
+> waste tokens against your fixed turn limit and risk acting on stale state.
+>
+> TDD: No implementation without a test. Untested code is invisible to the gate
+> command -- a FAIL wastes the entire session. YAGNI -- no "just in case" helpers.
+>
+> Test structure: Tests mirror src/ directory structure under tests/. Shared
+> fixtures go in tests/conftest.py (root) or tests/[subdir]/conftest.py (scoped).
+> One test file per module, one test class per Protocol.
 
 ---
 

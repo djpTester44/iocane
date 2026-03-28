@@ -11,7 +11,7 @@
 #   7. Reports batch summary
 #
 # Usage:
-#   uv run bash .claude/scripts/dispatch-agents.sh
+#   bash .claude/scripts/dispatch-agents.sh
 #
 # Environment (all optional, override config when config is absent):
 #   IOCANE_PARALLEL_LIMIT  -- max concurrent agents (fallback when config unreadable)
@@ -83,6 +83,15 @@ TASKS_DIR="$REPO_ROOT/plans/tasks"
 
 if [ -z "$REPO_ROOT" ]; then
     echo "ERROR: Could not determine repo root. Are you inside a git repository?" >&2
+    exit 1
+fi
+
+# --- Escalation flag gate ---
+# A previous batch had sub-agent failures. Resolve before dispatching again.
+ESCALATION_FLAG="$REPO_ROOT/.iocane/escalation.flag"
+if [ -f "$ESCALATION_FLAG" ]; then
+    echo "ERROR: Escalation flag is set. One or more sub-agents failed in the previous batch." >&2
+    echo "       Review $REPO_ROOT/.iocane/escalation.log and clear $ESCALATION_FLAG after resolution." >&2
     exit 1
 fi
 

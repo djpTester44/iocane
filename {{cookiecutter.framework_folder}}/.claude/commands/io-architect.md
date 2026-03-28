@@ -22,7 +22,7 @@ description: Design CRC cards, Protocols, and the Interface Registry. Tier 1 —
 
 **Position in chain:**
 ```
-/io-specify -> [/io-architect] -> /io-checkpoint -> /io-orchestrate
+/io-specify -> [/io-architect] -> /io-checkpoint -> /io-plan-batch -> dispatch-agents.sh
 ```
 
 **This workflow is the contract lock.** After human approval, the `.pyi` files are the binding source of truth. Sub-agents build against them. They are not modified during execution unless a formal replan is triggered.
@@ -185,6 +185,11 @@ The sentinel prevents `reset-on-project-spec-write.sh` and `reset-on-pyi-write.s
    * Additional `[[tool.importlinter.contracts]]` blocks for any independence contracts between peer packages
    * Remove the `# [[tool.importlinter.contracts]] populated by /io-architect` comment placeholder
    * If `pyproject.toml` does not exist (brownfield adoption), create it from `.claude/templates/pyproject.toml` first, then append contracts
+
+**Step H-2b:** Scaffold `src/` package directories from the Interface Registry:
+   * For each registered package path in the Interface Registry, create the directory if it does not exist
+   * Write a minimal `__init__.py` (empty or with a module docstring) to each new directory
+   * Skip directories that already exist — do not overwrite existing `__init__.py` files
 
 **Step H-3:** Write `interfaces/*.pyi`:
    * One file per Protocol

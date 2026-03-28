@@ -23,7 +23,7 @@ description: Per-checkpoint behavioral review and connectivity verification. Fin
 **Position in chain:**
 
 ```
-(sub-agents complete) -> [/io-review] -> /io-orchestrate (next batch) | /gap-analysis (full system)
+(sub-agents complete) -> [/io-review] -> dispatch-agents.sh (next batch) | /gap-analysis (full system)
 ```
 
 ---
@@ -74,9 +74,7 @@ Before proceeding, output:
 For each implementation file in the checkpoint's write targets:
 
 - Run `uv run python .claude/scripts/extract_structure.py <file>` — map public surface area
-- Run `uv run rtk lint-imports` — verify layer compliance
-- Run `uv run python .claude/scripts/check_di_compliance.py` — verify DI compliance
-- Run `uv run mypy <file>` — verify type correctness
+- Run `bash .claude/scripts/run-compliance.sh <write_targets>` — ruff, mypy, lint-imports, bandit, DI check
 - Run `uv run python .claude/skills/symbol-tracer/scripts/symbol_tracer.py --symbol "<Symbol1>,<Symbol2>" --root src/ --summary` — verify Protocol is consumed
 - **Interface Registry check:** For each write target under `src/`, verify the file path (or its parent component) appears in the Interface Registry of `plans/project-spec.md`. A `src/` file absent from the registry is a HIGH finding: `UNREGISTERED_WRITE_TARGET` — route to `/io-architect` before the checkpoint can be considered approved. `tests/` files and tooling files outside `src/` are exempt.
 
@@ -181,7 +179,7 @@ Connectivity tests: [N/N]
 Findings: [N HIGH], [N MEDIUM], [N LOW]
 
 Options:
-1. Approve checkpoint — proceed to /io-orchestrate for next batch
+1. Approve checkpoint — proceed to /io-plan-batch then dispatch-agents.sh for next batch
 2. Route findings to backlog — re-execute checkpoint after remediation
 3. Escalate to /io-architect — finding reveals a design gap
 ```

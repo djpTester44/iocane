@@ -38,6 +38,7 @@ EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then
     echo "BLOCKED: DI compliance check failed for $FILE_PATH."
+    echo "See .claude/rules/architecture-gates.md for # noqa: DI usage guidance."
     echo ""
     echo "$OUTPUT"
     exit 2

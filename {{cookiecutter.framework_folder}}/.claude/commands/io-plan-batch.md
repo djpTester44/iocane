@@ -1,21 +1,21 @@
 ---
 name: io-plan-batch
-description: Compose a dispatch batch from plans/plan.md. Sits between /io-checkpoint and /io-orchestrate in the orchestration chain.
+description: Compose a dispatch batch from plans/plan.md. Sits between /io-checkpoint and dispatch-agents.sh in the orchestration chain.
 ---
 
 # /io-plan-batch
 
 ## Purpose
 
-Compose a dispatch batch from `plans/plan.md`. Sits between `/io-checkpoint` and `/io-orchestrate` in the orchestration chain.
+Compose a dispatch batch from `plans/plan.md`. Sits between `/io-checkpoint` and `dispatch-agents.sh` in the orchestration chain.
 
 ```
-/io-checkpoint -> /io-plan-batch -> /io-orchestrate (or direct script invocation)
+/io-checkpoint -> /io-plan-batch -> bash .claude/scripts/dispatch-agents.sh
 ```
 
 Owns: dependency resolution, parallelization safety, task file generation, confidence scoring, and human approval gate.
 
-Does **not** own: agent dispatch (that is `dispatch-agents.sh` / `/io-orchestrate`).
+Does **not** own: agent dispatch (that is `dispatch-agents.sh`).
 
 ---
 
@@ -96,6 +96,7 @@ git add -A
 git commit -m "CP-[CP-ID]: [one-line summary]"
 bash "$IOCANE_REPO_ROOT/.claude/scripts/write-status.sh" CP-[CP-ID] PASS
 ```
+
 ```
 
 - A `## Step Progress` section with checkboxes for resumable steps B–G (Step A is context-gathering and is never checkboxed):
@@ -148,7 +149,7 @@ Task file previews available on request.
 ---
 Accept / Modify / Reject?
 
-- Accept: task files will be written to plans/tasks/. You are then responsible for running /io-orchestrate or uv run bash .claude/scripts/dispatch-agents.sh to dispatch agents.
+- Accept: task files will be written to plans/tasks/. You are then responsible for running bash .claude/scripts/dispatch-agents.sh to dispatch agents.
 - Modify: describe changes in natural language. A new /io-plan-batch run will incorporate your modifications.
 - Reject: a new /io-plan-batch run will start from scratch.
 ```
@@ -158,7 +159,7 @@ Accept / Modify / Reject?
 ### Step G — Handle Response
 
 **Accept:**
-Write all draft task files to `plans/tasks/CP-XX.md`. Confirm each file written. Remind the user to invoke `/io-orchestrate` or `uv run bash .claude/scripts/dispatch-agents.sh` to dispatch agents.
+Write all draft task files to `plans/tasks/CP-XX.md`. Confirm each file written. Remind the user to invoke `bash .claude/scripts/dispatch-agents.sh` to dispatch agents.
 
 **Modify:**
 Acknowledge the requested modifications. Do not write any task files. Re-run from Step B incorporating the user's natural language modifications as constraints.
@@ -191,6 +192,5 @@ No other files are written or modified by this workflow.
 
 - `/io-checkpoint` — upstream; produces `plan.md`
 - `/validate-plan` — must pass before this workflow runs
-- `/io-orchestrate` — downstream; reads `plans/tasks/` and dispatches agents
-- `uv run bash .claude/scripts/dispatch-agents.sh` — direct dispatch alternative to `/io-orchestrate`
+- `bash .claude/scripts/dispatch-agents.sh` — downstream; reads `plans/tasks/` and dispatches agents
 - `.claude/iocane.config.yaml` — configuration (parallel limit)

@@ -3,9 +3,9 @@ paths:
   - "plans/backlog.md"
 ---
 
-# TICKET TAXONOMY & ROUTING RULES
+# TICKET TAXONOMY
 
-> **Context:** All items in `plans/backlog.md` MUST be prefixed with one of the following exact tags to govern workflow routing.
+Backlog items in `plans/backlog.md` carry one tag that governs routing.
 
 ## Valid Tags
 

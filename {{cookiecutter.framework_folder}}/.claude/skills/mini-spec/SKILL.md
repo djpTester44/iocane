@@ -10,7 +10,7 @@ description: Generates CRC cards and Sequence Diagrams to anchor behavioral logi
 ## 1. Position in the Workflow
 
 ```
-PRD -> /io-clarify -> /io-specify -> [/io-architect uses mini-spec] -> /io-checkpoint -> /io-orchestrate
+PRD -> /io-clarify -> /io-specify -> [/io-architect uses mini-spec] -> /io-checkpoint -> /io-plan-batch -> dispatch-agents.sh
 ```
 
 This skill is invoked by `/io-architect` during the CRC card and Protocol design steps. It defines what a component does (Design) before the `.pyi` contract is written (Contract).
