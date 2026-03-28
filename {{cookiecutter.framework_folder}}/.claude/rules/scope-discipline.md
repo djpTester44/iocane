@@ -19,3 +19,9 @@ When asked to use sub-agents or parallel execution, actually invoke the Agent to
 ## [HARD] No Hardcoded Secrets
 
 secret-scan.sh cannot catch obfuscated formats. Cost of a leaked secret is catastrophic and irreversible -- treat any access-granting string as a secret.
+
+## Plan Mode
+
+Every delegation to a stronger model is a direct cost multiplier -- Opus costs ~15x Haiku per token. Over-delegation wastes budget on tasks the current agent or a cheaper model handles correctly. Under-delegation risks quality failures that cost more to fix than the delegation would have cost.
+
+After completing the plan, assign each step the cheapest capable executor: self-execute trivial tasks, Haiku for mechanical transforms, Sonnet for moderate reasoning, Opus only for complex multi-file analysis or nuanced judgment.

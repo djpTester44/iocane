@@ -1,107 +1,190 @@
 {
   "hooks": {
-    "SessionStart": [
+    "PostCompact": [
       {
         "hooks": [
           {
-            "type": "command",
-            "command": "bash .claude/hooks/session-start.sh"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/write-gate.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/di-gate.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/secret-scan.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/environ-gate.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/py-create-context.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/backslash-path.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/emoji-scan.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/architect-boundary.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/design-before-contract.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/forbidden-tools.sh"
+            "command": "bash .claude/hooks/post-compact.sh",
+            "type": "command"
           }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "Edit|Write",
         "hooks": [
           {
-            "type": "command",
-            "command": "bash .claude/hooks/reset-on-prd-write.sh"
+            "command": "bash .claude/hooks/reset-on-prd-write.sh",
+            "type": "command"
           },
           {
-            "type": "command",
-            "command": "bash .claude/hooks/reset-on-project-spec-write.sh"
+            "command": "bash .claude/hooks/reset-on-project-spec-write.sh",
+            "type": "command"
           },
           {
-            "type": "command",
-            "command": "bash .claude/hooks/reset-on-plan-write.sh"
+            "command": "bash .claude/hooks/reset-on-plan-write.sh",
+            "type": "command"
           },
           {
-            "type": "command",
-            "command": "bash .claude/hooks/reset-on-pyi-write.sh"
+            "command": "bash .claude/hooks/reset-on-pyi-write.sh",
+            "type": "command"
           },
           {
-            "type": "command",
-            "command": "bash .claude/hooks/backlog-id-assign.sh"
+            "command": "bash .claude/hooks/backlog-id-assign.sh",
+            "type": "command"
           },
           {
-            "type": "command",
-            "command": "bash .claude/hooks/backlog-tag-validate.sh"
+            "async": true,
+            "command": "bash .claude/hooks/backlog-tag-validate.sh",
+            "type": "command"
           },
           {
-            "type": "command",
-            "command": "bash .claude/hooks/archive-sync.sh"
+            "async": true,
+            "command": "bash .claude/hooks/archive-sync.sh",
+            "type": "command"
           }
-        ]
+        ],
+        "matcher": "Edit|Write"
       },
       {
-        "matcher": "Bash",
         "hooks": [
           {
-            "type": "command",
-            "command": "bash .claude/hooks/escalation-gate.sh"
+            "command": "bash .claude/hooks/escalation-gate.sh",
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash"
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "command": "bash .claude/hooks/tool-failure.sh",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "command": "bash .claude/hooks/pre-compact.sh",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "bash .claude/hooks/write-gate.sh",
+            "type": "command"
+          },
+          {
+            "command": "bash .claude/hooks/di-gate.sh",
+            "type": "command"
+          },
+          {
+            "command": "bash .claude/hooks/secret-scan.sh",
+            "type": "command"
+          },
+          {
+            "command": "bash .claude/hooks/environ-gate.sh",
+            "type": "command"
+          },
+          {
+            "async": true,
+            "command": "bash .claude/hooks/py-create-context.sh",
+            "type": "command"
+          },
+          {
+            "command": "bash .claude/hooks/backslash-path.sh",
+            "type": "command"
+          },
+          {
+            "command": "bash .claude/hooks/emoji-scan.sh",
+            "type": "command"
+          },
+          {
+            "command": "bash .claude/hooks/architect-boundary.sh",
+            "type": "command"
+          },
+          {
+            "command": "bash .claude/hooks/design-before-contract.sh",
+            "type": "command"
+          }
+        ],
+        "matcher": "Edit|Write"
+      },
+      {
+        "hooks": [
+          {
+            "command": "bash .claude/hooks/forbidden-tools.sh",
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash"
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "command": "bash .claude/hooks/session-end.sh",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "bash .claude/hooks/session-start.sh",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "bash .claude/hooks/stop-gate.sh",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "command": "bash .claude/hooks/subagent-start.sh",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "command": "bash .claude/hooks/subagent-stop.sh",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "bash .claude/hooks/prompt-submit.sh",
+            "type": "command"
           }
         ]
       }

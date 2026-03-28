@@ -1,13 +1,13 @@
-# Iocane project configuration
-
-parallel:
-  limit: 4  # Maximum concurrent sub-agents per dispatch batch
-
 agents:
-  max_turns: 70  # Per-agent turn budget. Increase if agents hit the limit mid-refactor; decrease to tighten cost on simple checkpoints.
-  timeout: 10m   # Per-agent wall-clock timeout (passed to timeout(1))
-
+  max_turns: 70
+  timeout: 10m
 models:
-  tier1: claude-opus-4-6           # Strategic: io-clarify, io-architect, io-checkpoint, review
-  tier2: claude-sonnet-4-6         # Orchestration: io-plan-batch, validate-plan, validate-spec
-  tier3: claude-haiku-4-5-20251001 # Execution: io-execute sub-agents (dispatch-agents.sh)
+  tier1: claude-opus-4-6
+  tier2: claude-sonnet-4-6
+  tier3: claude-haiku-4-5
+parallel:
+  limit: 4
+pipeline:
+  docs_source: code.claude.com
+  iocane_repo: ~/projects/agent-frameworks/iocane_repo
+  snapshots_dir: .claude/snapshots

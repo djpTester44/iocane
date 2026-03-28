@@ -223,7 +223,51 @@ routable item, referenced by BL-ID.
 
 ---
 
-## 6. Legacy Migration (Completed)
+## 6. Template Sync (iocane_build -> iocane_repo)
+
+Harness changes are developed and validated in `iocane_build`. Once stable, they are synced to the `iocane_repo` cookiecutter template so all new projects start with the current harness state.
+
+### Running the sync
+
+```bash
+# Dry-run: review what would change
+uv run python .claude/scripts/migrate-to-template-repo.py \
+  --source ~/projects/agent-frameworks/iocane_build \
+  --target ~/projects/agent-frameworks/iocane_repo \
+  --dry-run --verbose
+
+# Sync with backup
+uv run python .claude/scripts/migrate-to-template-repo.py \
+  --source ~/projects/agent-frameworks/iocane_build \
+  --target ~/projects/agent-frameworks/iocane_repo \
+  --backup
+```
+
+After sync, inspect and commit the changes in `iocane_repo`:
+
+```bash
+cd ~/projects/agent-frameworks/iocane_repo
+rtk git diff
+rtk git add -p && rtk git commit -m "sync: harness update from iocane_build"
+```
+
+### What is synced
+
+| Item | Action |
+|------|--------|
+| `hooks/`, `commands/`, `scripts/`, `skills/`, `rules/`, `docs/`, `tests/`, `templates/` | Copied verbatim; changed files overwritten |
+| `settings.json` | Merged: source hooks replace target hooks; stale event types removed |
+| `iocane.config.yaml` | Merged: `pipeline:` section added/updated; other sections source-wins on conflict |
+| `settings.local.json` | Copied only if absent in target; skipped with warning if both exist |
+| `snapshots/`, `__pycache__/`, `*.log` | Skipped (transient artifacts) |
+
+### iocane_build-only files
+
+`migrate-to-template-repo.py` lives under `.claude/scripts/` in `iocane_build` and is **not** synced to `iocane_repo`. It has no meaning in a generated project -- generated projects are consumers of the template, not maintainers of it.
+
+---
+
+## 7. Legacy Migration (Completed)
 
 Projects created before Session 3 used `plans/tasks.json`. Migration to
 per-checkpoint `plans/tasks/[CP-ID].md` files is complete. The converter
@@ -231,7 +275,7 @@ script (`tasks_json_to_md.py`) has been retired.
 
 ---
 
-## 7. Documentation Synchronization (/doc-sync)
+## 8. Documentation Synchronization (/doc-sync)
 
 Doc-sync reconciles `project-spec.md` and `roadmap.md` with actual codebase state. It runs after gap analysis closes a feature or full project.
 

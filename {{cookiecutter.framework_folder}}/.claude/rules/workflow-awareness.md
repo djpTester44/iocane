@@ -30,6 +30,13 @@ The three-tier model ensures no generated code reaches the codebase without huma
 | Status Files | `plans/tasks/[CP-ID].status` | Sub-agent | PASS/FAIL per checkpoint |
 | Backlog | `plans/backlog.md` | Review workflows | Bugs, issues, enhancements from /io-review and /gap-analysis. Each item has a `**BL-NNN**` identifier (auto-assigned by hook). |
 | Escalation Log | `.iocane/escalation.log` | Hook | Sub-agent failure records |
+| Subagent Start Log | `.iocane/subagent-start.log` | Hook | Sub-agent context snapshot at start |
+| Subagent Stop Log | `.iocane/subagent-stop.log` | Hook | Sub-agent termination and result logging |
+| Subagent Stop Payload | `.iocane/subagent-stop-payload.json` | Hook | Structured output from subagent-stop event |
+| Tool Failure Log | `.iocane/tool-failure.log` | Hook | Failed tool invocation records |
+| Compaction Log | `.iocane/compact.log` | Hook | Pre- and post-compaction state snapshots |
+| Pre-Compaction State | `.iocane/pre-compact-state.json` | Hook | Workflow state snapshot before compaction (consumed by post-compact.sh) |
+| Session End Log | `.iocane/session-end.log` | Hook | Session termination and cleanup records |
 
 ---
 
