@@ -22,7 +22,7 @@ description: Decompose roadmap features into atomic checkpoints with connectivit
 **Position in chain:**
 
 ```
-/io-architect -> [/io-checkpoint] -> /io-plan-batch -> dispatch-agents.sh
+/io-architect -> [/io-checkpoint] -> /validate-plan -> /io-plan-batch -> dispatch-agents.sh
 ```
 
 **Definition of an atomic checkpoint:**
@@ -257,7 +257,7 @@ Parallelizable pairs: [N]
 Connectivity tests defined: [N]
 Features covered: [N/N]
 
-Next step: Run /io-plan-batch, then bash .claude/scripts/dispatch-agents.sh to begin autonomous delegation.
+Next step: Run /validate-plan to approve plan.md, then /io-plan-batch.
 ```
 
 ---
