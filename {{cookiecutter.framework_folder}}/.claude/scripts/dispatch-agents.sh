@@ -152,6 +152,7 @@ for CP_ID in "${BATCH[@]}"; do
         bash "$SCRIPT_DIR/setup-worktree.sh" --cp "$CP_ID"
 
         WORKTREE_PATH="$REPO_ROOT/.worktrees/$CP_ID"
+        RESULT_FILE="$TASKS_DIR/$CP_ID.result.json"
         LOG_FILE="$TASKS_DIR/$CP_ID.log"
         EXIT_FILE="$TASKS_DIR/$CP_ID.exit"
 
@@ -178,8 +179,8 @@ for CP_ID in "${BATCH[@]}"; do
             --model "$MODEL" \
             --max-turns "$MAX_TURNS" \
             --allowedTools "Bash,Read,Write,Edit" \
-            --output-format text \
-            > "$LOG_FILE" 2>&1
+            --output-format json \
+            > "$RESULT_FILE" 2> "$LOG_FILE"
         AGENT_EXIT=$?
 
         echo "$AGENT_EXIT" > "$EXIT_FILE"

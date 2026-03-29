@@ -4,7 +4,7 @@
 # Cleans up failed checkpoint worktrees and resets their dispatch state so they
 # can be re-queued by /io-plan-batch and dispatched again.
 #
-# Preserved: plans/tasks/CP-XX.log (kept for post-mortem)
+# Preserved: plans/tasks/CP-XX.log, CP-XX.result.json (kept for post-mortem)
 # Removed:   worktree, branch, .status, .exit, .iocane/CP-XX.attempts
 #
 # Usage:
