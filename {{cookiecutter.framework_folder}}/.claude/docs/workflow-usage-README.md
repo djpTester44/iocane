@@ -60,13 +60,21 @@ The following are internal helper scripts. Do not run them directly unless debug
 
 ## Autonomous Hooks (Run by Claude)
 
-These are hook-driven and configured in `.claude/settings.json`. They are executed automatically by Claude on matching events.
+These are hook-driven and configured in `.claude/settings.json`. They are executed automatically by Claude on matching events. Hooks marked *(async)* run without blocking the tool invocation.
 
 - `SessionStart`: `.claude/hooks/session-start.sh`
-- `PreToolUse (Edit|Write)`: `.claude/hooks/write-gate.sh`, `.claude/hooks/di-gate.sh`, `.claude/hooks/secret-scan.sh`, `.claude/hooks/environ-gate.sh`, `.claude/hooks/py-create-context.sh`, `.claude/hooks/backslash-path.sh`, `.claude/hooks/emoji-scan.sh`, `.claude/hooks/architect-boundary.sh`, `.claude/hooks/design-before-contract.sh`
-- `PreToolUse (Bash)`: `.claude/hooks/forbidden-tools.sh`
-- `PostToolUse (Edit|Write)`: `.claude/hooks/reset-on-prd-write.sh`, `.claude/hooks/reset-on-project-spec-write.sh`, `.claude/hooks/reset-on-plan-write.sh`, `.claude/hooks/reset-on-pyi-write.sh`, `.claude/hooks/backlog-id-assign.sh`, `.claude/hooks/backlog-tag-validate.sh`, `.claude/hooks/archive-sync.sh`
+- `SessionEnd`: `.claude/hooks/session-end.sh`
+- `SubagentStart`: `.claude/hooks/subagent-start.sh`
+- `SubagentStop`: `.claude/hooks/subagent-stop.sh`
+- `PreCompact`: `.claude/hooks/pre-compact.sh`
+- `PostCompact`: `.claude/hooks/post-compact.sh`
+- `Stop`: `.claude/hooks/stop-gate.sh`
+- `UserPromptSubmit`: `.claude/hooks/prompt-submit.sh`
+- `PreToolUse (Edit|Write)`: `.claude/hooks/write-gate.sh`, `.claude/hooks/secret-scan.sh`, `.claude/hooks/environ-gate.sh`, `.claude/hooks/py-create-context.sh` *(async)*, `.claude/hooks/backslash-path.sh`, `.claude/hooks/emoji-scan.sh`, `.claude/hooks/architect-boundary.sh`, `.claude/hooks/design-before-contract.sh`
+- `PreToolUse (Bash)`: `.claude/hooks/forbidden-tools.sh`, `.claude/hooks/rtk-enforce.sh`
+- `PostToolUse (Edit|Write)`: `.claude/hooks/reset-on-prd-write.sh`, `.claude/hooks/reset-on-project-spec-write.sh`, `.claude/hooks/reset-on-plan-write.sh`, `.claude/hooks/reset-on-pyi-write.sh`, `.claude/hooks/backlog-id-assign.sh`, `.claude/hooks/backlog-tag-validate.sh` *(async)*, `.claude/hooks/archive-sync.sh` *(async)*
 - `PostToolUse (Bash)`: `.claude/hooks/escalation-gate.sh`
+- `PostToolUseFailure`: `.claude/hooks/tool-failure.sh`
 
 Use hooks as autonomous guardrails. Use standalone scripts as explicit operational commands.
 

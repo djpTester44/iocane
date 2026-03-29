@@ -13,21 +13,23 @@ Execution follows a strict chronology. Design is locked before any code is writt
 ```
 [Tier 1 -- Human + Plan Mode]
   1. /io-clarify      -- resolve PRD ambiguities, stamp Clarified: True
-  2. /io-specify      -- PLAN MODE -- propose roadmap.md, human approves
-  3. /io-architect    -- PLAN MODE -- propose CRC + Protocols, human approves (contract lock)
-  4. /io-checkpoint   -- PLAN MODE -- propose plan.md + connectivity test signatures, human approves
+  2. /io-init         -- bootstrap project structure and stub roadmap from clarified PRD
+  3. /io-specify      -- PLAN MODE -- propose roadmap.md, human approves
+  4. /io-architect    -- PLAN MODE -- propose CRC + Protocols, human approves (contract lock)
+  5. /io-checkpoint   -- PLAN MODE -- propose plan.md + connectivity test signatures, human approves
+  6. /validate-plan   -- validate plan.md CDD compliance, stamp Plan Validated: PASS
 
 [Tier 2 -- Harness Autonomous]
-  5. /io-plan-batch   -- compose batch, score confidence rubric, generate task files, human approves
-  6. bash .claude/scripts/dispatch-agents.sh  -- human executes; sub-agents run in git worktrees
+  7. /io-plan-batch   -- compose batch, score confidence rubric, generate task files, human approves
+  8. bash .claude/scripts/dispatch-agents.sh  -- human executes; sub-agents run in git worktrees
 
 [Tier 1 -- Human Review]
-  7. /io-review          -- per-checkpoint behavioral + connectivity review
-  8. repeat /io-plan-batch -> dispatch-agents.sh -> /io-review for each checkpoint batch
+  9. /io-review          -- per-checkpoint behavioral + connectivity review
+ 10. repeat /io-plan-batch -> dispatch-agents.sh -> /io-review for each checkpoint batch
 
 [Full-system close]
-  9. /gap-analysis    -- integration correctness across entire codebase
- 10. /doc-sync        -- reconcile project-spec.md + roadmap.md with codebase state
+ 11. /gap-analysis    -- integration correctness across entire codebase
+ 12. /doc-sync        -- reconcile project-spec.md + roadmap.md with codebase state
 ```
 
 ### Human Attention Contract
@@ -37,9 +39,11 @@ The human is required at these moments and only these:
 | Moment | Workflow | Action |
 |--------|----------|--------|
 | PRD ambiguities | `/io-clarify` | Answer questions, approve stamp |
+| Project bootstrap | `/io-init` | Confirm project structure and stub roadmap |
 | Roadmap proposal | `/io-specify` | Approve or correct `roadmap.md` |
 | Design proposal | `/io-architect` | Approve CRC + Protocols -- contract lock |
 | Checkpoint boundaries | `/io-checkpoint` | Approve `plan.md` + connectivity signatures |
+| Plan validation | `/validate-plan` | Review `Plan Validated` stamp before batch composition |
 | Run sub-agents | post `/io-plan-batch` | `bash .claude/scripts/dispatch-agents.sh` |
 | Checkpoint review | `/io-review` | Approve or route findings to backlog |
 | Escalation | session start | Review `.iocane/escalation.log`, clear flag |

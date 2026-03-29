@@ -6,22 +6,38 @@ Maps every harness constraint to its enforcement mechanism.
 
 ## Hook-Enforced (gate via exit code 2)
 
-| Constraint | Hook | Event |
-|------------|------|-------|
-| No pip/pip3 invocations | `forbidden-tools.sh` | PreToolUse Bash |
-| No bare python/python3 invocations | `forbidden-tools.sh` | PreToolUse Bash |
-| No cd .. traversal in sub-agent context | `forbidden-tools.sh` | PreToolUse Bash |
-| RTK prefix required for CLI tools | `rtk-enforce.sh` | PreToolUse Bash |
-| No .py writes during /io-architect phase | `architect-boundary.sh` | PreToolUse Edit/Write |
-| Write targets scoped to checkpoint | `write-gate.sh` | PreToolUse Edit/Write |
-| DI compliance before .py write (sub-agents only) | `di-gate.sh` | PreToolUse Edit/Write |
-| No secrets in written files | `secret-scan.sh` | PreToolUse Edit/Write |
-| No backslash paths in written files | `backslash-path.sh` | PreToolUse Edit/Write |
-| No emoji in written files | `emoji-scan.sh` | PreToolUse Edit/Write |
-| Design file required before .pyi contract | `design-before-contract.sh` | PreToolUse Edit/Write |
-| Env vars filtered by phase (Phase A/B/C) | `environ-gate.sh` | PreToolUse Edit/Write |
-| Plan mode required when flag set | `environ-gate.sh` | PreToolUse Edit/Write |
-| No credential exfiltration via subprocess | `subprocess-credential-scope.md` (rule, no hook) | — |
+| Constraint | Hook | Event | Async |
+|------------|------|-------|-------|
+| No pip/pip3 invocations | `forbidden-tools.sh` | PreToolUse Bash | |
+| No bare python/python3 invocations | `forbidden-tools.sh` | PreToolUse Bash | |
+| No cd .. traversal in sub-agent context | `forbidden-tools.sh` | PreToolUse Bash | |
+| RTK prefix required for CLI tools | `rtk-enforce.sh` | PreToolUse Bash | |
+| No .py writes during /io-architect phase | `architect-boundary.sh` | PreToolUse Edit/Write | |
+| Write targets scoped to checkpoint | `write-gate.sh` | PreToolUse Edit/Write | |
+| No secrets in written files | `secret-scan.sh` | PreToolUse Edit/Write | |
+| No backslash paths in written files | `backslash-path.sh` | PreToolUse Edit/Write | |
+| No emoji in written files | `emoji-scan.sh` | PreToolUse Edit/Write | |
+| Design file required before .pyi contract | `design-before-contract.sh` | PreToolUse Edit/Write | |
+| Env vars filtered by phase (Phase A/B/C) | `environ-gate.sh` | PreToolUse Edit/Write | |
+| Plan mode required when flag set | `environ-gate.sh` | PreToolUse Edit/Write | |
+| .py file creation context injection | `py-create-context.sh` | PreToolUse Edit/Write | yes |
+| Validation stamp reset on PRD write | `reset-on-prd-write.sh` | PostToolUse Edit/Write | |
+| Validation stamp reset on project-spec write | `reset-on-project-spec-write.sh` | PostToolUse Edit/Write | |
+| Validation stamp reset on plan.md write | `reset-on-plan-write.sh` | PostToolUse Edit/Write | |
+| Validation stamp reset on .pyi write | `reset-on-pyi-write.sh` | PostToolUse Edit/Write | |
+| BL-NNN assignment on backlog write | `backlog-id-assign.sh` | PostToolUse Edit/Write | |
+| Backlog tag validation | `backlog-tag-validate.sh` | PostToolUse Edit/Write | yes |
+| Archive sync on checkpoint approval | `archive-sync.sh` | PostToolUse Edit/Write | yes |
+| Escalation capture on command failure | `escalation-gate.sh` | PostToolUse Bash | |
+| Tool failure logging and corrective feedback | `tool-failure.sh` | PostToolUseFailure | |
+| Block turn when escalation flag present | `stop-gate.sh` | Stop | |
+| Per-turn dynamic state injection | `prompt-submit.sh` | UserPromptSubmit | |
+| Sentinel cleanup on session exit | `session-end.sh` | SessionEnd | |
+| Sub-agent harness context injection | `subagent-start.sh` | SubagentStart | |
+| Sub-agent exit logging and loop guard | `subagent-stop.sh` | SubagentStop | |
+| Workflow state snapshot before compaction | `pre-compact.sh` | PreCompact | |
+| Harness re-orientation after compaction | `post-compact.sh` | PostCompact | |
+| No credential exfiltration via subprocess | `subprocess-credential-scope.md` (rule, no hook) | -- | |
 
 ---
 

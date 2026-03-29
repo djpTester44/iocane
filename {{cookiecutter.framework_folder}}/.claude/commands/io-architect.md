@@ -191,6 +191,14 @@ The sentinel prevents `reset-on-project-spec-write.sh` and `reset-on-pyi-write.s
    * Write a minimal `__init__.py` (empty or with a module docstring) to each new directory
    * Skip directories that already exist — do not overwrite existing `__init__.py` files
 
+**Step H-2c:** Write `plans/component-contracts.toml`:
+   * For each registered component in the Interface Registry, emit a `[components.ComponentName]` block containing:
+     - `file = "src/..."` — the implementation path from the registry
+     - `collaborators = [...]` — the collaborator list from the CRC card (`[]` if none)
+     - `composition_root = true` — set only for Entrypoint Layer components; omit for all others
+   * Overwrite if the file already exists — it is always regenerated from the current spec
+   * This file is the machine-readable contract consumed by `check_di_compliance.py`
+
 **Step H-3:** Write `interfaces/*.pyi`:
    * One file per Protocol
    * Exactly as written in `plans/project-spec.md` Protocol Signatures section — no additions or simplifications
@@ -209,6 +217,7 @@ CONTRACTS LOCKED.
 
 Protocols written: [N]
 Interface Registry entries: [N]
+component-contracts.toml: written
 
 This is the Tier 1 / Tier 2 boundary.
 Sub-agents will build against these contracts exactly.

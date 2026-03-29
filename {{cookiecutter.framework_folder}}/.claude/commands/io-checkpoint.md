@@ -10,10 +10,11 @@ description: Decompose roadmap features into atomic checkpoints with connectivit
 > **[CRITICAL] CONTEXT LOADING**
 >
 > 1. Load planning rules: `view_file .claude/rules/planning.md`
-> 2. Load the Roadmap: `view_file plans/roadmap.md`
-> 3. Load the Architecture Spec: `view_file plans/project-spec.md`
-> 4. Load all interfaces: `view_file interfaces/*.pyi`
-> 5. Load the Integration Seams reference: `view_file plans/seams.md`. Use the `Receives (DI)` graph to identify which component boundaries require connectivity tests: if CP-A builds a component and CP-B builds a component that injects it, a connectivity test is required at that seam.
+> 2. Load the component registry: `view_file plans/component-contracts.toml`
+> 3. Load the Roadmap: `view_file plans/roadmap.md`
+> 4. Load the Architecture Spec: `view_file plans/project-spec.md`
+> 5. Load all interfaces: `view_file interfaces/*.pyi`
+> 6. Load the Integration Seams reference: `view_file plans/seams.md`. Use the `Receives (DI)` graph to identify which component boundaries require connectivity tests: if CP-A builds a component and CP-B builds a component that injects it, a connectivity test is required at that seam.
 
 # WORKFLOW: IO-CHECKPOINT
 
@@ -267,7 +268,7 @@ Next step: Run /validate-plan to approve plan.md, then /io-plan-batch.
 - This workflow produces ONLY `plans/plan.md`. No `.pyi` edits, no `project-spec.md` edits.
 - In remediation mode, also writes to `plans/backlog.md` via `route-backlog-item.sh` (Routed annotation only).
 - Connectivity tests are signatures only — no test code is written here.
-- Write targets per checkpoint must be derived from the Interface Registry in `project-spec.md`. A checkpoint may not write to a file not registered there.
+- Write targets per checkpoint must be derived from the `file` fields in `plans/component-contracts.toml`. A checkpoint may not write to a `src/` file whose component is not registered there.
 - If decomposing a feature reveals a gap in the Interface Registry (a required component has no Protocol), HALT and route to `/io-architect` before continuing.
 - `plan.md` is the orchestrator's only input for delegation decisions. Vague checkpoints will produce low confidence scores and stall execution.
 - Remediation CP write targets must be a strict subset of files already implemented by the parent CP or its predecessors. Any file belonging to a pending roadmap checkpoint is off-limits — that forward dependency is a design error, not a valid remediation scope.

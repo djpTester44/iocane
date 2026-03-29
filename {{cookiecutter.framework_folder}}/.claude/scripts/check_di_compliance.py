@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
 """check_di_compliance.py
 
-Enforces the Dependency Injection rule from the Mini-Spec Skill:
-1. Scans plans/project-spec.md for Collaborators in CRC cards.
-2. Maps Components to implementation files via the Interface Registry.
+Enforces the Dependency Injection rule.
+1. Loads component contracts from plans/component-contracts.toml.
+   - Provides: component -> file mapping, collaborators per component,
+     composition roots exempt from DI enforcement.
    - Validates that every resolved path is strictly inside src/.
-3. Reads the Entrypoint Layer from Architecture Layer Mapping to exempt
-   Composition Root components.
-4. Parses plans/PLAN.md to build an active debt registry of components
+2. Parses plans/PLAN.md to build an active debt registry of components
    that carry a tracked [REFACTOR] or [CLEANUP] backlog ticket.
-5. Parses each implementation file's __init__ method via AST.
-6. **Sweeps tests/ directory** for bare component instantiations to
+3. Parses each implementation file's __init__ method via AST.
+4. **Sweeps tests/ directory** for bare component instantiations to
    prevent dependency gaps during CI builds.  Any registry component
    that has CRC collaborators MUST receive arguments when instantiated
    in test code.  ``# noqa: DI-TEST`` on the call line exempts it.
-7. Reports violations at three severity levels:
+5. Reports violations at three severity levels:
    - [CRITICAL]: Collaborator instantiated inside __init__ body (bare class
                  call, not factory-mediated); OR a component uses # noqa: DI
                  without a matching active ticket in plans/PLAN.md; OR a
@@ -43,6 +42,11 @@ Injection patterns recognised (no false-positive for any of these):
   - setattr loop:                           for k, v in deps.items(): setattr(self, k, v)
   - Param-attribute access:                 self.x = some_param.dep  (no call needed)
 
+Escape hatches:
+  ``# noqa: DI``      -- exempt a class or __init__ from all DI checks;
+                         requires a matching active ticket in plans/PLAN.md.
+  ``# noqa: DI-TEST`` -- exempt a test-file instantiation from the test sweep.
+
 Usage:
     uv run python .claude/scripts/check_di_compliance.py
 """
@@ -50,6 +54,7 @@ Usage:
 import ast
 import re
 import sys
+import tomllib
 from pathlib import Path
 from typing import NamedTuple
 
@@ -87,8 +92,8 @@ MAPPING_TYPE_RE = re.compile(
     r"^(dict|Dict|Mapping|MutableMapping|ChainMap|TypedDict|Any|object)$"
 )
 
-# PascalCase heuristic: used to decide whether a bare Name call looks like a
-# class instantiation (as opposed to a plain function call).
+# PascalCase heuristic: used in _classify_rhs to tag RHS expressions as
+# direct instantiations for variable provenance tracking.
 PASCAL_CASE_RE = re.compile(r"^[A-Z][a-zA-Z0-9]*$")
 
 # Builder chain: any call whose outermost method is .build() / .create() /
@@ -132,73 +137,47 @@ class Violation(NamedTuple):
 
 
 # ---------------------------------------------------------------------------
-# Spec-file and plan parsers
+# Contract loader and plan parser
 # ---------------------------------------------------------------------------
 
 
-def parse_entrypoint_layer(spec_content: str) -> str | None:
-    """Extract the Layer 4 (Entrypoint) directory from Architecture Layer Mapping."""
-    match = re.search(
-        r"Layer\s*4\s*\(Entrypoint\).*?:\s*\[?`?([^\]`\n,]+)",
-        spec_content,
-    )
-    if match:
-        return match.group(1).strip().rstrip("/")
-    return None
-
-
-def parse_registry(
-    spec_content: str,
+def load_contracts(
     root_dir: Path,
     src_dir: Path,
-) -> tuple[dict[str, Path], list[Violation]]:
-    """Extract Component -> FilePath mapping from the Protocol Interfaces table.
+) -> tuple[dict[str, Path], dict[str, list[str]], set[str], list[Violation]]:
+    """Load component contracts from plans/component-contracts.toml.
 
-    Also validates that every resolved path is strictly inside *src_dir*.
-    Returns ``(mapping, boundary_violations)``.  Boundary violations are
-    CRITICAL and are appended to the global report before component analysis
-    so the gate fails fast for any out-of-tree path.
-
-    Normalizes ProtocolName by stripping the 'Protocol' suffix so the key
-    matches the CRC card header (e.g. ``DataLoader`` not ``DataLoaderProtocol``).
+    Returns:
+        registry: Component -> resolved implementation file path.
+        designs: Component -> collaborator list (only components with collaborators).
+        composition_roots: Component names exempt from DI enforcement.
+        boundary_violations: CRITICAL violations for paths that escape src/.
     """
-    mapping: dict[str, Path] = {}
-    boundary_violations: list[Violation] = []
-    in_registry = False
+    contracts_path = root_dir / "plans" / "component-contracts.toml"
+    if not contracts_path.exists():
+        print(
+            "Error: plans/component-contracts.toml not found. "
+            "Run /io-architect to generate it."
+        )
+        sys.exit(1)
 
+    with contracts_path.open("rb") as f:
+        data = tomllib.load(f)
+
+    components: dict = data.get("components", {})
+    registry: dict[str, Path] = {}
+    designs: dict[str, list[str]] = {}
+    composition_roots: set[str] = set()
+    boundary_violations: list[Violation] = []
     resolved_src = src_dir.resolve()
 
-    for line in spec_content.splitlines():
-        if "Interface Registry" in line or "Protocol Interfaces" in line:
-            in_registry = True
+    for comp_name, comp_data in components.items():
+        file_path: str = comp_data.get("file", "")
+        if not file_path:
             continue
-        if in_registry and line.startswith("##"):
-            break
+        resolved = (root_dir / file_path).resolve()
+        registry[comp_name] = resolved
 
-        if not (in_registry and "|" in line and "---" not in line):
-            continue
-
-        parts = [p.strip() for p in line.split("|")]
-        if len(parts) < 3:
-            continue
-
-        proto_match = re.search(r"\[?(\w+)\]?", parts[1])
-        if not proto_match:
-            continue
-        proto_name = proto_match.group(1)
-        comp_name = proto_name.removesuffix("Protocol")
-
-        raw_target = parts[-2]
-        target_match = re.search(r"`([^`]+)`", raw_target)
-        if not target_match:
-            target_match = re.search(r"(\S+\.py)", raw_target)
-        if not target_match:
-            continue
-
-        resolved = (root_dir / target_match.group(1).strip()).resolve()
-        mapping[comp_name] = resolved
-
-        # --- Layout boundary enforcement ---
         try:
             resolved.relative_to(resolved_src)
         except ValueError:
@@ -215,44 +194,14 @@ def parse_registry(
                 )
             )
 
-    return mapping, boundary_violations
-
-
-def parse_collaborators(spec_content: str) -> dict[str, list[str]]:
-    """Extract Component -> Collaborators list from CRC cards."""
-    designs: dict[str, list[str]] = {}
-    sections = re.split(r"^###\s+", spec_content, flags=re.MULTILINE)
-
-    for section in sections[1:]:
-        lines = section.splitlines()
-        if not lines:
-            continue
-
-        name_match = re.match(r"\[?(\w+)\]?", lines[0].strip())
-        if not name_match:
-            continue
-        comp_name = name_match.group(1)
-
-        collaborators: list[str] = []
-        in_collab = False
-
-        for line in lines:
-            if re.search(r"\*\s+\*\*Collaborators", line):
-                in_collab = True
-                continue
-            if in_collab:
-                if re.search(r"None", line, re.IGNORECASE):
-                    break
-                if line.strip().startswith("* **") or line.strip().startswith("> **"):
-                    break
-                collab_match = re.search(r"^\s+\*\s+`?(\w+)`?", line)
-                if collab_match:
-                    collaborators.append(collab_match.group(1))
-
+        collaborators: list[str] = comp_data.get("collaborators", [])
         if collaborators:
             designs[comp_name] = collaborators
 
-    return designs
+        if comp_data.get("composition_root", False):
+            composition_roots.add(comp_name)
+
+    return registry, designs, composition_roots, boundary_violations
 
 
 def parse_plan_backlog(plan_content: str) -> set[str]:
@@ -354,14 +303,20 @@ class InitVisitor(ast.NodeVisitor):
 
     *Violation tracking*
 
-    ``direct_instantiations`` - Names of PascalCase bare-call instantiations that
-                                are NOT factory-mediated and NOT from a
-                                param-derived receiver object.
+    ``direct_instantiations`` - Names of known collaborators directly instantiated
+                                (not factory-mediated and not from a param-derived
+                                receiver object).
     """
 
-    def __init__(self, target_class: str, source_lines: list[str]) -> None:
+    def __init__(
+        self,
+        target_class: str,
+        source_lines: list[str],
+        collaborator_names: set[str],
+    ) -> None:
         self.target_class = target_class
         self.source_lines = source_lines
+        self.collaborator_names = collaborator_names
 
         self.found_class: bool = False
         self.is_exempt: bool = False
@@ -541,8 +496,8 @@ class InitVisitor(ast.NodeVisitor):
     def _check_call_for_violation(
         self, call: ast.Call, var_provenance: dict[str, str]
     ) -> None:
-        """If this call is a direct PascalCase instantiation not mediated by a
-        factory / container / param-derived object, record it as a violation."""
+        """If this call directly instantiates a known collaborator without factory
+        or param-derived mediation, record it as a violation."""
         if _is_builder_chain(call):
             return
 
@@ -550,15 +505,13 @@ class InitVisitor(ast.NodeVisitor):
 
         if isinstance(func, ast.Name):
             name = func.id
-            if not PASCAL_CASE_RE.match(name):
-                return
-            if name in {"super", "type", "object", "property", "classmethod", "staticmethod"}:
+            if name not in self.collaborator_names:
                 return
             self.direct_instantiations.add(name)
 
         elif isinstance(func, ast.Attribute):
             attr = func.attr
-            if not PASCAL_CASE_RE.match(attr):
+            if attr not in self.collaborator_names:
                 return
             receiver_root = _root_name(func.value)
             if receiver_root in self.param_names:
@@ -680,24 +633,9 @@ class InitVisitor(ast.NodeVisitor):
 # ModuleLevelInstantiationVisitor - module-scope stateful instantiation check
 # ---------------------------------------------------------------------------
 
-_MODULE_LEVEL_SAFE = frozenset({
-    "Path",
-    "Logger",
-    "getLogger",
-    "TypeVar",
-    "ParamSpec",
-    "TypeVarTuple",
-    "NamedTuple",
-    "NewType",
-    "Protocol",
-})
-
-_UPPER_CASE_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
-_LOGGER_NAME_RE = re.compile(r"^(logger|log)$", re.IGNORECASE)
-
-
 class ModuleLevelInstantiationVisitor(ast.NodeVisitor):
-    """Walk a single module's top-level statements and collect stateful instantiations.
+    """Walk a single module's top-level statements and collect instantiations of
+    registered components.
 
     Only visits module-level statements -- does NOT descend into class or function
     bodies (those are handled by the per-component DI visitor).
@@ -706,9 +644,10 @@ class ModuleLevelInstantiationVisitor(ast.NodeVisitor):
         ``violations`` -- list of ``(class_name, lineno)`` tuples
     """
 
-    def __init__(self, source_lines: list[str]) -> None:
+    def __init__(self, source_lines: list[str], component_names: set[str]) -> None:
         self.violations: list[tuple[str, int]] = []
         self.source_lines = source_lines
+        self.component_names = component_names
 
     def visit_Module(self, node: ast.Module) -> None:  # noqa: N802
         """Iterate only top-level statements."""
@@ -743,14 +682,7 @@ class ModuleLevelInstantiationVisitor(ast.NodeVisitor):
         leaf = _call_leaf_name(value.func)
         if leaf is None:
             return
-        if not PASCAL_CASE_RE.match(leaf):
-            return
-        # Exemptions
-        if _UPPER_CASE_RE.match(target_name):
-            return
-        if _LOGGER_NAME_RE.match(target_name):
-            return
-        if leaf in _MODULE_LEVEL_SAFE:
+        if leaf not in self.component_names:
             return
         if self._has_noqa(lineno):
             return
@@ -766,13 +698,18 @@ class ModuleLevelInstantiationVisitor(ast.NodeVisitor):
 
     def _has_noqa(self, lineno: int) -> bool:
         if 0 < lineno <= len(self.source_lines):
-            return "# noqa: DI-MODULE" in self.source_lines[lineno - 1]
+            return "# noqa: DI" in self.source_lines[lineno - 1]
         return False
 
 
-def check_module_level_instantiation(src_dir: Path) -> list[Violation]:
-    """Scan all .py files in src/ for module-level stateful instantiation."""
+def check_module_level_instantiation(
+    src_dir: Path,
+    registry: dict[str, Path],
+) -> list[Violation]:
+    """Scan all .py files in src/ for module-level instantiation of registered components."""
+    component_names = set(registry.keys())
     violations: list[Violation] = []
+
     for py_file in sorted(src_dir.rglob("*.py")):
         try:
             source = py_file.read_text(encoding="utf-8")
@@ -782,7 +719,7 @@ def check_module_level_instantiation(src_dir: Path) -> list[Violation]:
             violations.append(Violation("<module>", py_file, "WARNING", "Syntax error"))
             continue
 
-        visitor = ModuleLevelInstantiationVisitor(source_lines)
+        visitor = ModuleLevelInstantiationVisitor(source_lines, component_names)
         visitor.visit(tree)
 
         for class_name, lineno in visitor.violations:
@@ -790,8 +727,8 @@ def check_module_level_instantiation(src_dir: Path) -> list[Violation]:
                 f"<module:{py_file.stem}>",
                 py_file,
                 "CRITICAL",
-                f"Module-level stateful instantiation: {class_name}() at line {lineno}. "
-                "Move to a constructor parameter or factory function.",
+                f"Module-level instantiation of registered component: {class_name}() "
+                f"at line {lineno}. Move to a constructor parameter or factory function.",
             ))
     return violations
 
@@ -976,7 +913,7 @@ def check_component(
     except SyntaxError:
         return [Violation(comp_name, path, "WARNING", "Syntax error in file")]
 
-    visitor = InitVisitor(comp_name, source_lines)
+    visitor = InitVisitor(comp_name, source_lines, set(collaborators))
     visitor.visit(tree)
 
     if not visitor.found_class:
@@ -1123,17 +1060,14 @@ SEVERITY_ORDER = {"CRITICAL": 0, "WARNING": 1, "INFO": 2}
 def main() -> None:
     root_dir = Path.cwd()
     src_dir = root_dir / "src"
-    spec_path = root_dir / "plans" / "project-spec.md"
     plan_path = root_dir / "plans" / "PLAN.md"
 
     # ------------------------------------------------------------------
-    # Load required files
+    # Load contracts
     # ------------------------------------------------------------------
-    if not spec_path.exists():
-        print("Error: plans/project-spec.md not found.")
-        sys.exit(1)
-
-    spec_content = spec_path.read_text(encoding="utf-8")
+    registry, designs, composition_roots, boundary_violations = load_contracts(
+        root_dir, src_dir
+    )
 
     # PLAN.md is optional; if absent, no component can have tracked debt and
     # every "noqa: DI" suppression will be escalated to CRITICAL.
@@ -1150,19 +1084,12 @@ def main() -> None:
             "all # noqa: DI suppressions will be escalated to CRITICAL."
         )
 
-    # ------------------------------------------------------------------
-    # Parse spec
-    # ------------------------------------------------------------------
-    registry, boundary_violations = parse_registry(spec_content, root_dir, src_dir)
-    designs = parse_collaborators(spec_content)
-    entrypoint_dir = parse_entrypoint_layer(spec_content)
-
     print(f"\nComponents with collaborators: {len(designs)}")
     print(f"Registry entries:              {len(registry)}")
     if boundary_violations:
         print(f"Boundary violations:           {len(boundary_violations)} CRITICAL")
-    if entrypoint_dir:
-        print(f"Entrypoint layer (exempt):     {entrypoint_dir}")
+    if composition_roots:
+        print(f"Composition roots (exempt):    {', '.join(sorted(composition_roots))}")
     print()
 
     # Boundary violations are reported upfront; component analysis is skipped
@@ -1183,8 +1110,8 @@ def main() -> None:
             print(f"  SKIP  {comp_name} (boundary violation - path outside src/)")
             continue
 
-        if entrypoint_dir and entrypoint_dir in impl_path.as_posix():
-            print(f"  SKIP  {comp_name} (Entrypoint layer)")
+        if comp_name in composition_roots:
+            print(f"  SKIP  {comp_name} (composition root)")
             continue
 
         violations = check_component(impl_path, comp_name, collaborators, tracked_debt)
@@ -1202,7 +1129,7 @@ def main() -> None:
     # Module-level instantiation sweep
     # ------------------------------------------------------------------
     if src_dir.is_dir():
-        ml_violations = check_module_level_instantiation(src_dir)
+        ml_violations = check_module_level_instantiation(src_dir, registry)
         all_violations.extend(ml_violations)
         n_src_files = len(list(src_dir.rglob("*.py")))
         print(f"\nModule-level instantiation sweep: {n_src_files} files, "
@@ -1215,11 +1142,11 @@ def main() -> None:
     # ------------------------------------------------------------------
     tests_dir = root_dir / "tests"
     if tests_dir.is_dir():
-        # Build a map of only those components that have collaborators.
+        # Build a map of only those non-composition-root components that have collaborators.
         test_comp_collabs: dict[str, list[str]] = {
             comp: collabs
             for comp, collabs in designs.items()
-            if comp in registry and collabs
+            if comp in registry and collabs and comp not in composition_roots
         }
 
         if test_comp_collabs:
