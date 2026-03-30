@@ -10,6 +10,7 @@ description: Design CRC cards, Protocols, and the Interface Registry. Tier 1 —
 > Human approval here is the Tier 1 / Tier 2 boundary — nothing executes until sign-off.
 
 > **[CRITICAL] CONTEXT LOADING**
+>
 > 1. Load planning rules: `view_file .claude/rules/planning.md`
 > 2. Load the Design Skill: `view_file .claude/skills/mini-spec/SKILL.md`
 > 3. Load the PRD: `view_file plans/PRD.md`
@@ -21,6 +22,7 @@ description: Design CRC cards, Protocols, and the Interface Registry. Tier 1 —
 **Objective:** Produce the full behavioral and structural design for all features in `roadmap.md`. Output: populated `plans/project-spec.md` (CRC cards, Interface Registry, dependency map) and all `interfaces/*.pyi` contracts.
 
 **Position in chain:**
+
 ```
 /io-specify -> [/io-architect] -> /io-checkpoint -> /io-plan-batch -> dispatch-agents.sh
 ```
@@ -44,45 +46,45 @@ Before proceeding, output the following metadata:
 
 ### Step A: [HARD GATE] ROADMAP PRESENT
 
-* **Action:** Check that `plans/roadmap.md` exists and is not a draft.
-* **Rule:** If missing or still marked `Draft`, HALT.
-* **Output:** "HALT: roadmap.md not found or not approved. Run `/io-specify` first."
+- **Action:** Check that `plans/roadmap.md` exists and is not a draft.
+- **Rule:** If missing or still marked `Draft`, HALT.
+- **Output:** "HALT: roadmap.md not found or not approved. Run `/io-specify` first."
 
 ---
 
 ### Step B: ANALYZE DOMAIN
 
-* **Action:** Read `plans/PRD.md` and `plans/roadmap.md`.
-* **Goal:** Identify every distinct component required to satisfy all features.
-* **Component types to identify:**
-  * Domain entities (data models, aggregates)
-  * Repositories / data access layer
-  * Service / orchestration layer
-  * External adapters (APIs, queues, storage)
-  * Entrypoint layer (CLI, HTTP handlers, jobs)
-* **Output:** Flat component inventory with type and layer classification.
+- **Action:** Read `plans/PRD.md` and `plans/roadmap.md`.
+- **Goal:** Identify every distinct component required to satisfy all features.
+- **Component types to identify:**
+  - Domain entities (data models, aggregates)
+  - Repositories / data access layer
+  - Service / orchestration layer
+  - External adapters (APIs, queues, storage)
+  - Entrypoint layer (CLI, HTTP handlers, jobs)
+- **Output:** Flat component inventory with type and layer classification.
 
 ---
 
 ### Step B.5: IMPORT TRACE (brownfield only)
 
-* **Gate:** If `plans/current-state.md` does not exist (greenfield), skip this step only and proceed to Step C. The rest of io-architect runs normally regardless.
-* **Action:** Trace import statements for each `src/` module.
-* **Output:** Two edge sets written to `plans/project-spec.md` under `## Import Trace`:
-  * **ACTUAL edges** — import relationships as they exist in the current code.
-  * **TARGET edges** — import relationships implied by the design in Step C.
-* **Purpose:** The overlay reveals where rewiring is needed between current and target architecture.
+- **Gate:** If `plans/current-state.md` does not exist (greenfield), skip this step only and proceed to Step C. The rest of io-architect runs normally regardless.
+- **Action:** Trace import statements for each `src/` module.
+- **Output:** Two edge sets written to `plans/project-spec.md` under `## Import Trace`:
+  - **ACTUAL edges** — import relationships as they exist in the current code.
+  - **TARGET edges** — import relationships implied by the design in Step C.
+- **Purpose:** The overlay reveals where rewiring is needed between current and target architecture.
 
 ---
 
 ### Step C: WRITE DEPENDENCY MAP
 
-* **Goal:** Capture how components depend on each other across architectural layers.
-* **Format:** Mermaid graph — components as nodes, dependency arrows showing direction.
-* **Rules:**
-  * Arrow direction = "depends on" (A → B means A depends on B)
-  * Higher layers may only depend on lower layers (no upward imports)
-  * Cross-layer dependencies must go through an interface in `interfaces/`
+- **Goal:** Capture how components depend on each other across architectural layers.
+- **Format:** Mermaid graph — components as nodes, dependency arrows showing direction.
+- **Rules:**
+  - Arrow direction = "depends on" (A → B means A depends on B)
+  - Higher layers may only depend on lower layers (no upward imports)
+  - Cross-layer dependencies must go through an interface in `interfaces/`
 
 **Write** the dependency map to `plans/project-spec.md` under a `## Dependency Map` section. Do not print it to the terminal.
 
@@ -94,8 +96,8 @@ For incremental runs: mark any changed section with an HTML comment `<!-- CHANGE
 
 For every component identified in Step B, write a CRC card using the format defined in the `mini-spec` skill (Section 2: CRC Card Standard).
 
-* **Action:** Write all CRC cards to `plans/project-spec.md` under a `## CRC Cards` section. Do not print them to the terminal.
-* **Incremental runs:** Mark each new or changed CRC card heading with `<!-- CHANGED -->`.
+- **Action:** Write all CRC cards to `plans/project-spec.md` under a `## CRC Cards` section. Do not print them to the terminal.
+- **Incremental runs:** Mark each new or changed CRC card heading with `<!-- CHANGED -->`.
 
 ---
 
@@ -116,6 +118,7 @@ class [ProtocolName](Protocol):
 ```
 
 **Rules for Protocol design:**
+
 - Every CRC responsibility maps to at least one method.
 - Parameters and return types must be concrete — no `Any`, no `dict` without type params.
 - Methods must be testable in isolation — no side-effectful signatures that cannot be mocked.
@@ -139,7 +142,7 @@ Write the complete Interface Registry to `plans/project-spec.md` under a `## Int
 | [ComponentName] | [ProtocolName] | `interfaces/[protocol].pyi` | [N] |
 ```
 
-Every component with a Protocol must appear here. This table is the write-gate's source of truth — sub-agents may only write to files registered here.
+Every component with a Protocol must appear here. This table is the Protocol contract registry — it maps components to their interface definitions. Composition roots (Entrypoint Layer) do not appear here — they have no Protocol. They are registered in `plans/component-contracts.toml` only (Step H-2c).
 
 **Write the full Interface Registry to `plans/project-spec.md`. Do not print it to the terminal.**
 
@@ -165,8 +168,8 @@ Reply with approval to lock contracts, or describe any correction needed
 (cite section name and component).
 ```
 
-* **WAIT** for explicit human approval.
-* If corrections requested: edit `plans/project-spec.md` in place for the identified component only. Do not re-print the corrected content — tell the user which lines were changed and ask them to re-read the file. Do not proceed to Step H until approved.
+- **WAIT** for explicit human approval.
+- If corrections requested: edit `plans/project-spec.md` in place for the identified component only. Do not re-print the corrected content — tell the user which lines were changed and ask them to re-read the file. Do not proceed to Step H until approved.
 
 ---
 
@@ -181,28 +184,32 @@ On approval, execute the following steps in strict sequence. Do NOT parallelize 
 The sentinel prevents `reset-on-project-spec-write.sh` and `reset-on-pyi-write.sh` from resetting stamps during the `.pyi` write and stamp sequence. It must be set before Step H-3. The hook auto-deletes it when it detects the `**Approved:** True` stamp write at Step H-4.
 
 **Step H-2:** Append `[[tool.importlinter.contracts]]` to `pyproject.toml`:
-   * One `[[tool.importlinter.contracts]]` block for the layer hierarchy, ordered top-to-bottom (entrypoint → domain → utility → foundation)
-   * Additional `[[tool.importlinter.contracts]]` blocks for any independence contracts between peer packages
-   * Remove the `# [[tool.importlinter.contracts]] populated by /io-architect` comment placeholder
-   * If `pyproject.toml` does not exist (brownfield adoption), create it from `.claude/templates/pyproject.toml` first, then append contracts
+
+- One `[[tool.importlinter.contracts]]` block for the layer hierarchy, ordered top-to-bottom (entrypoint → domain → utility → foundation)
+- Additional `[[tool.importlinter.contracts]]` blocks for any independence contracts between peer packages
+- Remove the `# [[tool.importlinter.contracts]] populated by /io-architect` comment placeholder
+- If `pyproject.toml` does not exist (brownfield adoption), create it from `.claude/templates/pyproject.toml` first, then append contracts
 
 **Step H-2b:** Scaffold `src/` package directories from the Interface Registry:
-   * For each registered package path in the Interface Registry, create the directory if it does not exist
-   * Write a minimal `__init__.py` (empty or with a module docstring) to each new directory
-   * Skip directories that already exist — do not overwrite existing `__init__.py` files
+
+- For each registered package path in the Interface Registry, create the directory if it does not exist
+- Write a minimal `__init__.py` (empty or with a module docstring) to each new directory
+- Skip directories that already exist — do not overwrite existing `__init__.py` files
 
 **Step H-2c:** Write `plans/component-contracts.toml`:
-   * For each registered component in the Interface Registry, emit a `[components.ComponentName]` block containing:
-     - `file = "src/..."` — the implementation path from the registry
-     - `collaborators = [...]` — the collaborator list from the CRC card (`[]` if none)
-     - `composition_root = true` — set only for Entrypoint Layer components; omit for all others
-   * Overwrite if the file already exists — it is always regenerated from the current spec
-   * This file is the machine-readable contract consumed by `check_di_compliance.py`
+
+- For each registered component in the Interface Registry, emit a `[components.ComponentName]` block containing:
+  - `file = "src/..."` — the implementation path from the registry
+  - `collaborators = [...]` — the collaborator list from the CRC card (`[]` if none)
+  - `composition_root = true` — set only for Entrypoint Layer components; omit for all others
+- Overwrite if the file already exists — it is always regenerated from the current spec
+- This file is the machine-readable contract consumed by `check_di_compliance.py`
 
 **Step H-3:** Write `interfaces/*.pyi`:
-   * One file per Protocol
-   * Exactly as written in `plans/project-spec.md` Protocol Signatures section — no additions or simplifications
-   * Include docstrings on every method
+
+- One file per Protocol
+- Exactly as written in `plans/project-spec.md` Protocol Signatures section — no additions or simplifications
+- Include docstrings on every method
 
 **Step H-4:** Stamp `plans/project-spec.md` with `**Approved:** True` in the doc header.
 
@@ -235,6 +242,7 @@ After Step H-post, generate navigation artifacts from the approved design. These
 **Step I-1: Write a `CLAUDE.md` into each `src/` subdirectory** that contains at least one registered component.
 
 Use `.claude/templates/dir-claude.md` as the structure. For each directory:
+
 - `Layer`: from the Interface Registry layer column
 - `Owns`: one sentence summarizing the CRC responsibilities for components in this directory
 - `Public via`: list each Protocol registered to a component in this directory
@@ -246,6 +254,7 @@ Use `.claude/templates/dir-claude.md` as the structure. For each directory:
 **Step I-2: Update `plans/seams.md`.**
 
 For each component added or modified in this architect run (identified from the Interface Registry delta), update its entry in `plans/seams.md`:
+
 - `Receives (DI)`: derive from the CRC card Collaborators list
 - `External terminal`: derive from CRC card Responsibilities (any external system explicitly mentioned) and Must NOT constraints
 - `Key failure modes`: derive from Protocol method docstrings (exception types documented)
@@ -260,11 +269,11 @@ Derive from `plans/project-spec.md` only — do not read source code.
 
 If `project-spec.md` and `interfaces/*.pyi` already exist:
 
-* **Read existing contracts before proposing anything.**
-* **Identify conflicts:** Does the proposed new design contradict any existing Protocol signature?
-* **Flag breaking changes explicitly** — any modification to an existing `.pyi` signature is a breaking change and requires separate human confirmation with explicit acknowledgment that downstream implementations may need updating.
-* **Additive changes** (new Protocols, new methods on existing Protocols) follow the standard plan mode flow above.
-* **Never silently modify** an existing `.pyi` signature.
+- **Read existing contracts before proposing anything.**
+- **Identify conflicts:** Does the proposed new design contradict any existing Protocol signature?
+- **Flag breaking changes explicitly** — any modification to an existing `.pyi` signature is a breaking change and requires separate human confirmation with explicit acknowledgment that downstream implementations may need updating.
+- **Additive changes** (new Protocols, new methods on existing Protocols) follow the standard plan mode flow above.
+- **Never silently modify** an existing `.pyi` signature.
 
 ---
 

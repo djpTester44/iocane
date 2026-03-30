@@ -93,15 +93,18 @@ fi
 mkdir -p "$WORKTREE_PATH/plans/tasks"
 cp "$TASK_FILE" "$WORKTREE_PATH/plans/tasks/$CP_ID.md"
 
-# --- Remove task files that do not belong to this checkpoint ---
+# --- Remove task files and output artifacts that do not belong to this checkpoint ---
 # The worktree inherits tracked plans/tasks/CP-XX.md files from the parent
-# branch. Remove any that are not this checkpoint to prevent sub-agents
-# from reading or acting on the wrong task.
-for f in "$WORKTREE_PATH/plans/tasks"/CP-*.md; do
+# branch. Output artifacts (*.log, *.result.json, *.exit, *.status) can also
+# end up in the worktree via a prior run's git add -A commit. Remove all
+# foreign CP files to prevent sub-agents from reading or acting on the wrong task.
+for f in "$WORKTREE_PATH/plans/tasks"/CP-*; do
     [ -f "$f" ] || continue
     fname=$(basename "$f")
-    if [ "$fname" != "$CP_ID.md" ]; then
-        rm "$f"
+    cp_prefix="${fname%%.*}"
+    if [ "$cp_prefix" != "$CP_ID" ]; then
+        git -C "$WORKTREE_PATH" update-index --skip-worktree -- "plans/tasks/$fname" 2>/dev/null || true
+        rm -f "$f"
     fi
 done
 

@@ -39,8 +39,8 @@ if [ -z "$CONTENT" ]; then
 fi
 
 if echo "$CONTENT" | grep -qE 'os\.environ|os\.getenv'; then
-    echo "BLOCKED: os.environ/os.getenv used outside the entrypoint layer ($FILE_PATH)."
-    echo "         Inject config via a typed Settings object. Only config.py, main.py, and jobs/*.py may access os.environ."
+    echo "BLOCKED: os.environ/os.getenv used outside the entrypoint layer ($FILE_PATH)." >&2
+    echo "         Inject config via a typed Settings object. Only config.py, main.py, and jobs/*.py may access os.environ." >&2
     exit 2
 fi
 

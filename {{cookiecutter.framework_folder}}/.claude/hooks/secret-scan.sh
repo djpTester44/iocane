@@ -22,19 +22,19 @@ fi
 
 # Check for AWS access key pattern
 if echo "$CONTENT" | grep -qE 'AKIA[0-9A-Z]{16}'; then
-    echo "BLOCKED: Hardcoded AWS access key detected (AKIA...). Inject secrets via environment variables."
+    echo "BLOCKED: Hardcoded AWS access key detected (AKIA...). Inject secrets via environment variables." >&2
     exit 2
 fi
 
 # Check for generic secret assignments
 if echo "$CONTENT" | grep -qiE '(secret|token|api_key|password|credential)\s*=\s*["'"'"'][^"'"'"']{8,}["'"'"']'; then
-    echo "BLOCKED: Hardcoded secret assignment detected. Inject secrets via environment variables at the entrypoint layer (config.py)."
+    echo "BLOCKED: Hardcoded secret assignment detected. Inject secrets via environment variables at the entrypoint layer (config.py)." >&2
     exit 2
 fi
 
 # Check for Bearer tokens
 if echo "$CONTENT" | grep -qE 'Bearer\s+[A-Za-z0-9\-._~+/]+=*'; then
-    echo "BLOCKED: Hardcoded Bearer token detected. Inject secrets via environment variables."
+    echo "BLOCKED: Hardcoded Bearer token detected. Inject secrets via environment variables." >&2
     exit 2
 fi
 

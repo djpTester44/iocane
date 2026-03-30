@@ -26,7 +26,7 @@ if [ "${IOCANE_SUBAGENT:-0}" = "1" ]; then
 fi
 
 if echo "$COMMAND" | grep -qE '(^|[[:space:];&|])(pip3?[[:space:]]|python[0-9.]* -m pip|uv pip[[:space:]])'; then
-    echo "BLOCKED: Use uv add or uv run instead. Direct pip invocations and uv pip are forbidden — they bypass the lockfile."
+    echo "BLOCKED: Use uv add or uv run instead. Direct pip invocations and uv pip are forbidden — they bypass the lockfile." >&2
     exit 2
 fi
 

@@ -20,7 +20,7 @@ except Exception:
 # --- Structural parser: parses command tokens to avoid false positives ---
 # Strips quoted strings, command substitutions, then checks leading token per
 # shell-operator-separated segment. Exempt: bash, uv (unless uv run <blocked>).
-RESULT=$(RTK_CMD="$COMMAND" uv run python - << 'PYEOF'
+RTK_CMD="$COMMAND" uv run python - << 'PYEOF'
 import sys, re, os
 
 cmd = os.environ.get('RTK_CMD', '')
@@ -33,25 +33,31 @@ cmd_s = re.sub(r"'[^']*'", '', cmd_s)
 cmd_s = re.sub(r'\$\([^)]*\)', '', cmd_s)
 cmd_s = re.sub(r'`[^`]*`', '', cmd_s)
 
-# Split on shell operators
-segments = re.split(r'\|\||&&|[|;]', cmd_s)
+# Split on shell operators with capturing groups to preserve delimiters
+DELIM_PATTERN = r'(\|\||&&|[|;])'
+segments_s = re.split(DELIM_PATTERN, cmd_s)
+segments_orig = re.split(DELIM_PATTERN, cmd)
 
-CLI_BLOCKED = {'git', 'ls', 'grep', 'rg', 'gh', 'find'}
+CLI_BLOCKED = {'git', 'ls', 'grep', 'rg', 'gh', 'find', 'pytest', 'ruff', 'mypy'}
 UV_BLOCKED  = {'pytest', 'ruff', 'mypy'}
 
-GUIDANCE = {
-    'git':    "Use 'rtk git' instead of bare 'git'. Example: rtk git status",
-    'ls':     "Use 'rtk ls' instead of bare 'ls'. Example: rtk ls .",
-    'grep':   "Use 'rtk grep' instead of bare 'grep'/'rg'. Example: rtk grep -rn 'pattern' .",
-    'rg':     "Use 'rtk grep' instead of bare 'rg'. Example: rtk grep -rn 'pattern' .",
-    'gh':     "Use 'rtk gh' instead of bare 'gh'. Example: rtk gh pr list",
-    'find':   "Use 'rtk find' instead of bare 'find'. Example: rtk find . -name '*.py'",
-    'pytest': "Use 'uv run rtk pytest' instead of 'uv run pytest'.",
-    'ruff':   "Use 'uv run rtk ruff' instead of 'uv run ruff'.",
-    'mypy':   "Use 'uv run rtk mypy' instead of 'uv run mypy'.",
+FIX = {
+    'git':    'rtk git',
+    'ls':     'rtk ls',
+    'grep':   'rtk grep',
+    'rg':     'rtk grep',
+    'gh':     'rtk gh',
+    'find':   'rtk find',
+    'pytest': 'uv run rtk pytest',
+    'ruff':   'uv run rtk ruff',
+    'mypy':   'uv run rtk mypy',
 }
 
-for segment in segments:
+violations = []  # list of (segment_index, tool_name, kind) where kind='bare'|'uv_run'
+
+# Only check non-delimiter segments (even indices in split result)
+for idx in range(0, len(segments_s), 2):
+    segment = segments_s[idx]
     tokens = segment.split()
     if not tokens:
         continue
@@ -78,24 +84,47 @@ for segment in segments:
                 if next_tok == 'rtk':
                     continue
                 if next_tok in UV_BLOCKED:
-                    print('BLOCKED:' + GUIDANCE[next_tok])
-                    sys.exit(0)
+                    violations.append((idx, next_tok, 'uv_run'))
         continue
 
-    # CLI tools
+    # CLI tools (including bare pytest/ruff/mypy)
     if lead in CLI_BLOCKED:
-        print('BLOCKED:' + GUIDANCE[lead])
-        sys.exit(0)
+        violations.append((idx, lead, 'bare'))
 
-print('ALLOW')
+if not violations:
+    sys.exit(0)
+
+# Reconstruct corrected command by patching violated original segments
+patched = list(segments_orig)
+for seg_idx, tool, kind in violations:
+    orig_seg = patched[seg_idx]
+    if kind == 'uv_run':
+        patched[seg_idx] = re.sub(
+            r'\buv\s+run\s+' + re.escape(tool),
+            'uv run rtk ' + tool,
+            orig_seg, count=1
+        )
+    else:
+        patched[seg_idx] = re.sub(
+            r'\b' + re.escape(tool) + r'\b',
+            FIX[tool],
+            orig_seg, count=1
+        )
+
+corrected = ''.join(patched)
+
+print("Violations:", file=sys.stderr)
+for seg_idx, tool, kind in violations:
+    seg_num = seg_idx // 2 + 1
+    if kind == 'uv_run':
+        print(f"  segment {seg_num}: bare `uv run {tool}` -> uv run rtk {tool}", file=sys.stderr)
+    else:
+        print(f"  segment {seg_num}: bare `{tool}` -> {FIX[tool]}", file=sys.stderr)
+
+print("", file=sys.stderr)
+print("Corrected command:", file=sys.stderr)
+print(f"  {corrected}", file=sys.stderr)
+
+sys.exit(2)
 PYEOF
-)
-
-case "$RESULT" in
-    BLOCKED:*)
-        echo "${RESULT#BLOCKED:}"
-        exit 2
-        ;;
-esac
-
-exit 0
+exit $?

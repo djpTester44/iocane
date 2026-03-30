@@ -130,6 +130,9 @@ uv run rtk lint-imports
 **On success:**
 
 ```bash
+# Remove any plans/tasks/ output artifacts from other checkpoints before staging.
+# These can appear via race conditions in parallel dispatch and must not be committed.
+find plans/tasks/ -maxdepth 1 -name "CP-*.log" -o -name "CP-*.result.json" -o -name "CP-*.exit" -o -name "CP-*.status" 2>/dev/null | grep -v "plans/tasks/[CP-ID]\." | xargs rm -f 2>/dev/null || true
 git add -A
 git commit -m "CP-[CP-ID]: [one-line summary of what was implemented]"
 bash "$IOCANE_REPO_ROOT/.claude/scripts/write-status.sh" [CP-ID] PASS

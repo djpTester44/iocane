@@ -15,7 +15,7 @@ except Exception:
 ")
 
 if [[ "$FILE_PATH" == *\\* ]]; then
-    echo "BLOCKED: Backslash in file path. Use forward slashes."
+    echo "BLOCKED: Backslash in file path. Use forward slashes." >&2
     exit 2
 fi
 

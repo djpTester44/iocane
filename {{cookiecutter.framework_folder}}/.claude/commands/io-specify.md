@@ -109,7 +109,7 @@ Output: "PROPOSAL READY. Review the roadmap above. Reply with approval to write,
 
 * **WAIT** for explicit human approval before writing.
 * If corrections requested: revise the proposal, re-present. Do not write until approved.
-* On approval: write `plans/roadmap.md` exactly as approved.
+* On approval: write `plans/roadmap.md` with `**Status:**` updated to `Approved`.
 
 ---
 

@@ -41,6 +41,19 @@ else
             TARGETS+=("$(basename "$status_file" .status)")
         fi
     done
+
+    # Auto-detect orphaned worktrees (agent died without writing .status)
+    for wt_dir in "$REPO_ROOT"/.worktrees/CP-*/; do
+        [ -d "$wt_dir" ] || continue
+        CP_ID="$(basename "$wt_dir")"
+        STATUS_FILE="$TASKS_DIR/$CP_ID.status"
+        # Skip if already collected or has a PASS status
+        if [ -f "$STATUS_FILE" ]; then
+            continue
+        fi
+        # No status file + worktree exists = orphaned
+        TARGETS+=("$CP_ID")
+    done
 fi
 
 if [ ${#TARGETS[@]} -eq 0 ]; then

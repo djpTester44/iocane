@@ -81,12 +81,12 @@ except Exception:
     print('no')
 ")
 else
-    echo "BLOCKED: Neither plans/component-contracts.toml nor plans/project-spec.md exists. Run /io-architect to design components before writing contracts."
+    echo "BLOCKED: Neither plans/component-contracts.toml nor plans/project-spec.md exists. Run /io-architect to design components before writing contracts." >&2
     exit 2
 fi
 
 if [ "$FOUND" != "yes" ]; then
-    echo "BLOCKED: No contract entry for $COMPONENT_NAME. Design the component in /io-architect before writing the .pyi contract."
+    echo "BLOCKED: No contract entry for $COMPONENT_NAME. Design the component in /io-architect before writing the .pyi contract." >&2
     exit 2
 fi
 

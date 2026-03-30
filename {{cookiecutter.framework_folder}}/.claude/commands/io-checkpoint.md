@@ -242,7 +242,7 @@ Reply with approval to write, or provide corrections."
 
 - **WAIT** for explicit human approval.
 - If corrections requested: revise and re-present. Do not write until approved.
-- On approval: write `plans/plan.md` exactly as approved.
+- On approval: write `plans/plan.md` with `**Status:**` updated to `Approved`.
 
 ---
 
@@ -269,6 +269,7 @@ Next step: Run /validate-plan to approve plan.md, then /io-plan-batch.
 - In remediation mode, also writes to `plans/backlog.md` via `route-backlog-item.sh` (Routed annotation only).
 - Connectivity tests are signatures only — no test code is written here.
 - Write targets per checkpoint must be derived from the `file` fields in `plans/component-contracts.toml`. A checkpoint may not write to a `src/` file whose component is not registered there.
+- **[HARD] Runtime `.py` location constraint:** All checkpoint write targets that are `.py` files must resolve to a path under `src/` or `tests/`. The `interfaces/` directory is reserved exclusively for `.pyi` contract stubs generated or approved by `/io-architect`. Any write target placing a `.py` file under `interfaces/` or any other directory outside `src/` and `tests/` is a structural error -- reject the write target and route the file to the appropriate `src/` component before the checkpoint is approved.
 - If decomposing a feature reveals a gap in the Interface Registry (a required component has no Protocol), HALT and route to `/io-architect` before continuing.
 - `plan.md` is the orchestrator's only input for delegation decisions. Vague checkpoints will produce low confidence scores and stall execution.
 - Remediation CP write targets must be a strict subset of files already implemented by the parent CP or its predecessors. Any file belonging to a pending roadmap checkpoint is off-limits — that forward dependency is a design error, not a valid remediation scope.

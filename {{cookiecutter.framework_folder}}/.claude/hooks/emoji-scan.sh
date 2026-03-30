@@ -36,7 +36,7 @@ print('emoji' if pattern.search(content) else 'ok')
 ")
 
 if [ "$RESULT" = "emoji" ]; then
-    echo "BLOCKED: Emoji character detected in content. Emoji are forbidden per the engineering constitution."
+    echo "BLOCKED: Emoji character detected in content. Emoji are forbidden per the engineering constitution." >&2
     exit 2
 fi
 

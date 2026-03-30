@@ -92,6 +92,7 @@ Each task file must include:
 ## Step G — Commit and Write Status
 
 ```bash
+find plans/tasks/ -maxdepth 1 \( -name "CP-*.log" -o -name "CP-*.result.json" -o -name "CP-*.exit" -o -name "CP-*.status" \) 2>/dev/null | grep -v "plans/tasks/CP-[CP-ID]\." | xargs rm -f 2>/dev/null || true
 git add -A
 git commit -m "CP-[CP-ID]: [one-line summary]"
 bash "$IOCANE_REPO_ROOT/.claude/scripts/write-status.sh" CP-[CP-ID] PASS
