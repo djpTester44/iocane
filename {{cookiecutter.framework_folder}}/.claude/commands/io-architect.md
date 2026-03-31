@@ -24,7 +24,7 @@ description: Design CRC cards, Protocols, and the Interface Registry. Tier 1 —
 **Position in chain:**
 
 ```
-/io-specify -> [/io-architect] -> /io-checkpoint -> /io-plan-batch -> dispatch-agents.sh
+/io-specify -> [/io-architect] -> /io-checkpoint -> /io-plan-batch -> /validate-tasks -> dispatch-agents.sh
 ```
 
 **This workflow is the contract lock.** After human approval, the `.pyi` files are the binding source of truth. Sub-agents build against them. They are not modified during execution unless a formal replan is triggered.

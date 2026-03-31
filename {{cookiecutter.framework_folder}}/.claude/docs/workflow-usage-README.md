@@ -4,10 +4,10 @@
 
 ```
 Primary Path:
-/io-clarify -> /io-init -> /io-specify -> /io-architect -> /io-checkpoint -> /validate-plan -> /io-plan-batch -> dispatch-agents.sh -> /io-review
+/io-clarify -> /io-init -> /io-specify -> /io-architect -> /io-checkpoint -> /validate-plan -> /io-plan-batch -> /validate-tasks -> dispatch-agents.sh -> /io-review
 
 Batch Loop (repeat until all checkpoints complete):
-/io-review -> /io-plan-batch -> dispatch-agents.sh -> /io-review
+/io-review -> /io-plan-batch -> /validate-tasks -> dispatch-agents.sh -> /io-review
 
 Closeout (after final batch review):
 /io-review -> /gap-analysis -> /doc-sync
@@ -20,7 +20,7 @@ Recovery Path (only for out-of-band .pyi changes):
 
 ## Dispatching Agents
 
-After `/io-plan-batch` accepts a batch and writes task files, dispatch agents directly:
+After `/io-plan-batch` accepts a batch and writes task files, run `/validate-tasks`, then dispatch agents:
 
 ```bash
 bash .claude/scripts/dispatch-agents.sh
@@ -37,6 +37,7 @@ These are operator-facing scripts. Run them directly when you need the behavior.
 - `bash .claude/scripts/archive-approved.sh`: archives approved checkpoint artifacts from `plans/tasks/` into `plans/archive/` and updates `plans/plan.md` status from `[ ] pending` to `[x] complete`. For remediation CPs, resolves the source backlog item via `Source BL:` lookup.
 - `bash .claude/scripts/assign-backlog-ids.sh`: assigns `BL-NNN` identifiers to any backlog items missing them. Idempotent -- safe to re-run.
 - `bash .claude/scripts/route-backlog-item.sh BL-NNN CP-NNR`: adds a `Routed:` annotation to the specified backlog item. Fails if the item is not found or already routed to that CP.
+- `bash .claude/scripts/pre-invoke-validate-tasks.sh` -- internal: pre-invocation gate before /validate-tasks
 - `uv run .claude/scripts/merge_pyproject.py`: compares existing `pyproject.toml` against harness-required config and reports or applies only the missing pieces. Union merge for list fields (`ruff select/ignore`, dev packages); add-only for scalars; divergences reported but never auto-corrected. Called automatically by `/io-adopt` (step 1c) and `/io-init` (step C) when `pyproject.toml` already exists.
 
   ```bash
@@ -55,6 +56,7 @@ The following are internal helper scripts. Do not run them directly unless debug
 - `smart_search.sh` -- internal: targeted codebase search utility
 - `pre-invoke-io-plan-batch.sh` -- internal: pre-invocation gate before /io-plan-batch
 - `check_di_compliance.py` -- internal: DI compliance checker used in REFACTOR gate
+- `check_write_target_overlap.py` -- internal: write-target collision detection for /io-plan-batch Step C/E
 
 ---
 
@@ -157,6 +159,8 @@ The sentinel is automatically cleared on session start. If it is unexpectedly pr
 | `/io-checkpoint` | Define atomic checkpoints and connectivity tests | `plans/plan.md`, `plans/backlog.md` (remediation: Routed annotation via script) |
 | `/validate-plan` | Validate `plan.md` CDD compliance before batch composition | `plans/plan.md` (stamp only) |
 | `/io-plan-batch` | Compose dispatch batch, score confidence, get human approval | `plans/tasks/CP-XX.md` (on acceptance) |
+| `/validate-tasks` | Validate task files against plan.md and component-contracts.toml | `plans/tasks/CP-XX.task.validation`, `plans/validation-reports/task-validation-report.yaml` |
+| `/task-recovery` | Regenerate task files for CPs with MECHANICAL findings | `plans/tasks/CP-XX.md` (regenerated) |
 | `dispatch-agents.sh` | Dispatch agents (run directly via `bash .claude/scripts/dispatch-agents.sh`) | none |
 | `/io-execute` | Tier 3 sub-agent workflow that executes one checkpoint task file | `plans/tasks/CP-XX.status`, checkpoint write targets |
 | `/validate-spec` | Detect CRC-Protocol drift and re-earn `**Approved:** True` (recovery path) | `plans/project-spec.md` (stamp only) |

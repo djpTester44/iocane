@@ -40,7 +40,7 @@ Iocane uses a three-tier model to keep correctness guarantees early and executio
 Human owns all design decisions. Claude uses plan mode at every Tier 1 stage — proposes before writing. Nothing commits until the human approves. Tier 1 workflows: `/io-clarify`, `/io-specify`, `/io-architect`, `/io-checkpoint`, `/io-review`.
 
 **Tier 2 — Orchestration (Harness Autonomous)**
-Orchestrator reads approved Tier 1 artifacts, generates task files, and scores the confidence rubric. Human dispatches agents. Tier 2 workflows: `/io-plan-batch` then `bash .claude/scripts/dispatch-agents.sh`.
+Orchestrator reads approved Tier 1 artifacts, generates task files, and scores the confidence rubric. Human dispatches agents. Tier 2 workflows: `/io-plan-batch`, `/validate-tasks`, then `bash .claude/scripts/dispatch-agents.sh`.
 
 **Tier 3 — Execution (Sub-agents)**
 Sub-agents execute one checkpoint each in isolated git worktrees. They have no awareness of the broader plan. Human sees only pass/fail summaries unless escalation is triggered. Tier 3 workflow: `/io-execute`.
@@ -57,7 +57,8 @@ The human is required at these moments — and only these:
 | Roadmap proposal | `/io-specify` | Approve or correct `roadmap.md` |
 | Design proposal | `/io-architect` | Approve CRC + Protocols — this is the contract lock |
 | Checkpoint boundaries | `/io-checkpoint` | Approve `plan.md` + connectivity test signatures |
-| Run sub-agents | post `/io-plan-batch` | `bash .claude/scripts/dispatch-agents.sh` |
+| Validate task files | post `/io-plan-batch` | Run `/validate-tasks`; approve or route DESIGN findings |
+| Run sub-agents | post `/validate-tasks` | `bash .claude/scripts/dispatch-agents.sh` |
 | Checkpoint review | `/io-review` | Review findings, approve or route to backlog |
 | Backlog triage | post `/io-review` | Run `/io-backlog-triage` to assess relevance, risk, and routing |
 | Escalation | session start | Review `.iocane/escalation.log`, clear flag |

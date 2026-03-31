@@ -179,13 +179,13 @@ suggest_next_workflow() {
     done | grep -v "^$" || echo "")
 
     if [ -n "$MISSING" ]; then
-        echo "Task files ready but not yet dispatched. Run: bash .claude/scripts/dispatch-agents.sh"
+        echo "Task files ready but not yet validated. Run /validate-tasks, then bash .claude/scripts/dispatch-agents.sh"
         return
     fi
 
     # All checkpoints complete — ready for review or next feature
     if [ -n "$PENDING_CHECKPOINTS" ] && [ "$PENDING_CHECKPOINTS" != "none" ]; then
-        echo "Unblocked checkpoints available. Run /io-plan-batch then dispatch-agents.sh for next batch."
+        echo "Unblocked checkpoints available. Run /io-plan-batch then /validate-tasks then dispatch-agents.sh for next batch."
     else
         echo "All checkpoints complete. Run /io-review, then /gap-analysis, then /doc-sync."
     fi

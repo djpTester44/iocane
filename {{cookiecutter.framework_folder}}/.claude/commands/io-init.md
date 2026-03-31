@@ -15,7 +15,7 @@ description: Bootstrap the project structure and stub roadmap from a clarified P
 **Position in chain:**
 
 ```
-/io-clarify -> [/io-init] -> /io-specify -> /io-architect -> /io-checkpoint -> /io-plan-batch -> dispatch-agents.sh
+/io-clarify -> [/io-init] -> /io-specify -> /io-architect -> /io-checkpoint -> /io-plan-batch -> /validate-tasks -> dispatch-agents.sh
 ```
 
 ---

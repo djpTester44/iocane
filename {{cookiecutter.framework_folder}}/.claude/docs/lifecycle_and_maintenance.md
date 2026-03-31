@@ -21,15 +21,16 @@ Execution follows a strict chronology. Design is locked before any code is writt
 
 [Tier 2 -- Harness Autonomous]
   7. /io-plan-batch   -- compose batch, score confidence rubric, generate task files, human approves
-  8. bash .claude/scripts/dispatch-agents.sh  -- human executes; sub-agents run in git worktrees
+  8. /validate-tasks  -- validate task files against plan.md before dispatch
+  9. bash .claude/scripts/dispatch-agents.sh  -- human executes; sub-agents run in git worktrees
 
 [Tier 1 -- Human Review]
-  9. /io-review          -- per-checkpoint behavioral + connectivity review
- 10. repeat /io-plan-batch -> dispatch-agents.sh -> /io-review for each checkpoint batch
+  10. /io-review          -- per-checkpoint behavioral + connectivity review
+  11. repeat /io-plan-batch -> /validate-tasks -> dispatch-agents.sh -> /io-review for each checkpoint batch
 
 [Full-system close]
- 11. /gap-analysis    -- integration correctness across entire codebase
- 12. /doc-sync        -- reconcile project-spec.md + roadmap.md with codebase state
+  12. /gap-analysis    -- integration correctness across entire codebase
+  13. /doc-sync        -- reconcile project-spec.md + roadmap.md with codebase state
 ```
 
 ### Human Attention Contract
@@ -45,6 +46,8 @@ The human is required at these moments and only these:
 | Checkpoint boundaries | `/io-checkpoint` | Approve `plan.md` + connectivity signatures |
 | Plan validation | `/validate-plan` | Review `Plan Validated` stamp before batch composition |
 | Run sub-agents | post `/io-plan-batch` | `bash .claude/scripts/dispatch-agents.sh` |
+| Validate task files | post `/io-plan-batch` | Run `/validate-tasks`; approve or route DESIGN findings |
+| Run sub-agents | post `/validate-tasks` | `bash .claude/scripts/dispatch-agents.sh` |
 | Checkpoint review | `/io-review` | Approve or route findings to backlog |
 | Escalation | session start | Review `.iocane/escalation.log`, clear flag |
 | Replanning | `/io-replan` | Approve PRD delta propagation |

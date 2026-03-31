@@ -23,7 +23,7 @@ description: Decompose roadmap features into atomic checkpoints with connectivit
 **Position in chain:**
 
 ```
-/io-architect -> [/io-checkpoint] -> /validate-plan -> /io-plan-batch -> dispatch-agents.sh
+/io-architect -> [/io-checkpoint] -> /validate-plan -> /io-plan-batch -> /validate-tasks -> dispatch-agents.sh
 ```
 
 **Definition of an atomic checkpoint:**

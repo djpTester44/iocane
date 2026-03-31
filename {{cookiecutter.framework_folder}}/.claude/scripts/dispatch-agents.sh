@@ -119,6 +119,10 @@ for task_file in "$TASKS_DIR"/CP-*.md; do
     CP_ID=$(basename "$task_file" .md)
     STATUS_FILE="$TASKS_DIR/$CP_ID.status"
     if [ ! -f "$STATUS_FILE" ]; then
+        if [ ! -f "$TASKS_DIR/$CP_ID.task.validation" ]; then
+            echo "SKIPPED: $CP_ID -- not validated. Run /validate-tasks first." >&2
+            continue
+        fi
         PENDING+=("$CP_ID")
     fi
 done
@@ -128,6 +132,10 @@ if [ ${#PENDING[@]} -eq 0 ]; then
     echo "Run the task generation workflow to create task files before dispatching."
     exit 0
 fi
+
+# --- Audit commit: validation state before dispatch ---
+git -C "$REPO_ROOT" add plans/validation-reports/task-validation-report.yaml 2>/dev/null || true
+git -C "$REPO_ROOT" commit -m "validate-tasks: batch validated before dispatch" --allow-empty 2>/dev/null || true
 
 echo "Pending checkpoints: ${PENDING[*]}"
 echo "Parallel limit: $PARALLEL_LIMIT (source: $PARALLEL_SOURCE)"

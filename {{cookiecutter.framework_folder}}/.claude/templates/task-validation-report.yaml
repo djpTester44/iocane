@@ -1,0 +1,22 @@
+# Task Validation Report
+# Written by /validate-tasks. Passes are appended within a validation cycle.
+# Overwritten when /io-plan-batch creates a new batch (fresh start per batch).
+# Committed by dispatch-agents.sh as an audit checkpoint before agent dispatch.
+
+passes:
+  - timestamp: "YYYY-MM-DDTHH:MM:SS"
+    label: "initial | post-recovery-N"
+    result: "PASS | FAIL"
+    task_files_validated: 0
+    violations: 0
+    observations: 0
+    findings:
+      - task_file: "CP-NN"
+        flag: "FLAG_NAME"
+        check: "CHECK_NAME"
+        severity: "MECHANICAL | DESIGN | OBSERVATION"
+        routing: "task-recovery | escalate | log"
+        detail: "Human-readable description of the finding"
+        exclusions:  # only present for ACTUAL_STATE_ASSERTION MECHANICAL findings
+          - file: "src/path/module.py"
+            owner: "CP-NN"

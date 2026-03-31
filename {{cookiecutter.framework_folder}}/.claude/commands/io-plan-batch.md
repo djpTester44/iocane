@@ -10,7 +10,7 @@ description: Compose a dispatch batch from plans/plan.md. Sits between /io-check
 Compose a dispatch batch from `plans/plan.md`. Sits between `/io-checkpoint` and `dispatch-agents.sh` in the orchestration chain.
 
 ```
-/io-checkpoint -> /io-plan-batch -> bash .claude/scripts/dispatch-agents.sh
+/io-checkpoint -> /io-plan-batch -> /validate-tasks -> bash .claude/scripts/dispatch-agents.sh
 ```
 
 Owns: dependency resolution, parallelization safety, task file generation, confidence scoring, and human approval gate.
@@ -62,7 +62,7 @@ Produce the candidate list ordered by checkpoint sequence within the selected po
 
 ### Step C — Parallelization Safety Check
 
-For each candidate checkpoint, extract declared write targets. Check all pairs in the candidate list for write target overlap. Remove any checkpoint from the candidate list that shares a write target with a higher-priority checkpoint already in the batch.
+Run `uv run python .claude/scripts/check_write_target_overlap.py CP-XX CP-YY ...` with all candidate CP-IDs. If exit code is non-zero, remove the colliding CPs (lower-priority first, by sequence number) and re-run until clean.
 
 Beyond write-target overlap, run `symbol_tracer.py --symbol "<Symbol1>,<Symbol2>" --root src/ --imports-only` to detect hidden cross-references between candidate checkpoints' key symbols.
 
@@ -118,12 +118,13 @@ Score the batch against the following criteria:
 
 | Criterion | Description |
 |-----------|-------------|
-| Dependency correctness | Unblocked checkpoints are genuinely unblocked |
-| Parallelization safety | Write targets are genuinely disjoint |
-| Task file completeness | Each task file is self-contained and executable |
+| Dependency correctness | For each CP in the batch: every entry in its `Depends on` list is either archived PASS (`plans/archive/CP-XX/CP-XX.status`) or is a predecessor in the current batch's execution order. No circular dependencies within the batch. No CP depends on a FAIL-archived checkpoint without a reset. |
+| Parallelization safety | Run `uv run python .claude/scripts/check_write_target_overlap.py` with all batch CP-IDs. Must exit 0. If exit 1, the batch has collisions -- revise composition before proceeding. |
 | Batch size sanity | Batch respects `parallel.limit` and is coherent given project state |
 
 Produce an overall confidence score (0–100%).
+
+Note: Task file content validation is owned by /validate-tasks, invoked after this workflow completes.
 
 If score < 85%: revise the batch composition and re-score. Repeat up to 3 iterations total. If score does not reach 85% after 3 iterations, halt and present the failure reason to the user.
 
@@ -160,7 +161,7 @@ Accept / Modify / Reject?
 ### Step G — Handle Response
 
 **Accept:**
-Write all draft task files to `plans/tasks/CP-XX.md`. Confirm each file written. Remind the user to invoke `bash .claude/scripts/dispatch-agents.sh` to dispatch agents.
+Write all draft task files to `plans/tasks/CP-XX.md`. Confirm each file written. Remind the user to invoke `/validate-tasks`, then `bash .claude/scripts/dispatch-agents.sh` to dispatch agents.
 
 **Modify:**
 Acknowledge the requested modifications. Do not write any task files. Re-run from Step B incorporating the user's natural language modifications as constraints.
@@ -193,5 +194,7 @@ No other files are written or modified by this workflow.
 
 - `/io-checkpoint` — upstream; produces `plan.md`
 - `/validate-plan` — must pass before this workflow runs
+- `/validate-tasks` — validation gate between task file generation and dispatch
+- `/task-recovery` — remediates MECHANICAL validation findings
 - `bash .claude/scripts/dispatch-agents.sh` — downstream; reads `plans/tasks/` and dispatches agents
 - `.claude/iocane.config.yaml` — configuration (parallel limit)

@@ -11,3 +11,6 @@ pipeline:
   docs_source: code.claude.com
   iocane_repo: ~/projects/agent-frameworks/iocane_repo
   snapshots_dir: .claude/snapshots
+validation:
+  tasks:
+    max_regen_cycles: 3

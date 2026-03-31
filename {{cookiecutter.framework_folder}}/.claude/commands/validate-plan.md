@@ -20,7 +20,7 @@ description: Validate plans/plan.md checkpoint structure against CDD principles 
 **Position in chain:**
 
 ```
-/io-checkpoint -> [/validate-plan] -> /io-plan-batch -> dispatch-agents.sh
+/io-checkpoint -> [/validate-plan] -> /io-plan-batch -> /validate-tasks -> dispatch-agents.sh
 ```
 
 ---

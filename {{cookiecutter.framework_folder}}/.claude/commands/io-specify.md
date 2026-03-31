@@ -17,7 +17,7 @@ description: Generate the capability roadmap from a clarified PRD. Tier 1 — pl
 
 **Position in chain:**
 ```
-/io-clarify -> [/io-specify] -> /io-architect -> /io-checkpoint -> /io-plan-batch -> dispatch-agents.sh
+/io-clarify -> [/io-specify] -> /io-architect -> /io-checkpoint -> /io-plan-batch -> /validate-tasks -> dispatch-agents.sh
 ```
 
 ---

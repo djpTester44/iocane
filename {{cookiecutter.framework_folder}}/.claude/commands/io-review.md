@@ -181,7 +181,7 @@ Connectivity tests: [N/N]
 Findings: [N HIGH], [N MEDIUM], [N LOW]
 
 Options:
-1. Approve checkpoint — proceed to /io-plan-batch then dispatch-agents.sh for next batch
+1. Approve checkpoint — proceed to /io-plan-batch then /validate-tasks then dispatch-agents.sh for next batch
 2. Route findings to backlog — re-execute checkpoint after remediation
 3. Escalate to /io-architect — finding reveals a design gap
 ```
