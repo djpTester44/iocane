@@ -180,6 +180,13 @@ if [ ${#PENDING[@]} -gt "$PARALLEL_LIMIT" ]; then
     echo "Remaining: ${PENDING[@]:$PARALLEL_LIMIT}"
 fi
 
+# --- CI Sidecar: pre-wave baseline ---
+if [ -f "$SCRIPT_DIR/ci-sidecar.sh" ]; then
+    echo "[CI-SIDECAR] Capturing pre-wave test baseline..."
+    bash "$SCRIPT_DIR/ci-sidecar.sh" pre-wave || \
+        echo "[CI-COLLECTION-ERROR] Pre-wave sidecar failed (exit $?). Continuing dispatch." >&2
+fi
+
 echo ""
 echo "Dispatching ${#BATCH[@]} sub-agents..."
 
@@ -246,14 +253,14 @@ run_checkpoint_pipeline() {
         else
             # Regen: include eval findings as negative constraints
             local REGEN_HINT
-            REGEN_HINT=$(uv run python3 -c "
+            REGEN_HINT=$(uv run python -c "
 import json, sys
 try:
     d = json.load(open('$EVAL_FILE'))
     hint = d.get('regen_hint', '')
     print(hint if hint and hint != 'null' else '')
 except: print('')
-" 2>/dev/null)
+" 2>/dev/null) || true
             GEN_PROMPT="Read and execute the workflow defined in .claude/commands/io-execute.md. Your task file is plans/tasks/${CP_ID}.md. This is retry attempt $ATTEMPT. Your previous attempt was evaluated and failed. The evaluator found these issues: ${REGEN_HINT}. Fix these specific issues. Follow every step exactly. Terminate after writing the status file."
         fi
 
@@ -314,13 +321,13 @@ except: print('')
 
         # --- Parse eval verdict ---
         local EVAL_VERDICT
-        EVAL_VERDICT=$(uv run python3 -c "
+        EVAL_VERDICT=$(uv run python -c "
 import json, sys
 try:
     d = json.load(open('$EVAL_FILE'))
     print(d.get('verdict', 'MISSING'))
 except: print('PARSE_ERROR')
-" 2>/dev/null)
+" 2>/dev/null) || true
 
         case "$EVAL_VERDICT" in
             PASS)
@@ -411,6 +418,14 @@ for CP_ID in "${BATCH[@]}"; do
         echo "$CP_ID: Worktree preserved at $REPO_ROOT/.worktrees/$CP_ID for inspection."
     fi
 done
+
+# --- CI Sidecar: post-wave regression diff ---
+if [ -f "$SCRIPT_DIR/ci-sidecar.sh" ]; then
+    echo ""
+    echo "[CI-SIDECAR] Running post-wave regression diff..."
+    bash "$SCRIPT_DIR/ci-sidecar.sh" post-wave || \
+        echo "[CI-COLLECTION-ERROR] Post-wave sidecar failed (exit $?). Merges preserved." >&2
+fi
 
 # --- Summary ---
 echo ""

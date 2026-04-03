@@ -16,4 +16,7 @@ Backlog items in `plans/backlog.md` carry one tag that governs routing.
 | `[CLEANUP]` | A pure internal code, style, or logic fix. No design or contract change needed. |
 | `[DEFERRED]` | Known technical debt implicitly accepted for the current phase. Ignored by execution gates. |
 | `[TEST]` | Missing test coverage. |
+| `[CI-REGRESSION]` | Test passing before dispatch wave, failing after. Identified by ci-sidecar pre/post diff. |
+| `[CI-COLLECTION-ERROR]` | Test file fails to collect after dispatch wave. May indicate structural breakage or obsolete test. |
+| `[CI-EXTERNAL]` | Test failure caused by external factors. Triage reclassification only -- never produced by the sidecar script. Applied by human when a `[CI-REGRESSION]` item turns out to be a flaky external dependency. |
 

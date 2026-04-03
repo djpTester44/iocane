@@ -4,6 +4,9 @@ agents:
   eval_timeout: 5m
   max_turns: 70
   timeout: 10m
+ci:
+  enabled: true
+  timeout: 5m
 models:
   tier1: claude-opus-4-6
   tier2: claude-sonnet-4-6

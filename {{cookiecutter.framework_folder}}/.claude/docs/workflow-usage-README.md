@@ -33,6 +33,7 @@ bash .claude/scripts/dispatch-agents.sh
 These are operator-facing scripts. Run them directly when you need the behavior.
 
 - `bash .claude/scripts/dispatch-agents.sh`: dispatches pending checkpoint tasks.
+- `bash .claude/scripts/ci-sidecar.sh`: full suite regression detection (advisory). Subcommands: `pre-wave`, `post-wave`, `diff`. Config: `ci.timeout` (default 5m), `ci.enabled` (default true). Env overrides: `CI_TIMEOUT`, `CI_ENABLED`. Called automatically by dispatch-agents.sh; can also be run standalone.
 - `bash .claude/scripts/reset-failed-checkpoints.sh`: resets failed checkpoints for re-queue.
 - `bash .claude/scripts/archive-approved.sh`: archives approved checkpoint artifacts from `plans/tasks/` into `plans/archive/` and updates `plans/plan.md` status from `[ ] pending` to `[x] complete`. For remediation CPs, resolves the source backlog item via `Source BL:` lookup.
 - `bash .claude/scripts/assign-backlog-ids.sh`: assigns `BL-NNN` identifiers to any backlog items missing them. Idempotent -- safe to re-run.

@@ -37,5 +37,6 @@ The three-tier model ensures no generated code reaches the codebase without huma
 | Compaction Log | `.iocane/compact.log` | Hook | Pre- and post-compaction state snapshots |
 | Pre-Compaction State | `.iocane/pre-compact-state.json` | Hook | Workflow state snapshot before compaction (consumed by post-compact.sh) |
 | Session End Log | `.iocane/session-end.log` | Hook | Session termination and cleanup records |
+| CI Wave Report | `.iocane/ci/ci-wave-report.json` | Script (`ci-sidecar.sh`) | Pre/post-wave test suite snapshot for regression diffing |
 
 ---

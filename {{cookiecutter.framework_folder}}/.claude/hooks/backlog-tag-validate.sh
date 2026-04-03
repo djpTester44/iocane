@@ -29,14 +29,14 @@ if [ "$MATCH" != "yes" ] || [ ! -f "plans/backlog.md" ]; then
     exit 0
 fi
 
-UNTAGGED=$(grep -E '^\s*- \[[ x]\] ' plans/backlog.md | grep -vE '\[(DESIGN|REFACTOR|CLEANUP|DEFERRED|TEST)\]' || true)
+UNTAGGED=$(grep -E '^\s*- \[[ x]\] ' plans/backlog.md | grep -vE '\[(DESIGN|REFACTOR|CLEANUP|DEFERRED|TEST|CI-REGRESSION|CI-COLLECTION-ERROR|CI-EXTERNAL)\]' || true)
 
 if [ -n "$UNTAGGED" ]; then
     echo "WARNING: Untagged backlog items found in plans/backlog.md:"
     echo "$UNTAGGED" | while IFS= read -r line; do
         echo "  $line"
     done
-    echo "  Valid tags: [DESIGN] [REFACTOR] [CLEANUP] [DEFERRED] [TEST]"
+    echo "  Valid tags: [DESIGN] [REFACTOR] [CLEANUP] [DEFERRED] [TEST] [CI-REGRESSION] [CI-COLLECTION-ERROR] [CI-EXTERNAL]"
 fi
 
 exit 0

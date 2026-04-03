@@ -46,13 +46,16 @@ Output a count of open items by tag:
 
 ```
 Open backlog items:
-  [DESIGN]:   N
-  [REFACTOR]: N
-  [CLEANUP]:  N
-  [TEST]:     N
-  [DEFERRED]: N
-  [OTHER]:    N
-  Total:      N
+  [DESIGN]:      N
+  [REFACTOR]:    N
+  [CLEANUP]:     N
+  [TEST]:        N
+  [DEFERRED]:    N
+  [CI-REGRESSION]: N
+  [CI-COLLECTION-ERROR]: N
+  [CI-EXTERNAL]: N
+  [OTHER]:       N
+  Total:         N
 ```
 
 If any item has an unrecognized tag (not in the set above), classify it as `[OTHER]` and
@@ -111,6 +114,9 @@ For each open item:
 - `[TEST]` items: check whether the referenced test file exists and contains the
   described coverage. Do not execute tests — existence and assertion shape are sufficient.
 - `[CLEANUP]` / `[REFACTOR]` items: read the referenced source location.
+- `[CI-REGRESSION]` items: investigate the causal checkpoint by reviewing the pre-wave/post-wave test deltas and wave log. Determine whether the regression is a test isolation issue or an implementation defect.
+- `[CI-COLLECTION-ERROR]` items: check whether the test references a removed module, deleted fixture, or structural breakage. Confirm the referenced fixture/module exists; if not, the error is a collection failure due to stale test references.
+- `[CI-EXTERNAL]` items: human-applied reclassifications (e.g., env-specific flakes, known CI infra issues). Route as deferred unless human provides remediation context.
 
 #### 2c. Inter-item dependency check
 
@@ -183,6 +189,9 @@ For each `STILL OPEN` or `PARTIALLY RESOLVED` item, determine the routing:
 | `[TEST]` CT gap | any | `/io-ct-remediate` |
 | `[TEST]` unit gap | pending | Human amends CP scope in `plan.md`, then `/validate-plan` |
 | `[TEST]` unit gap | done | `/io-checkpoint` -- remediation checkpoint for completed CP |
+| `[CI-REGRESSION]` | any | Investigate causal checkpoint, route as `[CLEANUP]` against its write targets |
+| `[CI-COLLECTION-ERROR]` | any | Check if test references removed modules; route as `[CLEANUP]` or `[DEFERRED]` with structural notes |
+| `[CI-EXTERNAL]` | any | Human reclassification; route as `[DEFERRED]` with context note |
 | Item requiring new CP | any | Flag for human scoping -- no prompt available |
 
 **`[TEST]` disambiguation:** A `[TEST]` item is a **CT gap** if its `Files:` field

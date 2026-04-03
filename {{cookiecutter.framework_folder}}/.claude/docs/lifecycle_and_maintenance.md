@@ -22,7 +22,7 @@ Execution follows a strict chronology. Design is locked before any code is writt
 [Tier 2 -- Harness Autonomous]
   7. /io-plan-batch   -- compose batch, score confidence rubric [HARD GATE], generate task files, human approves [HUMAN GATE]
   8. /validate-tasks  -- validate task files against plan.md before dispatch
-  9. bash .claude/scripts/dispatch-agents.sh  -- human executes; sub-agents run in git worktrees
+  9. bash .claude/scripts/dispatch-agents.sh  -- human executes; sub-agents run in git worktrees; ci-sidecar runs pre-wave and post-wave for regression detection
 
 [Tier 3 -- Post-Generation Evaluation]
   10. /io-evaluator-dispatch -- grades checkpoint output against acceptance criteria (per CP, in worktree)
@@ -169,7 +169,7 @@ When removing redundant or dead code, prove unused status before deletion.
 
 ## 5. Backlog Lifecycle
 
-`plans/backlog.md` is the formal tracking record for all `/io-review` and `/gap-analysis` findings. Findings first land in `plans/review-output.md` (staging) via `/review-capture`, then drain to `backlog.md` via `/io-backlog-triage`. The backlog is append-only and survives across all sessions.
+`plans/backlog.md` is the formal tracking record for all `/io-review`, `/gap-analysis`, and `ci-sidecar.sh` findings. Findings first land in `plans/review-output.md` (staging) via `/review-capture`, then drain to `backlog.md` via `/io-backlog-triage`. The backlog is append-only and survives across all sessions.
 
 ### Item Identifiers
 
