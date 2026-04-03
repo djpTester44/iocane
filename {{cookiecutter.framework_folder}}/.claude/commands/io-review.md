@@ -14,6 +14,7 @@ description: Per-checkpoint behavioral review and connectivity verification. Fin
 > 4. Load CRC cards for checkpoint components from `plans/project-spec.md`
 > 5. Load relevant Protocol contracts from `interfaces/*.pyi`
 > 6. Load the Integration Seams reference: `view_file plans/seams.md`
+> 7. Load the task file: `view_file plans/tasks/[CP-ID].md` -- check for `## Execution Findings` and `## Evaluator Result`
 
 # WORKFLOW: REVIEW
 
@@ -59,6 +60,30 @@ Before proceeding, output:
   3. If it does **not** exist: report as `MISSING`. A missing CT file is a HIGH-severity finding — the sub-agent failed to create it during `/io-execute` Step E. Record in the findings report and route to backlog.
 - **Rule:** Every connectivity test must be green (and present) before this checkpoint is considered approved.
 - **Output:** For each CT: `CT-[NNN]: [PASS/FAIL/MISSING] -- [test file::function]`
+
+---
+
+### Step B2: EXECUTION FINDINGS AND EVAL TRIAGE
+
+- **Action:** Check whether the task file (`plans/tasks/[CP-ID].md`) contains
+  `## Execution Findings`.
+- **If present:**
+  1. For each finding row, assess:
+     - Is the observation accurate? (Spot-check the adjacent file.)
+     - Did the agent work around the issue appropriately?
+     - Does this warrant a backlog entry?
+  2. Classify each as:
+     - `CONFIRMED` -- real issue, route to backlog via Step I
+     - `WORKAROUND_OK` -- agent handled it acceptably, note but no action
+     - `FALSE_POSITIVE` -- agent misidentified, discard
+  3. `CONFIRMED` findings become MEDIUM-severity entries in Step H with tag `[ADJACENT]`.
+- **If absent:** No execution findings. Proceed.
+
+- **Action:** Check whether `plans/tasks/[CP-ID].eval.json` exists.
+- **If verdict is `EVAL_SKIPPED`:** The automated evaluator did not run (crash or timeout).
+  Apply extra scrutiny in Steps D-G. Note in Step H findings: "Automated evaluator skipped -- manual review substituted."
+- **If verdict is `PASS`:** Note eval passed. Proceed normally.
+- **If eval.json absent:** Checkpoint predates evaluator pipeline. Proceed normally.
 
 ---
 
@@ -156,8 +181,9 @@ Generate a findings report:
 **Severity guide:**
 
 - HIGH: Unanchored behavior (contradicts CRC), broken connectivity test, DI violation, layer violation
-- MEDIUM: Should fix — affects maintainability or contract completeness
-- LOW: Nice to fix — minor improvement
+- MEDIUM: Should fix -- affects maintainability or contract completeness
+- ADJACENT (MEDIUM): Bug or gap in code outside checkpoint scope, reported by execution agent
+- LOW: Nice to fix -- minor improvement
 - INFO: Observation only
 
 ---

@@ -1,4 +1,7 @@
 agents:
+  eval_max_retries: 2
+  eval_max_turns: 20
+  eval_timeout: 5m
   max_turns: 70
   timeout: 10m
 models:

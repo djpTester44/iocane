@@ -5,7 +5,7 @@
 # can be re-queued by /io-plan-batch and dispatched again.
 #
 # Preserved: plans/tasks/CP-XX.log, CP-XX.result.json (kept for post-mortem)
-# Removed:   worktree, branch, .status, .exit, .iocane/CP-XX.attempts
+# Removed:   worktree, branch, .status, .exit, .eval.json, .eval-result.json, .iocane/CP-XX.attempts
 #
 # Usage:
 #   bash .claude/scripts/reset-failed-checkpoints.sh           # reset all FAIL checkpoints
@@ -37,7 +37,7 @@ else
     # Auto-detect all FAIL status checkpoints
     for status_file in "$TASKS_DIR"/CP-*.status; do
         [ -f "$status_file" ] || continue
-        if grep -q "^FAIL" "$status_file" 2>/dev/null; then
+        if ! grep -q "^PASS" "$status_file" 2>/dev/null; then
             TARGETS+=("$(basename "$status_file" .status)")
         fi
     done
@@ -125,6 +125,14 @@ for CP_ID in "${TARGETS[@]}"; do
         rm "$EXIT_FILE"
         echo "  [ok] exit file removed"
     fi
+
+    # 4b. Remove eval artifacts
+    for eval_artifact in "$TASKS_DIR/$CP_ID.eval.json" "$TASKS_DIR/$CP_ID.eval-result.json"; do
+        if [ -f "$eval_artifact" ]; then
+            rm "$eval_artifact"
+            echo "  [ok] $(basename "$eval_artifact") removed"
+        fi
+    done
 
     # 5. Reset attempt counter
     ATTEMPT_FILE="$IOCANE_DIR/$CP_ID.attempts"

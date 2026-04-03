@@ -65,7 +65,7 @@ TASKS_DIR="plans/tasks"
 # .status/.exit: written by sub-agents (Tier 3) to signal completion.
 # .md: written by /io-plan-batch (Tier 2 orchestration) to generate task files.
 # write-gate must never block these.
-if echo "$FILE_PATH" | grep -qE '(plans/tasks/CP-[^/]+\.(status|exit|md)|\.iocane/(escalation\.log|escalation\.flag|validating))'; then
+if echo "$FILE_PATH" | grep -qE '(plans/tasks/CP-[^/]+\.(status|exit|md|eval\.json)|\.iocane/(escalation\.log|escalation\.flag|validating))'; then
     exit 0
 fi
 

@@ -60,7 +60,7 @@ are unblocked (all their `Depends on` entries are in the completed set).
 Produce the candidate list ordered by checkpoint sequence within the selected pool
 (remediation or roadmap).
 
-### Step C — Parallelization Safety Check
+### Step C — [HARD GATE] Parallelization Safety Check
 
 Run `uv run python .claude/scripts/check_write_target_overlap.py CP-XX CP-YY ...` with all candidate CP-IDs. If exit code is non-zero, remove the colliding CPs (lower-priority first, by sequence number) and re-run until clean.
 
@@ -112,7 +112,7 @@ bash "$IOCANE_REPO_ROOT/.claude/scripts/write-status.sh" CP-[CP-ID] PASS
 - [ ] G: Commit and write status
 ```
 
-### Step E — Score Confidence Rubric
+### Step E — [HARD GATE] Score Confidence Rubric
 
 Score the batch against the following criteria:
 
@@ -128,7 +128,7 @@ Note: Task file content validation is owned by /validate-tasks, invoked after th
 
 If score < 85%: revise the batch composition and re-score. Repeat up to 3 iterations total. If score does not reach 85% after 3 iterations, halt and present the failure reason to the user.
 
-### Step F — Present Batch Summary for Human Approval
+### Step F — [HUMAN GATE] Present Batch Summary for Human Approval
 
 Present the following to the user:
 

@@ -20,7 +20,7 @@ Execution follows a strict chronology. Design is locked before any code is writt
   6. /validate-plan   -- validate plan.md CDD compliance, stamp Plan Validated: PASS
 
 [Tier 2 -- Harness Autonomous]
-  7. /io-plan-batch   -- compose batch, score confidence rubric, generate task files, human approves
+  7. /io-plan-batch   -- compose batch, score confidence rubric [HARD GATE], generate task files, human approves [HUMAN GATE]
   8. /validate-tasks  -- validate task files against plan.md before dispatch
   9. bash .claude/scripts/dispatch-agents.sh  -- human executes; sub-agents run in git worktrees
 

@@ -1,0 +1,54 @@
+{
+  "skill_name": "test-writer",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "Write tests for this order approval service. Orders start as DRAFT, get submitted to PENDING_REVIEW, a manager approves or rejects them, and approved orders get fulfilled. Orders can also be cancelled from DRAFT or PENDING_REVIEW but not after approval.",
+      "expected_output": "FSM block with all states and transitions, TC table covering happy paths, guard failures, illegal transitions, and terminal state finality, then executable pytest tests with one function per TC.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 1,
+      "prompt": "I need tests for our user account system. Users register as UNVERIFIED, get promoted to ACTIVE after email confirmation, can be SUSPENDED by admins, and can be DEACTIVATED (by user request) or DELETED (by admin). DELETED is permanent — no recovery. SUSPENDED users can be reinstated to ACTIVE.",
+      "expected_output": "FSM block identifying DELETED as terminal with no outbound transitions, TC table covering reachability of all states and terminal state finality for DELETED, then executable pytest tests.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 2,
+      "prompt": "Write tests for our payment authorization flow. A payment starts INITIATED. It moves to PENDING_FRAUD_CHECK, then either DECLINED (fraud detected) or PENDING_KYC. From PENDING_KYC it goes to AUTHORIZED (if amount < $10k and KYC verified) or MANUAL_REVIEW (if amount >= $10k or KYC pending). MANUAL_REVIEW resolves to AUTHORIZED or DECLINED. AUTHORIZED payments can be CAPTURED or VOIDED. CAPTURED is terminal.",
+      "expected_output": "FSM block with all guard conditions captured explicitly, TC table covering all guard branches (amount threshold, KYC status, fraud flag), and pytest tests with one function per TC.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 3,
+      "prompt": "Write tests for our price calculator. It takes a list of line items (each with unit_price, quantity, and optional discount_percent), a tax_rate, and an optional coupon code. It returns a breakdown with subtotal, discount_amount, tax_amount, and total. Coupons can be flat ($10 off) or percentage (15% off) and apply after line-item discounts. Zero-quantity items should be silently ignored. Negative prices are invalid.",
+      "expected_output": "Contract extraction with equivalence partition table (no FSM), TC table with boundary values for discount stacking, zero quantity, negative price rejection, and coupon type interactions, then executable pytest tests grouped by equivalence class.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 4,
+      "prompt": "Help me test our API request validator. It checks incoming JSON payloads against a schema: required fields (name: string 1-100 chars, email: valid email format, age: integer 0-150), optional fields (phone: E.164 format, preferences: object with max 10 keys). Returns a ValidationResult with is_valid bool and a list of error objects (field, code, message). Multiple errors can be returned in one call.",
+      "expected_output": "Contract extraction with equivalence classes per field and per error condition, TC table with boundary values (0 chars, 100 chars, 101 chars for name; age 0, 150, 151; 10 keys, 11 keys), error accumulation tests, then executable pytest tests.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 5,
+      "prompt": "Write tests for a YAML config parser that reads deployment configuration. It accepts a YAML string and returns a typed DeployConfig. Required keys: service_name (string, alphanumeric + hyphens, 1-63 chars), replicas (int, 1-100), region (enum: us-east-1, us-west-2, eu-west-1). Optional: env_vars (dict of string->string, max 50 entries), health_check_path (string starting with /). Malformed YAML raises ParseError. Missing required keys raise ConfigError with the key name. Invalid values raise ValidationError with field and constraint.",
+      "expected_output": "Contract extraction with three error types distinguished, equivalence classes per field boundary, TC table covering parse/config/validation error paths separately, then executable pytest tests.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 6,
+      "prompt": "Write tests for our notification module. It has two parts: (1) a NotificationRouter that is stateless -- it takes a notification payload (type, recipient, channel, priority) and returns the correct handler class based on channel+priority rules (email for low/medium, SMS for high, both for critical, with fallback to email if SMS unavailable). (2) A NotificationDelivery tracker where notifications go through QUEUED -> SENDING -> DELIVERED/FAILED, with FAILED allowing retry back to QUEUED (max 3 retries) and DELIVERED being terminal.",
+      "expected_output": "Triage gate identifies two test classes: NotificationRouter tests use Track B (contract-driven with equivalence classes for channel+priority combinations), NotificationDelivery tests use Track A (FSM with states and retry guard). Both produced in same output with separate test classes.",
+      "files": [],
+      "assertions": []
+    }
+  ]
+}

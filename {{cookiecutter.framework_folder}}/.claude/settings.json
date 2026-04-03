@@ -1,5 +1,15 @@
 {
   "hooks": {
+    "ConfigChange": [
+      {
+        "hooks": [
+          {
+            "command": "bash .claude/hooks/config-change-gate.sh",
+            "type": "command"
+          }
+        ]
+      }
+    ],
     "PostCompact": [
       {
         "hooks": [
@@ -97,10 +107,6 @@
             "type": "command"
           },
           {
-            "command": "bash .claude/hooks/backslash-path.sh",
-            "type": "command"
-          },
-          {
             "command": "bash .claude/hooks/emoji-scan.sh",
             "type": "command"
           },
@@ -127,6 +133,15 @@
           }
         ],
         "matcher": "Bash"
+      },
+      {
+        "hooks": [
+          {
+            "command": "bash .claude/hooks/forbidden-tools.sh",
+            "type": "command"
+          }
+        ],
+        "matcher": "PowerShell"
       }
     ],
     "SessionEnd": [
@@ -154,6 +169,16 @@
         "hooks": [
           {
             "command": "bash .claude/hooks/stop-gate.sh",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "command": "bash .claude/hooks/stop-failure.sh",
             "type": "command"
           }
         ]

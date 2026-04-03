@@ -51,7 +51,16 @@ Before proceeding:
 
 ### Step B: RED — WRITE FAILING TEST
 
-- **Action:** Write the test file at the path listed in `## Write Targets`.
+- **Action:** Read the test-writer skill at `.claude/skills/test-writer/SKILL.md`.
+  Follow its triage gate against the Protocol contract from Step A:
+  - Protocol methods with named states and transitions → Track A (read `references/track-a-fsm.md`)
+  - Stateless contracts (input/output, validation, transformation) → Track B (read `references/track-b-contract.md`)
+  - Mixed Protocol → separate test classes per track
+
+  Execute Phases 1-3 from the routed track. Phase 1 extracts the model from the
+  Protocol contract. Phase 2 designs the TC table. Phase 3 generates the test file
+  at the path listed in `## Write Targets`.
+
 - **Rules:**
   - Test must import and instantiate the implementation class
   - Test must call at least one method defined in the Protocol
@@ -122,6 +131,32 @@ uv run rtk lint-imports
 
 - **After all checks pass:** Re-run gate command to confirm refactoring did not break GREEN state.
 - **On completion:** Mark `- [x] F` in `## Step Progress` of the task file.
+
+---
+
+### Step F2: EXECUTION FINDINGS (optional)
+
+- **Action:** If during Steps B-F you observed any of the following in adjacent code
+  (code you READ but did not WRITE):
+  - Bugs in dependency modules your implementation calls
+  - Deprecation warnings from imported APIs
+  - Missing default values or incomplete error handling in collaborators
+  - Type annotation inaccuracies in Protocol files you consumed
+  - Hardcoded values that should be configurable
+
+  Append to your task file:
+
+  ```markdown
+  ## Execution Findings
+
+  | Adjacent File | Observation | Severity |
+  |---------------|-------------|----------|
+  | `src/path/file.py` | [description] | LOW/MEDIUM/HIGH |
+  ```
+
+- **Rule:** Only report observations about code OUTSIDE your write targets.
+- **Rule:** If you have no observations, do NOT add this section.
+- **Rule:** Do not attempt to fix adjacent code. Record only.
 
 ---
 

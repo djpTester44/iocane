@@ -56,7 +56,7 @@ The following are internal helper scripts. Do not run them directly unless debug
 - `smart_search.sh` -- internal: targeted codebase search utility
 - `pre-invoke-io-plan-batch.sh` -- internal: pre-invocation gate before /io-plan-batch
 - `check_di_compliance.py` -- internal: DI compliance checker used in REFACTOR gate
-- `check_write_target_overlap.py` -- internal: write-target collision detection for /io-plan-batch Step C/E
+- `check_write_target_overlap.py` -- internal: write-target collision detection for /io-plan-batch Step C [HARD GATE] / Step E [HARD GATE]
 
 ---
 

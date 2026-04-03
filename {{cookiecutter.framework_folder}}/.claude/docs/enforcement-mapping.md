@@ -41,10 +41,13 @@ Maps every harness constraint to its enforcement mechanism.
 
 ---
 
-## Gate-Enforced (compliance commands in io-execute Step F / io-review / gap-analysis)
+## Gate-Enforced (compliance commands and workflow gates)
 
 | Constraint | Command | When |
 |------------|---------|------|
+| Write-target collision detection | `check_write_target_overlap.py` | io-plan-batch Step C [HARD GATE] |
+| Batch confidence threshold (85%) | inline scoring rubric | io-plan-batch Step E [HARD GATE] |
+| Batch human approval | user accept/modify/reject | io-plan-batch Step F [HUMAN GATE] |
 | Ruff lint compliance | `run-compliance.sh` → `uv run rtk ruff check` | io-review Step D, gap-analysis Step C |
 | Mypy type correctness | `run-compliance.sh` → `uv run mypy` | io-review Step D, gap-analysis Step C |
 | Import-linter layer contracts | `run-compliance.sh` → `uv run rtk lint-imports` | io-review Step D, gap-analysis Step C |

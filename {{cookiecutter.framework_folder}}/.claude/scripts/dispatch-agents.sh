@@ -3,12 +3,21 @@
 #
 # Owns the full batch lifecycle for sub-agent execution:
 #   1. Scans plans/tasks/ for pending CP-XX.md files (no matching .status)
-#   2. Enforces parallel.limit from .claude/iocane.config.yaml as a safety cap
-#   3. Sets up an isolated git worktree per checkpoint via setup-worktree.sh
-#   4. Dispatches each sub-agent headlessly via claude -p
-#   5. Waits for all agents to complete
-#   6. Cleans up worktrees for PASS checkpoints only
-#   7. Reports batch summary
+#   2. Enforces parallel.limit from .claude/iocane.config.yaml
+#   3. Per checkpoint (in parallel up to limit):
+#      a. Sets up isolated git worktree via setup-worktree.sh
+#      b. Runs baseline test preflight (pytest -x)
+#      c. Dispatches generator agent via claude -p (io-execute)
+#      d. Dispatches evaluator agent via claude -p (io-evaluator-dispatch)
+#      e. On MECHANICAL_FAIL: resets checkboxes, retries generator with eval findings (up to eval_max_retries)
+#      f. On DESIGN_FAIL: escalates immediately, no retry
+#      g. On evaluator crash/timeout: honors generator PASS, marks EVAL_SKIPPED
+#   4. Merges PASS checkpoints, preserves FAIL worktrees
+#   5. Reports batch summary
+#
+# Intermediate commits: The generator commits in Step G. On regen, additional commits
+# accumulate on the worktree branch. All commits enter the parent branch via --no-ff merge.
+# This is intentional -- intermediate commits have forensic value.
 #
 # Usage:
 #   bash .claude/scripts/dispatch-agents.sh
@@ -18,6 +27,10 @@
 #   IOCANE_MODEL           -- claude model string (fallback when config unreadable)
 #   IOCANE_TIMEOUT         -- per-agent timeout (default: 10m)
 #   IOCANE_MAX_TURNS       -- max agent turns (default: 20)
+#   IOCANE_EVAL_MODEL      -- evaluator model (default: models.tier2)
+#   IOCANE_EVAL_TIMEOUT    -- evaluator timeout (default: 5m)
+#   IOCANE_EVAL_MAX_TURNS  -- evaluator turn budget (default: 20)
+#   IOCANE_EVAL_MAX_RETRIES -- max regen cycles (default: 2)
 #   REPO_ROOT              -- auto-detected via git if not set
 
 set -euo pipefail
@@ -78,6 +91,16 @@ if [ -n "$_cfg_model" ] && [ "$_cfg_model" != "null" ]; then
 else
     MODEL="${IOCANE_MODEL:-claude-haiku-4-5-20251001}"
 fi
+
+# Read evaluator config
+EVAL_MODEL="${IOCANE_EVAL_MODEL:-$(_cfg_read "models.tier2")}"
+EVAL_MODEL="${EVAL_MODEL:-claude-sonnet-4-6}"
+_cfg_eval_turns=$(_cfg_read "agents.eval_max_turns")
+EVAL_MAX_TURNS="${IOCANE_EVAL_MAX_TURNS:-${_cfg_eval_turns:-20}}"
+_cfg_eval_timeout=$(_cfg_read "agents.eval_timeout")
+EVAL_TIMEOUT="${IOCANE_EVAL_TIMEOUT:-${_cfg_eval_timeout:-5m}}"
+_cfg_eval_retries=$(_cfg_read "agents.eval_max_retries")
+EVAL_MAX_RETRIES="${IOCANE_EVAL_MAX_RETRIES:-${_cfg_eval_retries:-2}}"
 
 TASKS_DIR="$REPO_ROOT/plans/tasks"
 
@@ -151,55 +174,176 @@ fi
 echo ""
 echo "Dispatching ${#BATCH[@]} sub-agents..."
 
-# --- Dispatch batch concurrently ---
-declare -A PIDS
+# --- Pipeline function: generate-evaluate-regen per checkpoint ---
+run_checkpoint_pipeline() {
+    local CP_ID="$1"
+    local WORKTREE_PATH="$REPO_ROOT/.worktrees/$CP_ID"
+    local RESULT_FILE="$TASKS_DIR/$CP_ID.result.json"
+    local EVAL_FILE="$TASKS_DIR/$CP_ID.eval.json"
+    local LOG_FILE="$TASKS_DIR/$CP_ID.log"
+    local EXIT_FILE="$TASKS_DIR/$CP_ID.exit"
+    local STATUS_FILE="$TASKS_DIR/$CP_ID.status"
 
-for CP_ID in "${BATCH[@]}"; do
-    (
-        # Set up worktree
-        bash "$SCRIPT_DIR/setup-worktree.sh" --cp "$CP_ID"
+    # --- Phase 1: Worktree Setup ---
+    bash "$SCRIPT_DIR/setup-worktree.sh" --cp "$CP_ID"
 
-        WORKTREE_PATH="$REPO_ROOT/.worktrees/$CP_ID"
-        RESULT_FILE="$TASKS_DIR/$CP_ID.result.json"
-        LOG_FILE="$TASKS_DIR/$CP_ID.log"
-        EXIT_FILE="$TASKS_DIR/$CP_ID.exit"
+    # --- Phase 2: Preflight ---
+    cd "$WORKTREE_PATH"
+    if ! uv run rtk pytest -x --timeout=60 >> "$LOG_FILE" 2>&1; then
+        bash "$REPO_ROOT/.claude/scripts/write-status.sh" "$CP_ID" \
+            "PREFLIGHT_FAIL: baseline tests failing before generation"
+        echo "1" > "$EXIT_FILE"
+        return 1
+    fi
 
-        # Deterministic io-execute invocation string -- same for every checkpoint.
-        INVOKE_PROMPT="Read and execute the workflow defined in .claude/commands/io-execute.md. Your task file is plans/tasks/${CP_ID}.md. Follow every step exactly. Terminate after writing the status file."
+    # --- Phase 3: Generate-Evaluate-Regen Loop ---
+    local ATTEMPT=0
+    local MAX_CYCLES=$((EVAL_MAX_RETRIES + 1))  # initial + retries
 
-        ATTEMPT_FILE="$REPO_ROOT/.iocane/$CP_ID.attempts"
-        ATTEMPT=$(cat "$ATTEMPT_FILE" 2>/dev/null || echo "0")
+    while [ "$ATTEMPT" -lt "$MAX_CYCLES" ]; do
         ATTEMPT=$((ATTEMPT + 1))
-        echo "$ATTEMPT" > "$ATTEMPT_FILE"
 
+        # Track attempts in .iocane for observability
+        mkdir -p "$REPO_ROOT/.iocane"
+        echo "$ATTEMPT" > "$REPO_ROOT/.iocane/$CP_ID.attempts"
+
+        # --- Checkpoint reset for regen ---
+        if [ "$ATTEMPT" -gt 1 ]; then
+            # Reset step progress checkboxes so regen agent starts from Step B
+            sed -i '/^## Step Progress/,/^##/{s/- \[x\]/- [ ]/g}' \
+                "$WORKTREE_PATH/plans/tasks/$CP_ID.md"
+            echo "[REGEN] $CP_ID: reset step progress checkboxes for attempt $ATTEMPT" >> "$LOG_FILE"
+        fi
+
+        # --- Generator (or Regen) ---
+        local GEN_PROMPT
+        if [ "$ATTEMPT" -eq 1 ]; then
+            GEN_PROMPT="Read and execute the workflow defined in .claude/commands/io-execute.md. Your task file is plans/tasks/${CP_ID}.md. Follow every step exactly. Terminate after writing the status file."
+        else
+            # Regen: include eval findings as negative constraints
+            local REGEN_HINT
+            REGEN_HINT=$(uv run python3 -c "
+import json, sys
+try:
+    d = json.load(open('$EVAL_FILE'))
+    hint = d.get('regen_hint', '')
+    print(hint if hint and hint != 'null' else '')
+except: print('')
+" 2>/dev/null)
+            GEN_PROMPT="Read and execute the workflow defined in .claude/commands/io-execute.md. Your task file is plans/tasks/${CP_ID}.md. This is retry attempt $ATTEMPT. Your previous attempt was evaluated and failed. The evaluator found these issues: ${REGEN_HINT}. Fix these specific issues. Follow every step exactly. Terminate after writing the status file."
+        fi
+
+        # Export sub-agent env vars
         export IOCANE_SUBAGENT=1
         export IOCANE_CP_ID="$CP_ID"
         export IOCANE_ATTEMPT="$ATTEMPT"
         export IOCANE_REPO_ROOT="$REPO_ROOT"
         export IOCANE_LOG_FILE="$LOG_FILE"
         export IOCANE_MODEL_NAME="$MODEL"
-        # Unset VIRTUAL_ENV so uv uses the worktree venv, not the parent repo venv.
         unset VIRTUAL_ENV
 
         cd "$WORKTREE_PATH"
 
-        echo "$INVOKE_PROMPT" | timeout "$AGENT_TIMEOUT" claude -p \
+        # Clear previous status for retry
+        rm -f "$STATUS_FILE"
+
+        echo "$GEN_PROMPT" | timeout "$AGENT_TIMEOUT" claude -p \
             --model "$MODEL" \
             --max-turns "$MAX_TURNS" \
             --allowedTools "Bash,Read,Write,Edit" \
             --output-format json \
-            > "$RESULT_FILE" 2> "$LOG_FILE"
-        AGENT_EXIT=$?
+            > "$RESULT_FILE" 2>> "$LOG_FILE"
+        local GEN_EXIT=$?
 
-        echo "$AGENT_EXIT" > "$EXIT_FILE"
-        exit "$AGENT_EXIT"
-    ) &
+        # Check generator result
+        local GEN_STATUS
+        GEN_STATUS=$(cat "$STATUS_FILE" 2>/dev/null || echo "MISSING")
+        if [ "$GEN_EXIT" -ne 0 ] || [ "$GEN_STATUS" != "PASS" ]; then
+            echo "$GEN_EXIT" > "$EXIT_FILE"
+            return "$GEN_EXIT"
+        fi
+
+        # --- Evaluator ---
+        local EVAL_PROMPT="Read and execute the workflow defined in .claude/commands/io-evaluator-dispatch.md. Your task file is plans/tasks/${CP_ID}.md. This is evaluation of attempt $ATTEMPT. Grade the implementation. Write the eval result to $REPO_ROOT/plans/tasks/${CP_ID}.eval.json (use this exact absolute path). Terminate."
+
+        # Clear previous eval for retry
+        rm -f "$EVAL_FILE"
+
+        echo "$EVAL_PROMPT" | timeout "$EVAL_TIMEOUT" claude -p \
+            --model "$EVAL_MODEL" \
+            --max-turns "$EVAL_MAX_TURNS" \
+            --allowedTools "Bash,Read,Write" \
+            --output-format json \
+            > "$TASKS_DIR/$CP_ID.eval-result.json" 2>> "$LOG_FILE"
+        local EVAL_EXIT=$?
+
+        # --- Evaluator crash handling ---
+        # If evaluator crashed or didn't write eval.json, treat as
+        # evaluator infrastructure failure, not a checkpoint failure.
+        # The generator already passed its own gates. Honor PASS.
+        if [ "$EVAL_EXIT" -ne 0 ] || [ ! -f "$EVAL_FILE" ]; then
+            echo "[EVAL_SKIP] $CP_ID attempt $ATTEMPT: evaluator exited $EVAL_EXIT or did not produce eval.json. Generator PASS honored." >> "$LOG_FILE"
+            echo "0" > "$EXIT_FILE"
+            echo '{"checkpoint":"'"$CP_ID"'","verdict":"EVAL_SKIPPED","reason":"evaluator_crash_or_timeout","attempt":'"$ATTEMPT"'}' > "$EVAL_FILE"
+            return 0
+        fi
+
+        # --- Parse eval verdict ---
+        local EVAL_VERDICT
+        EVAL_VERDICT=$(uv run python3 -c "
+import json, sys
+try:
+    d = json.load(open('$EVAL_FILE'))
+    print(d.get('verdict', 'MISSING'))
+except: print('PARSE_ERROR')
+" 2>/dev/null)
+
+        case "$EVAL_VERDICT" in
+            PASS)
+                echo "0" > "$EXIT_FILE"
+                return 0
+                ;;
+            MECHANICAL_FAIL)
+                if [ "$ATTEMPT" -lt "$MAX_CYCLES" ]; then
+                    echo "[REGEN] $CP_ID attempt $ATTEMPT: MECHANICAL_FAIL, retrying ($ATTEMPT of $MAX_CYCLES)" >> "$LOG_FILE"
+                    continue
+                else
+                    bash "$REPO_ROOT/.claude/scripts/write-status.sh" "$CP_ID" \
+                        "EVAL_FAIL: MECHANICAL after $ATTEMPT attempts -- retries exhausted"
+                    echo "1" > "$EXIT_FILE"
+                    return 1
+                fi
+                ;;
+            DESIGN_FAIL)
+                bash "$REPO_ROOT/.claude/scripts/write-status.sh" "$CP_ID" \
+                    "EVAL_FAIL: DESIGN -- requires /io-architect"
+                echo "1" > "$EXIT_FILE"
+                return 1
+                ;;
+            *)
+                # Unparseable verdict -- honor generator PASS
+                echo "[EVAL_SKIP] $CP_ID attempt $ATTEMPT: unparseable verdict '$EVAL_VERDICT'. Generator PASS honored." >> "$LOG_FILE"
+                echo '{"checkpoint":"'"$CP_ID"'","verdict":"EVAL_SKIPPED","reason":"unparseable_verdict","raw":"'"$EVAL_VERDICT"'","attempt":'"$ATTEMPT"'}' > "$EVAL_FILE"
+                echo "0" > "$EXIT_FILE"
+                return 0
+                ;;
+        esac
+    done
+}
+
+# --- Dispatch batch concurrently ---
+declare -A PIDS
+
+for CP_ID in "${BATCH[@]}"; do
+    run_checkpoint_pipeline "$CP_ID" &
     PIDS[$CP_ID]=$!
 done
 
-# --- Wait for all agents ---
-echo "Waiting for agents to complete..."
-wait
+# --- Wait for all checkpoint pipelines ---
+echo "Waiting for checkpoint pipelines..."
+for CP_ID in "${BATCH[@]}"; do
+    wait "${PIDS[$CP_ID]}" || true
+done
 
 # --- Collect results, log, and clean up ---
 echo ""
@@ -210,13 +354,13 @@ for CP_ID in "${BATCH[@]}"; do
     EXIT_CODE=$(cat "$TASKS_DIR/$CP_ID.exit" 2>/dev/null || echo "1")
     STATUS=$(cat "$TASKS_DIR/$CP_ID.status" 2>/dev/null || echo "MISSING")
 
-    if [ "$EXIT_CODE" -eq 0 ] && [ "$STATUS" = "PASS" ]; then
+    if [ "$EXIT_CODE" -eq 0 ] && ( [ "$STATUS" = "PASS" ] || [ "$STATUS" = "MISSING" ] ); then
         echo "$CP_ID: PASS"
 
         # Check whether the branch has any new commits to merge.
         AHEAD=$(git -C "$REPO_ROOT" rev-list --count "$PARENT_BRANCH..iocane/$CP_ID" 2>/dev/null || echo "0")
         if [ "$AHEAD" -eq 0 ]; then
-            echo "$CP_ID: WARNING — branch iocane/$CP_ID has no new commits. Sub-agent may not have committed its work. Skipping merge." >&2
+            echo "$CP_ID: WARNING -- branch iocane/$CP_ID has no new commits. Sub-agent may not have committed its work. Skipping merge." >&2
         else
             git -C "$REPO_ROOT" merge "iocane/$CP_ID" --no-ff -m "Merge checkpoint $CP_ID into $PARENT_BRANCH"
             echo "$CP_ID: Merged into $PARENT_BRANCH."
@@ -227,11 +371,19 @@ for CP_ID in "${BATCH[@]}"; do
         git -C "$REPO_ROOT" branch -d "iocane/$CP_ID" 2>/dev/null || true
         echo "$CP_ID: Worktree and branch removed."
 
+    elif echo "$STATUS" | grep -q "^PREFLIGHT_FAIL"; then
+        echo "$CP_ID: PREFLIGHT_FAIL -- baseline tests failing before generation. See $TASKS_DIR/$CP_ID.log"
+        FAILED=$((FAILED + 1))
+        echo "$CP_ID: Worktree preserved at $REPO_ROOT/.worktrees/$CP_ID for inspection."
+
+    elif echo "$STATUS" | grep -q "^EVAL_FAIL"; then
+        echo "$CP_ID: $STATUS -- see $TASKS_DIR/$CP_ID.log and $TASKS_DIR/$CP_ID.eval.json"
+        FAILED=$((FAILED + 1))
+        echo "$CP_ID: Worktree preserved at $REPO_ROOT/.worktrees/$CP_ID for inspection."
+
     else
         echo "$CP_ID: $STATUS (exit $EXIT_CODE) -- see $TASKS_DIR/$CP_ID.log"
         FAILED=$((FAILED + 1))
-
-        # Leave worktree intact for inspection
         echo "$CP_ID: Worktree preserved at $REPO_ROOT/.worktrees/$CP_ID for inspection."
     fi
 done

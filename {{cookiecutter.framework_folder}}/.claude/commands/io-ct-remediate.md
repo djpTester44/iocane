@@ -79,6 +79,12 @@ Use the `Receives (DI)` and `Key failure modes` fields to inform:
 
 ### Step 4 — WRITE TEST FILE
 
+Read `.claude/skills/test-writer/SKILL.md` and follow it in Track B (Contract-Driven)
+mode — CTs are always stateless contracts between two seam sides. Read
+`references/track-b-contract.md` for the phase instructions. Use the CT spec's
+`contract_under_test`, `assertion`, and `fixture_deps` fields as the Phase 1 contract
+extraction input. Execute Phases 2-3 to design test cases and generate code.
+
 Write the test file at the `file:` path from the CT spec.
 
 Requirements:
