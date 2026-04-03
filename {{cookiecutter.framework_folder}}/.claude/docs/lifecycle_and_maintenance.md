@@ -24,13 +24,17 @@ Execution follows a strict chronology. Design is locked before any code is writt
   8. /validate-tasks  -- validate task files against plan.md before dispatch
   9. bash .claude/scripts/dispatch-agents.sh  -- human executes; sub-agents run in git worktrees
 
+[Tier 3 -- Post-Generation Evaluation]
+  10. /io-evaluator-dispatch -- grades checkpoint output against acceptance criteria (per CP, in worktree)
+                              PASS -> merge-ready; MECHANICAL_FAIL -> regen loop; DESIGN_FAIL -> escalate
+
 [Tier 1 -- Human Review]
-  10. /io-review          -- per-checkpoint behavioral + connectivity review
-  11. repeat /io-plan-batch -> /validate-tasks -> dispatch-agents.sh -> /io-review for each checkpoint batch
+  11. /io-review          -- per-checkpoint behavioral + connectivity review
+  12. repeat /io-plan-batch -> /validate-tasks -> dispatch-agents.sh -> /io-evaluator-dispatch -> /io-review for each checkpoint batch
 
 [Full-system close]
-  12. /gap-analysis    -- integration correctness across entire codebase
-  13. /doc-sync        -- reconcile project-spec.md + roadmap.md with codebase state
+  13. /gap-analysis    -- integration correctness across entire codebase
+  14. /doc-sync        -- reconcile project-spec.md + roadmap.md with codebase state
 ```
 
 ### Human Attention Contract
@@ -66,6 +70,16 @@ Sub-agents execute one checkpoint at a time in isolated git worktrees. Each sub-
 | **GREEN** | Write minimum implementation to pass the test | `pytest` passes |
 | **GATE** | Run the checkpoint's acceptance gate command | Must pass cleanly |
 | **REFACTOR** | DI compliance, type correctness, lint | `.claude/scripts/check_di_compliance.py`, `mypy`, `ruff`, `lint-imports` all pass |
+
+### Post-Generation Evaluation
+
+After `/io-execute` writes its status, `dispatch-agents.sh` spawns `/io-evaluator-dispatch` in the same worktree. The evaluator re-runs the gate command, checks each acceptance criterion, and writes `plans/tasks/[CP-ID].eval.json` to the **parent repo** (not the worktree).
+
+| Verdict | Meaning | Next action |
+|---------|---------|-------------|
+| `PASS` | All criteria met, gate passing | Merge-ready; proceeds to `/io-review` |
+| `MECHANICAL_FAIL` | Retryable failures (gate, test, type, DI) | Regen loop with `regen_hint` as negative constraint |
+| `DESIGN_FAIL` | Architectural gap (missing Protocol method, layer violation) | Escalate to human; routes to `/io-architect` |
 
 ### Status Reporting
 

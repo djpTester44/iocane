@@ -129,6 +129,15 @@ if ! git -C "$REPO_ROOT" diff --quiet HEAD 2>/dev/null || \
     exit 1
 fi
 
+# --- Dependency gate: pytest-timeout ---
+# The preflight uses --timeout=60 which requires pytest-timeout.
+# Fail early with an actionable message rather than per-checkpoint PREFLIGHT_FAIL.
+if ! uv run python -c "import pytest_timeout" 2>/dev/null; then
+    echo "ERROR: pytest-timeout is not installed but is required for preflight test timeouts." >&2
+    echo "       Run: uv add --dev pytest-timeout" >&2
+    exit 1
+fi
+
 # Capture the branch that was checked out when the user ran this script.
 # Completed checkpoint branches are merged back here on PASS.
 PARENT_BRANCH=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD)
@@ -187,14 +196,29 @@ run_checkpoint_pipeline() {
     # --- Phase 1: Worktree Setup ---
     bash "$SCRIPT_DIR/setup-worktree.sh" --cp "$CP_ID"
 
-    # --- Phase 2: Preflight ---
+    # --- Phase 2: Preflight (scoped to checkpoint CTs) ---
+    # Only verify this checkpoint's connectivity tests are not already passing.
+    # Full suite regression detection is the CI sidecar's job (BL-001).
     cd "$WORKTREE_PATH"
-    if ! uv run rtk pytest -x --timeout=60 >> "$LOG_FILE" 2>&1; then
-        bash "$REPO_ROOT/.claude/scripts/write-status.sh" "$CP_ID" \
-            "PREFLIGHT_FAIL: baseline tests failing before generation"
-        echo "1" > "$EXIT_FILE"
-        return 1
-    fi
+
+    # Extract CT file paths from the task file's CT spec blocks
+    CT_FILES=()
+    while IFS= read -r ct_path; do
+        [[ -n "$ct_path" ]] && CT_FILES+=("$ct_path")
+    done < <(grep '^file:' "$TASKS_DIR/$CP_ID.md" 2>/dev/null | awk '{print $2}')
+
+    for ct_file in "${CT_FILES[@]}"; do
+        if [ -f "$ct_file" ]; then
+            if uv run rtk pytest -x --timeout=60 "$ct_file" >> "$LOG_FILE" 2>&1; then
+                bash "$REPO_ROOT/.claude/scripts/write-status.sh" "$CP_ID" \
+                    "PREFLIGHT_FAIL: CT $ct_file already passes before generation"
+                echo "1" > "$EXIT_FILE"
+                return 1
+            fi
+            # CT exists and fails -- expected (red before green), proceed
+        fi
+        # CT file doesn't exist -- expected (agent will create it), proceed
+    done
 
     # --- Phase 3: Generate-Evaluate-Regen Loop ---
     local ATTEMPT=0
