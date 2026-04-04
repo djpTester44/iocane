@@ -15,7 +15,7 @@ writes until Step 6 human approval.
 **Position in chain:**
 
 ```
-post /io-review -> [/io-backlog-triage] -> human approves routing -> /io-architect | /validate-plan | /io-ct-remediate
+post /io-review -> [/io-backlog-triage] -> human approves routing -> /io-architect | /auto-checkpoint | /validate-plan | /io-ct-remediate
 ```
 
 This workflow can also be invoked independently of `/io-review` for periodic triage
@@ -185,10 +185,10 @@ For each `STILL OPEN` or `PARTIALLY RESOLVED` item, determine the routing:
 | `[DESIGN]` | any | `/io-architect` then `/io-checkpoint` |
 | `[REFACTOR]` | any | `/io-architect` (CRC only) then `/io-checkpoint` |
 | `[CLEANUP]` | pending | `/validate-plan` -> `/io-plan-batch` -- sub-agent picks it up |
-| `[CLEANUP]` | done | `/io-checkpoint` -- remediation checkpoint for completed CP |
+| `[CLEANUP]` | done | `/auto-checkpoint` (batches into plan.md), then `/validate-plan` |
 | `[TEST]` CT gap | any | `/io-ct-remediate` |
 | `[TEST]` unit gap | pending | Human amends CP scope in `plan.md`, then `/validate-plan` |
-| `[TEST]` unit gap | done | `/io-checkpoint` -- remediation checkpoint for completed CP |
+| `[TEST]` unit gap | done | `/auto-checkpoint` (batches into plan.md), then `/validate-plan` |
 | `[CI-REGRESSION]` | any | Investigate causal checkpoint, route as `[CLEANUP]` against its write targets |
 | `[CI-COLLECTION-ERROR]` | any | Check if test references removed modules; route as `[CLEANUP]` or `[DEFERRED]` with structural notes |
 | `[CI-EXTERNAL]` | any | Human reclassification; route as `[DEFERRED]` with context note |
@@ -340,6 +340,7 @@ existing harness:
 
 - `/io-ct-remediate` for CT gaps
 - `/io-architect` for design changes
+- `/auto-checkpoint` for done-CP cleanup/test items (batches into plan.md)
 - `/validate-plan` → `/io-plan-batch` for cleanup and refactor items
 - Manual `plan.md` amendment for items requiring new checkpoint scope
 

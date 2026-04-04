@@ -101,7 +101,7 @@ For each implementation file in the checkpoint's write targets:
 
 - Run `uv run python .claude/scripts/extract_structure.py <file>` — map public surface area
 - Run `bash .claude/scripts/run-compliance.sh <write_targets>` — ruff, mypy, lint-imports, bandit, DI check
-- Run `uv run python .claude/skills/symbol-tracer/scripts/symbol_tracer.py --symbol "<Symbol1>,<Symbol2>" --root src/ --summary` — verify Protocol is consumed
+- Invoke `/symbol-tracer` with `--summary` on the checkpoint's Protocol symbols — verify Protocol is consumed
 - **Registry check:** For each write target under `src/`, verify the file path (or its parent component) appears in `plans/component-contracts.toml` under `[components]`. A `src/` file whose component is absent from the TOML registry is a HIGH finding: `UNREGISTERED_WRITE_TARGET` — route to `/io-architect` before the checkpoint can be considered approved. `tests/` files and tooling files outside `src/` are exempt.
 - **[HARD] Location check:** For each write target that is a `.py` file, verify it resides under `src/` or `tests/`. A `.py` file outside these directories is a HIGH finding: `MISPLACED_RUNTIME_MODULE`. The `interfaces/` directory must contain only `.pyi` stub files; any `.py` file there is a violation. Record in findings and route to backlog -- do not defer to Step E.
 

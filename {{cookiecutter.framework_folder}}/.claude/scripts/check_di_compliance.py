@@ -51,8 +51,10 @@ Usage:
     uv run python .claude/scripts/check_di_compliance.py
 """
 
+import argparse
 import ast
 import re
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -734,6 +736,145 @@ def check_module_level_instantiation(
 
 
 # ---------------------------------------------------------------------------
+# Git-diff scoping helpers (--diff-only mode)
+# ---------------------------------------------------------------------------
+
+
+def get_staged_src_files(root_dir: Path) -> set[Path] | None:
+    """Return staged .py files under src/, or None if not in a git repo.
+
+    Uses ``git diff --cached`` to identify files that are part of the
+    current commit.  Returns resolved absolute paths.
+    """
+    result = subprocess.run(
+        [
+            "git", "diff", "--cached", "--name-only",
+            "--diff-filter=d", "--", "src/**/*.py",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=root_dir,
+    )
+    if result.returncode != 0:
+        return None
+    return {
+        (root_dir / p).resolve()
+        for p in result.stdout.strip().splitlines()
+        if p
+    }
+
+
+def get_staged_test_files(root_dir: Path) -> set[Path] | None:
+    """Return staged .py files under tests/, or None if not in a git repo."""
+    result = subprocess.run(
+        [
+            "git", "diff", "--cached", "--name-only",
+            "--diff-filter=d", "--", "tests/**/*.py",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=root_dir,
+    )
+    if result.returncode != 0:
+        return None
+    return {
+        (root_dir / p).resolve()
+        for p in result.stdout.strip().splitlines()
+        if p
+    }
+
+
+def _get_head_source(root_dir: Path, file_path: Path) -> str | None:
+    """Return the HEAD version of a file, or None if it is newly added."""
+    try:
+        rel = file_path.resolve().relative_to(root_dir.resolve()).as_posix()
+    except ValueError:
+        return None
+    result = subprocess.run(
+        ["git", "show", f"HEAD:{rel}"],
+        capture_output=True,
+        text=True,
+        cwd=root_dir,
+    )
+    if result.returncode != 0:
+        # File does not exist in HEAD (newly added)
+        return None
+    return result.stdout
+
+
+def _module_violation_classes(
+    source: str,
+    component_names: set[str],
+) -> set[str]:
+    """Return the set of component class names instantiated at module level.
+
+    This is the comparison key for HEAD-diffing: we care about which
+    component classes are violated, not specific line numbers.
+    """
+    try:
+        source_lines = source.splitlines()
+        tree = ast.parse(source)
+    except SyntaxError:
+        return set()
+    visitor = ModuleLevelInstantiationVisitor(source_lines, component_names)
+    visitor.visit(tree)
+    return {class_name for class_name, _lineno in visitor.violations}
+
+
+def check_module_level_instantiation_diff(
+    src_dir: Path,
+    registry: dict[str, Path],
+    staged_files: set[Path],
+) -> list[Violation]:
+    """Module-level sweep scoped to staged files, reporting only NEW violations.
+
+    For each staged src/ file:
+    - If the file is new (not in HEAD), all violations are reported.
+    - If the file is modified, only violations whose class name was NOT
+      already present in the HEAD version are reported.
+    """
+    component_names = set(registry.keys())
+    root_dir = src_dir.parent
+    violations: list[Violation] = []
+
+    for py_file in sorted(staged_files):
+        if not py_file.is_file():
+            continue
+        try:
+            source = py_file.read_text(encoding="utf-8")
+            source_lines = source.splitlines()
+            tree = ast.parse(source)
+        except SyntaxError:
+            violations.append(Violation("<module>", py_file, "WARNING", "Syntax error"))
+            continue
+
+        visitor = ModuleLevelInstantiationVisitor(source_lines, component_names)
+        visitor.visit(tree)
+
+        if not visitor.violations:
+            continue
+
+        # Diff against HEAD: only report violations not present in the old version
+        head_source = _get_head_source(root_dir, py_file)
+        if head_source is not None:
+            head_classes = _module_violation_classes(head_source, component_names)
+        else:
+            head_classes = set()
+
+        for class_name, lineno in visitor.violations:
+            if class_name in head_classes:
+                continue  # Pre-existing violation -- skip
+            violations.append(Violation(
+                f"<module:{py_file.stem}>",
+                py_file,
+                "CRITICAL",
+                f"Module-level instantiation of registered component: {class_name}() "
+                f"at line {lineno}. Move to a constructor parameter or factory function.",
+            ))
+    return violations
+
+
+# ---------------------------------------------------------------------------
 # TestInstantiationVisitor - test-file sweep for bare component calls
 # ---------------------------------------------------------------------------
 
@@ -1050,6 +1191,149 @@ def check_component(
     return violations
 
 
+def _violation_key(v: Violation) -> tuple[str, str, str]:
+    """Stable comparison key for diffing violations across file versions.
+
+    Uses (component, severity, issue) -- NOT line numbers, which shift
+    as files are edited.
+    """
+    return (v.component, v.severity, v.issue)
+
+
+def check_component_diff(
+    path: Path,
+    comp_name: str,
+    collaborators: list[str],
+    tracked_debt: set[str],
+    root_dir: Path,
+) -> list[Violation]:
+    """Run per-component check and subtract pre-existing HEAD violations.
+
+    For newly added files (not in HEAD), all violations are reported.
+    For modified files, only violations whose key is absent from the
+    HEAD version are reported.
+    """
+    staged_violations = check_component(path, comp_name, collaborators, tracked_debt)
+    if not staged_violations:
+        return []
+
+    head_source = _get_head_source(root_dir, path)
+    if head_source is None:
+        # New file -- all violations are new
+        return staged_violations
+
+    # Write HEAD source to a temp comparison: parse it in-memory by
+    # running check_component against a temp file is wasteful.  Instead,
+    # we run the same visitor logic inline on the HEAD source.
+    head_violations = _check_component_from_source(
+        head_source, path, comp_name, collaborators, tracked_debt,
+    )
+    head_keys = {_violation_key(v) for v in head_violations}
+
+    return [v for v in staged_violations if _violation_key(v) not in head_keys]
+
+
+def _check_component_from_source(
+    source_text: str,
+    path: Path,
+    comp_name: str,
+    collaborators: list[str],
+    tracked_debt: set[str],
+) -> list[Violation]:
+    """Run per-component DI analysis on arbitrary source text.
+
+    Mirrors check_component() but accepts source as a string instead of
+    reading from disk.  Used for HEAD-version comparison.
+    """
+    try:
+        source_lines = source_text.splitlines()
+        tree = ast.parse(source_text)
+    except SyntaxError:
+        return [Violation(comp_name, path, "WARNING", "Syntax error in file")]
+
+    visitor = InitVisitor(comp_name, source_lines, set(collaborators))
+    visitor.visit(tree)
+
+    if not visitor.found_class:
+        return []
+
+    # Exemption handling
+    if visitor.is_exempt:
+        if comp_name in tracked_debt:
+            return [
+                Violation(
+                    comp_name, path, "INFO",
+                    "Component exempted via # noqa: DI; "
+                    "active remediation ticket found in plans/PLAN.md.",
+                )
+            ]
+        return [
+            Violation(
+                comp_name, path, "CRITICAL",
+                "Component uses # noqa: DI but has no active [REFACTOR] or "
+                "[CLEANUP] ticket in plans/PLAN.md. "
+                "Add a tracked backlog ticket or remove the suppression.",
+            )
+        ]
+
+    if not visitor.init_node:
+        if collaborators:
+            return [
+                Violation(
+                    comp_name, path, "INFO",
+                    "No __init__ method (stateless); verify CRC collaborators are accurate",
+                )
+            ]
+        return []
+
+    violations: list[Violation] = []
+
+    for collab in collaborators:
+        if collab in visitor.direct_instantiations:
+            violations.append(
+                Violation(
+                    comp_name, path, "CRITICAL",
+                    f"Internal instantiation of collaborator '{collab}()'",
+                )
+            )
+
+    has_any_wildcard = visitor.has_variadic_kwargs or visitor.has_bulk_injection
+    has_generic_mapping = any(
+        t in visitor.arg_types
+        for t in ("Any", "object", "dict", "Dict", "Mapping", "MutableMapping")
+    ) and bool(visitor.mapping_param_names)
+
+    for collab in collaborators:
+        if _collab_in_types(collab, visitor.arg_types):
+            continue
+        if has_any_wildcard:
+            continue
+        if _collab_in_mapping_keys(collab, visitor.mapping_key_types):
+            continue
+        if has_generic_mapping:
+            continue
+        if visitor.factory_param_names or visitor.container_param_names:
+            violations.append(
+                Violation(
+                    comp_name, path, "INFO",
+                    f"Collaborator '{collab}' not in type hints; assumed provided via "
+                    f"factory/container param "
+                    f"({', '.join(sorted(visitor.factory_param_names | visitor.container_param_names))}). "
+                    "Consider adding an explicit type hint for static verifiability.",
+                )
+            )
+            continue
+        violations.append(
+            Violation(
+                comp_name, path, "WARNING",
+                f"Collaborator '{collab}' not found in any injected source "
+                "(type hints, **kwargs, mapping param, factory, or bulk injection)",
+            )
+        )
+
+    return violations
+
+
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
@@ -1057,10 +1341,50 @@ def check_component(
 SEVERITY_ORDER = {"CRITICAL": 0, "WARNING": 1, "INFO": 2}
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="DI compliance checker for component contracts.",
+    )
+    parser.add_argument(
+        "--diff-only",
+        action="store_true",
+        default=False,
+        help=(
+            "Scope violation detection to staged changes only. "
+            "Pre-existing violations in unchanged files are ignored. "
+            "Used by the pre-commit gate to avoid blocking on brownfield debt."
+        ),
+    )
+    # Positional target paths are accepted but currently unused by DI logic
+    # (contracts define the file set). Kept for CLI compatibility with
+    # run-compliance.sh which passes targets to all checkers uniformly.
+    parser.add_argument("targets", nargs="*", default=[])
+    return parser.parse_args()
+
+
 def main() -> None:
+    args = _parse_args()
+    diff_only: bool = args.diff_only
+
     root_dir = Path.cwd()
     src_dir = root_dir / "src"
     plan_path = root_dir / "plans" / "PLAN.md"
+
+    # ------------------------------------------------------------------
+    # Resolve staged file sets when in --diff-only mode
+    # ------------------------------------------------------------------
+    staged_src: set[Path] | None = None
+    staged_tests: set[Path] | None = None
+    if diff_only:
+        staged_src = get_staged_src_files(root_dir)
+        staged_tests = get_staged_test_files(root_dir)
+        if staged_src is None:
+            print("Warning: --diff-only requires a git repository. "
+                  "Falling back to full audit.")
+            diff_only = False
+        else:
+            print(f"--diff-only: {len(staged_src)} staged src/ file(s), "
+                  f"{len(staged_tests or set())} staged tests/ file(s)")
 
     # ------------------------------------------------------------------
     # Load contracts
@@ -1087,7 +1411,7 @@ def main() -> None:
     print(f"\nComponents with collaborators: {len(designs)}")
     print(f"Registry entries:              {len(registry)}")
     if boundary_violations:
-        print(f"Boundary violations:           {len(boundary_violations)} CRITICAL")
+        print(f"Boundary violations:           {len(boundary_violations)}")
     if composition_roots:
         print(f"Composition roots (exempt):    {', '.join(sorted(composition_roots))}")
     print()
@@ -1114,7 +1438,18 @@ def main() -> None:
             print(f"  SKIP  {comp_name} (composition root)")
             continue
 
-        violations = check_component(impl_path, comp_name, collaborators, tracked_debt)
+        # In --diff-only mode, skip components whose impl file is not staged
+        if diff_only and staged_src is not None:
+            if impl_path.resolve() not in staged_src:
+                print(f"  SKIP  {comp_name} (not in staged changes)")
+                continue
+
+        if diff_only:
+            violations = check_component_diff(
+                impl_path, comp_name, collaborators, tracked_debt, root_dir,
+            )
+        else:
+            violations = check_component(impl_path, comp_name, collaborators, tracked_debt)
         all_violations.extend(violations)
 
         if not violations:
@@ -1129,11 +1464,19 @@ def main() -> None:
     # Module-level instantiation sweep
     # ------------------------------------------------------------------
     if src_dir.is_dir():
-        ml_violations = check_module_level_instantiation(src_dir, registry)
+        if diff_only and staged_src is not None:
+            ml_violations = check_module_level_instantiation_diff(
+                src_dir, registry, staged_src,
+            )
+            print(f"\nModule-level instantiation sweep (diff-only): "
+                  f"{len(staged_src)} staged file(s), "
+                  f"{len(ml_violations)} new violation(s)")
+        else:
+            ml_violations = check_module_level_instantiation(src_dir, registry)
+            n_src_files = len(list(src_dir.rglob("*.py")))
+            print(f"\nModule-level instantiation sweep: {n_src_files} files, "
+                  f"{len(ml_violations)} violations")
         all_violations.extend(ml_violations)
-        n_src_files = len(list(src_dir.rglob("*.py")))
-        print(f"\nModule-level instantiation sweep: {n_src_files} files, "
-              f"{len(ml_violations)} violations")
         for v in ml_violations:
             print(f"  {v.severity:8s} {v.file_path.relative_to(root_dir).as_posix()}: {v.issue}")
 
@@ -1150,11 +1493,16 @@ def main() -> None:
         }
 
         if test_comp_collabs:
-            test_files = sorted(tests_dir.rglob("*.py"))
+            if diff_only and staged_tests is not None:
+                test_files = sorted(staged_tests)
+            else:
+                test_files = sorted(tests_dir.rglob("*.py"))
             print(f"\nTest DI sweep: {len(test_files)} files, "
                   f"{len(test_comp_collabs)} components with collaborators")
 
             for tf in test_files:
+                if not tf.is_file():
+                    continue
                 tf_violations = check_test_file(tf, test_comp_collabs)
                 all_violations.extend(tf_violations)
 

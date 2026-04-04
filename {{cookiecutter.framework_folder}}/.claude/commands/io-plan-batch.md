@@ -64,7 +64,7 @@ Produce the candidate list ordered by checkpoint sequence within the selected po
 
 Run `uv run python .claude/scripts/check_write_target_overlap.py CP-XX CP-YY ...` with all candidate CP-IDs. If exit code is non-zero, remove the colliding CPs (lower-priority first, by sequence number) and re-run until clean.
 
-Beyond write-target overlap, run `symbol_tracer.py --symbol "<Symbol1>,<Symbol2>" --root src/ --imports-only` to detect hidden cross-references between candidate checkpoints' key symbols.
+Beyond write-target overlap, invoke `/symbol-tracer` with `--imports-only` on the key symbols from all candidate checkpoints to detect hidden cross-references.
 
 Apply `parallel.limit` cap: take only the first N checkpoints that pass the disjoint check, where N = `parallel.limit`.
 

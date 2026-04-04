@@ -8,55 +8,60 @@ description: >-
   "where is X?", "what uses X?", or "what implements X?" without reading entire
   files. Prefer this over grep for Python symbols because it understands syntax and
   won't produce false positives from comments or strings.
+context: fork
 ---
 
 # Symbol Tracer
 
 Trace definitions, imports, and usages of a Python symbol across the codebase using AST analysis.
 
-## When to use
+## Required Input
 
-Reach for this skill any time the conversation involves:
-- Locating where a class, function, or method is defined (before reading the file)
-- Finding all call sites, importers, or references to a symbol
-- Assessing blast radius before renaming, removing, or refactoring
-- Verifying Protocol compliance: "is every Protocol method implemented somewhere?"
-- Understanding cross-component wiring: "what imports this collaborator type?"
-- Finding all classes that implement a given Protocol
-- Answering "is this symbol dead code?" (zero usages = dead)
+Caller MUST provide:
+- `symbols`: one or more Python symbol names (comma-separated for multiple)
+- `mode_flags`: which flags to pass (see Mode Selection table)
+
+Caller MAY provide:
+- `root`: search root directory (default: `src/` if it exists, otherwise `.`)
+- `--include-tests`: also scan `tests/` directory
 
 ## Workflow
 
-1. **Identify the symbol** from context. The user may say "rename `<SymbolName>`", "remove `<FunctionName>`", or "what implements `<ProtocolName>`" -- extract the symbol name. If ambiguous, ask.
+1. **Receive symbols and flags** from caller input. If the caller did not specify symbols explicitly, extract them from the surrounding task context. If ambiguous, ask.
 
 2. **Determine the search root** -- default to `src/` if it exists, otherwise `.` (project root). Use `--include-tests` to also scan `tests/`.
 
-3. **Choose the mode** based on the question:
+3. **Choose the mode** based on the caller's intent:
 
-   | Question | Flags |
-   |----------|-------|
-   | Where is `<Symbol>` defined/used? | `--symbol "<Symbol>"` (default mode) |
-   | What imports `<Symbol>`? | `--symbol "<Symbol>" --imports-only` |
-   | What implements `<Protocol>`? | `--symbol "<Protocol>" --find-implementors` |
-   | Trace multiple symbols at once | `--symbol "<A>,<B>,<C>"` |
-   | Quick triage (count only) | `--symbol "<Symbol>" --summary` |
+   | Caller Intent | Flags |
+   |---------------|-------|
+   | Trace all references to a symbol | `--symbol "<A>"` (default mode) |
+   | Detect cross-references between symbols | `--symbol "<A>,<B>" --imports-only` |
+   | Assess blast radius | `--symbol "<A>" --summary` |
+   | Find Protocol implementors | `--symbol "<Protocol>" --find-implementors` |
 
 4. **Run the script**:
    ```bash
    uv run python .claude/skills/symbol-tracer/scripts/symbol_tracer.py --symbol "<SymbolName>" --root <root>
    ```
 
-5. **Parse the JSON output** and group results:
-   - `"type": "definition"` -- where the symbol is declared
-   - `"type": "import"` -- where the symbol is imported
-   - `"type": "usage"` -- every call site and reference
-   - `"type": "implementor"` -- classes that inherit from the symbol (only with `--find-implementors`)
+## Output Format
 
-6. **Produce a trace report**:
-   - Count total results and group by file
-   - Flag high-risk files (many usages, or usages in entrypoints / public interfaces)
-   - List each result with file:line and the context snippet
-   - Recommend next steps: "safe to rename -- all usages are internal" vs. "caution -- exported in interfaces/"
+### Raw output
+The script emits JSON. Each entry has:
+- `"type"`: one of `"definition"`, `"import"`, `"usage"`, `"implementor"`
+- `"file"`: file path
+- `"line"`: line number
+- `"context"`: source line content
+
+### Structured summary (what the caller receives)
+Group results by symbol, then by type. Report:
+- Total count per type
+- Files with highest reference density
+- Zero-result symbols (potential dead code or naming mismatch)
+
+### What NOT to include
+Do not add recommendations, next steps, or risk judgments ("safe to rename", "caution", "recommended fix"). The caller is a harness command that will make its own routing decisions based on the raw findings. Recommendations from the tracer are noise the caller must filter out -- they add tokens without adding signal the caller can act on directly.
 
 ## Flags Reference
 

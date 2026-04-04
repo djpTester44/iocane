@@ -34,13 +34,24 @@ run_check() {
     fi
 }
 
+run_check_optional() {
+    local label="$1"
+    local bin="$2"
+    shift 2
+    if ! command -v "$bin" >/dev/null 2>&1 && ! uv run python -c "import $bin" >/dev/null 2>&1; then
+        echo "  WARN  $label (not installed — skipping)"
+        return 0
+    fi
+    run_check "$label" "$@"
+}
+
 echo "=== Compliance: ${TARGETS[*]} ==="
 
 run_check "ruff"         uv run rtk ruff check "${TARGETS[@]}"
 run_check "mypy"         uv run mypy "${TARGETS[@]}"
 run_check "lint-imports" uv run rtk lint-imports
-run_check "bandit"       uv run bandit -q -ll "${TARGETS[@]}"
-run_check "di-check"     uv run python .claude/scripts/check_di_compliance.py "${TARGETS[@]}"
+run_check_optional "bandit" "bandit" uv run bandit -q -ll "${TARGETS[@]}"
+run_check "di-check"     uv run python .claude/scripts/check_di_compliance.py --diff-only "${TARGETS[@]}"
 
 echo ""
 if [ "$FAILED" -eq 0 ]; then

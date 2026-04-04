@@ -15,7 +15,7 @@ INPUT=$(cat)
 if [ -f ".iocane/validating" ]; then
     # If this write IS the Approved stamp itself, the sentinel's job is done.
     # Auto-delete so the agent does not need an explicit cleanup step.
-    NEW_CONTENT=$(uv run python -c "
+    NEW_CONTENT=$(printf '%s' "$INPUT" | uv run python -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -23,21 +23,21 @@ try:
     print(ti.get('new_string', '') or ti.get('content', ''))
 except Exception:
     print('')
-" <<< "$INPUT")
+")
     if echo "$NEW_CONTENT" | grep -q "\*\*Approved:\*\* True"; then
         rm -f .iocane/validating
     fi
     exit 0
 fi
 
-FILE_PATH=$(uv run python -c "
+FILE_PATH=$(printf '%s' "$INPUT" | uv run python -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
     print(d.get('tool_input', {}).get('file_path', ''))
 except Exception:
     print('')
-" <<< "$INPUT")
+")
 
 if [ -z "$FILE_PATH" ]; then
     exit 0

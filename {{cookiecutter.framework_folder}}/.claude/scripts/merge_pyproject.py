@@ -40,6 +40,7 @@ from tomlkit.items import Array, Table
 # ---------------------------------------------------------------------------
 
 REQUIRED_DEV_PACKAGES: list[str] = [
+    "bandit>=1.8",
     "import-linter>=2.10",
     "mypy>=1.19.1",
     "pytest>=9.0.2",

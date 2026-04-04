@@ -145,13 +145,7 @@ This removes the worktree, deletes the `iocane/CP-XX` branch, clears the `.statu
 
 When removing redundant or dead code, prove unused status before deletion.
 
-1. **Prove dead status:**
-
-   ```bash
-   uv run python .claude/skills/symbol-tracer/scripts/symbol_tracer.py --symbol "<SymbolName1>,<SymbolName2>" --root src/ --summary
-   ```
-
-   Zero usages + zero imports = dead. For module-level checks, also verify zero integration test usage with `--include-tests`.
+1. **Prove dead status:** Invoke `/symbol-tracer` with `--summary` on the candidate symbols. Zero usages + zero imports = dead. For module-level checks, also invoke with `--include-tests`.
 
 2. **Delete code:** Remove the `.py` file and corresponding `.pyi` if no other component depends on the Protocol.
 

@@ -8,6 +8,7 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+    "bandit>=1.8",
     "import-linter>=2.10",
     "mypy>=1.19.1",
     "pytest>=9.0.2",

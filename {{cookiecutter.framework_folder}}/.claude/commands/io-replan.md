@@ -48,7 +48,7 @@ description: Propagate PRD changes to roadmap.md and project-spec.md without des
 | Category | Description |
 |----------|-------------|
 | **NEW** | Requirements, features, or components in the PRD that have no match in roadmap or spec |
-| **MODIFIED** | Features or components that exist but whose definition has changed. For each MODIFIED component, run `symbol_tracer.py --symbol "<ComponentName1>,<ComponentName2>" --root src/ --summary` to assess blast radius before proposing changes. |
+| **MODIFIED** | Features or components that exist but whose definition has changed. For each MODIFIED component, invoke `/symbol-tracer` with `--summary` on the component symbols to assess blast radius before proposing changes. |
 | **REMOVED** | Items in roadmap or spec no longer referenced by the PRD |
 
 Present the Change Report to the human for confirmation before proceeding.

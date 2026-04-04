@@ -22,14 +22,14 @@ fi
 
 INPUT=$(cat)
 
-FILE_PATH=$(uv run python -c "
+FILE_PATH=$(printf '%s' "$INPUT" | uv run python -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
     print(d.get('tool_input', {}).get('file_path', ''))
 except Exception:
     print('')
-" <<< "$INPUT")
+")
 
 if [ -z "$FILE_PATH" ]; then
     exit 0

@@ -7,7 +7,9 @@
 # For remediation checkpoints (CP-NNR, identified by **Remediates:** in plan.md),
 # also marks corresponding backlog items as [x] with a Remediated annotation.
 #
-# Moved to archive:  plans/tasks/CP-XX.{log,exit,status,result.json,md}
+# Moved to archive:  plans/tasks/CP-XX.{log,exit,status,md}
+#                    plans/tasks/CP-XX.{result,eval,eval-result}.json
+#                    plans/tasks/CP-XX.task.validation
 #                    .iocane/CP-XX.attempts
 # Archive location:  plans/archive/CP-XX/
 # Also updates:      plans/plan.md status from [ ] pending to [x] complete
@@ -68,12 +70,14 @@ for CP_ID in "${TARGETS[@]}"; do
         fi
     done
 
-    # Move result.json (compound extension, handled separately)
-    SRC="$TASKS_DIR/$CP_ID.result.json"
-    if [ -f "$SRC" ]; then
-        mv "$SRC" "$DEST/$CP_ID.result.json"
-        echo "  [ok] $CP_ID.result.json -> plans/archive/$CP_ID/"
-    fi
+    # Move compound-extension artifacts (handled separately from simple extensions)
+    for compound_ext in result.json eval.json eval-result.json task.validation; do
+        SRC="$TASKS_DIR/$CP_ID.$compound_ext"
+        if [ -f "$SRC" ]; then
+            mv "$SRC" "$DEST/$CP_ID.$compound_ext"
+            echo "  [ok] $CP_ID.$compound_ext -> plans/archive/$CP_ID/"
+        fi
+    done
 
     # Move attempt counter from .iocane/
     ATTEMPT_FILE="$IOCANE_DIR/$CP_ID.attempts"

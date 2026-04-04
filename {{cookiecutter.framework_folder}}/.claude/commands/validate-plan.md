@@ -20,7 +20,7 @@ description: Validate plans/plan.md checkpoint structure against CDD principles 
 **Position in chain:**
 
 ```
-/io-checkpoint -> [/validate-plan] -> /io-plan-batch -> /validate-tasks -> dispatch-agents.sh
+/io-checkpoint | /auto-checkpoint -> [/validate-plan] -> /io-plan-batch -> /validate-tasks -> dispatch-agents.sh
 ```
 
 ---
@@ -131,7 +131,7 @@ For each checkpoint:
 
 * Every Protocol method listed in the checkpoint's Contract section must have a corresponding CRC responsibility in `project-spec.md`.
 * Every CRC responsibility named in the checkpoint must map to at least one Protocol method.
-* For each Protocol method in the checkpoint's Contract section, run `symbol_tracer.py --symbol "<Symbol1>,<Symbol2>" --root src/ --imports-only` to verify an implementation file imports and references it.
+* For each Protocol method in the checkpoint's Contract section, invoke `/symbol-tracer` with `--imports-only` on the method symbols to verify an implementation file imports and references it.
 * **Flag:** Protocol method with no CRC anchor = `UNANCHORED_CONTRACT`
 * **Flag:** CRC responsibility with no Protocol method = `ORPHANED_DESIGN` (acceptable only for private helpers)
 

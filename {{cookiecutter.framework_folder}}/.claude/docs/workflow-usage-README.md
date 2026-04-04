@@ -52,12 +52,14 @@ Do not run `.claude/scripts/setup-worktree.sh` directly. It is an internal helpe
 The following are internal helper scripts. Do not run them directly unless debugging:
 
 - `write-status.sh` -- internal: writes checkpoint status files during /io-execute
+- `auto_checkpoint.py` -- internal: backing script for /auto-checkpoint (7-criterion filter + CP generation + backlog routing)
 - `backlog_parser.py` -- internal: parses plans/backlog.md for programmatic queries
 - `extract_structure.py` -- internal: AST-based project structure extraction
 - `smart_search.sh` -- internal: targeted codebase search utility
 - `pre-invoke-io-plan-batch.sh` -- internal: pre-invocation gate before /io-plan-batch
 - `check_di_compliance.py` -- internal: DI compliance checker used in REFACTOR gate
 - `check_write_target_overlap.py` -- internal: write-target collision detection for /io-plan-batch Step C [HARD GATE] / Step E [HARD GATE]
+- `pre-invoke-auto-checkpoint.sh` -- internal: pre-invocation gate before /auto-checkpoint
 
 ---
 
@@ -158,6 +160,7 @@ The sentinel is automatically cleared on session start. If it is unexpectedly pr
 | `/io-architect` | Design CRC cards, Protocols, Interface Registry | `plans/project-spec.md`, `interfaces/*.pyi` |
 | `/io-replan` | Propagate PRD deltas into roadmap/spec and route impacts | `plans/roadmap.md`, `plans/project-spec.md`, `plans/backlog.md` |
 | `/io-checkpoint` | Define atomic checkpoints and connectivity tests | `plans/plan.md`, `plans/backlog.md` (remediation: Routed annotation via script) |
+| `/auto-checkpoint` | Batch-generate remediation CPs from triage-approved routing prompts | `plans/plan.md`, `plans/backlog.md` (Routed annotation) |
 | `/validate-plan` | Validate `plan.md` CDD compliance before batch composition | `plans/plan.md` (stamp only) |
 | `/io-plan-batch` | Compose dispatch batch, score confidence, get human approval | `plans/tasks/CP-XX.md` (on acceptance) |
 | `/validate-tasks` | Validate task files against plan.md and component-contracts.toml | `plans/tasks/CP-XX.task.validation`, `plans/validation-reports/task-validation-report.yaml` |
@@ -179,7 +182,7 @@ These workflows are part of the full lifecycle and are intentionally outside the
 
 - Brownfield adoption path: `/io-adopt` -> `/io-clarify` -> `/io-init` -> `/io-specify` -> `/io-architect`.
 - Execution internals: `dispatch-agents.sh` dispatches Tier 3 sub-agents that run `/io-execute` per checkpoint task file.
-- Post-review backlog routing: `/io-review` -> `/review-capture` (staging) -> `/io-backlog-triage` (drain to backlog) -> (`/io-architect` | `/validate-plan` | `/io-ct-remediate`) based on tag/risk.
+- Post-review backlog routing: `/io-review` -> `/review-capture` (staging) -> `/io-backlog-triage` (drain to backlog) -> (`/io-architect` | `/auto-checkpoint` | `/validate-plan` | `/io-ct-remediate`) based on tag/risk.
 - Archived checkpoint CT recovery: `/io-review` (detect missing CT) -> `/io-ct-remediate` -> backlog item resolved.
 - PRD-change replan path (non-linear): `/io-replan` when requirements change after initial planning.
 
