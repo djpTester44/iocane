@@ -36,7 +36,7 @@ Read `.claude/iocane.config.yaml` and extract `parallel.limit`. This is the maxi
 ### Step B — Identify Unblocked Checkpoints
 
 **B1 — Discover completed checkpoints (cheap):**
-Glob `plans/archive/CP-*/CP-*.status` to collect all completed checkpoint IDs. Read each `.status` file (single line) to confirm it is marked PASS. This replaces a full `plan.md` read for status discovery.
+Read `plans/plan.md` and collect all checkpoint IDs whose section contains `**Status:** [x] complete`. This is authoritative — `dispatch-agents.sh` flips the status at merge time. No archive glob needed.
 
 **B2 — Discover checkpoint metadata (targeted):**
 Grep `plans/plan.md` for `^### CP-` to obtain line numbers for every checkpoint header. For each checkpoint NOT in the completed set from B1, perform a line-bounded read of that checkpoint's section (from its header to the next `---` separator) to extract: dependencies (`Depends on`), write targets, status, and sequence number. Do NOT read sections for completed checkpoints — their data is not needed.

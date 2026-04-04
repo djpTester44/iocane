@@ -395,6 +395,20 @@ for CP_ID in "${BATCH[@]}"; do
         else
             git -C "$REPO_ROOT" merge "iocane/$CP_ID" --no-ff -m "Merge checkpoint $CP_ID into $PARENT_BRANCH"
             echo "$CP_ID: Merged into $PARENT_BRANCH."
+
+            # --- Register completion in plan.md ---
+            uv run python -c "
+import re, sys
+path, cp_id = sys.argv[1], sys.argv[2]
+with open(path, 'r', encoding='utf-8') as f:
+    text = f.read()
+pattern = r'(### ' + re.escape(cp_id) + r':.*?\n(?:(?!###).*?\n)*?\*\*Status:\*\*) \[ \] pending'
+updated, count = re.subn(pattern, r'\1 [x] complete', text)
+if count > 0:
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(updated)
+    print(f'{cp_id}: plan.md -> [x] complete')
+" "$REPO_ROOT/plans/plan.md" "$CP_ID" 2>/dev/null || true
         fi
 
         git -C "$REPO_ROOT" worktree remove "$REPO_ROOT/.worktrees/$CP_ID" --force 2>/dev/null || true

@@ -12,8 +12,10 @@
 #                    plans/tasks/CP-XX.task.validation
 #                    .iocane/CP-XX.attempts
 # Archive location:  plans/archive/CP-XX/
-# Also updates:      plans/plan.md status from [ ] pending to [x] complete
-#                    plans/backlog.md (remediation checkpoints only)
+# Also updates:      plans/backlog.md (remediation checkpoints only)
+#
+# Note: plan.md completion status is set by dispatch-agents.sh at merge time.
+# This script handles post-review artifact cleanup only.
 #
 # Usage:
 #   bash .claude/scripts/archive-approved.sh CP-01     # archive specific checkpoint(s)
@@ -86,31 +88,8 @@ for CP_ID in "${TARGETS[@]}"; do
         echo "  [ok] $CP_ID.attempts -> plans/archive/$CP_ID/"
     fi
 
-    # Update plan.md status from [ ] pending to [x] complete
-    PLAN_FILE="$REPO_ROOT/plans/plan.md"
-    if [ -f "$PLAN_FILE" ]; then
-        if uv run python -c "
-import re, sys
-sys.path.insert(0, '${REPO_ROOT}/.claude/scripts')
-from backlog_parser import extract_cp_section
-path = sys.argv[1]
-cp_id = sys.argv[2]
-with open(path, 'r', encoding='utf-8') as f:
-    text = f.read()
-pattern = r'(### ' + re.escape(cp_id) + r':.*?\n(?:(?!###).*?\n)*?\*\*Status:\*\*) \[ \] pending'
-updated, count = re.subn(pattern, r'\1 [x] complete', text)
-if count == 0:
-    sys.exit(1)
-with open(path, 'w', encoding='utf-8') as f:
-    f.write(updated)
-" "$PLAN_FILE" "$CP_ID" 2>/dev/null; then
-            echo "  [ok] plan.md status -> [x] complete"
-        else
-            echo "  WARN: Could not update $CP_ID status in plan.md (already complete or not found)." >&2
-        fi
-    fi
-
     # For remediation checkpoints: mark corresponding backlog items as remediated
+    PLAN_FILE="$REPO_ROOT/plans/plan.md"
     BACKLOG_FILE="$REPO_ROOT/plans/backlog.md"
     if [ -f "$PLAN_FILE" ] && [ -f "$BACKLOG_FILE" ]; then
         IS_REMEDIATION=$(uv run python -c "

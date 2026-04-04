@@ -195,25 +195,42 @@ Generate a findings report:
 
 ---
 
-### Step J: CHECKPOINT APPROVAL DECISION
+### Step J: REVIEW COMPLETE — FINDING ROUTING
 
-Present to the human:
+Completion is already registered in `plan.md` by `dispatch-agents.sh` at merge time. This step routes review findings and cleans up task artifacts.
+
+**Single CP — present to the human:**
 
 ```
 REVIEW COMPLETE: [CP-ID]
 
-Gate: PASS/FAIL
-Connectivity tests: [N/N]
 Findings: [N HIGH], [N MEDIUM], [N LOW]
 
 Options:
-1. Approve checkpoint — proceed to /io-plan-batch then /validate-tasks then dispatch-agents.sh for next batch
-2. Route findings to backlog — re-execute checkpoint after remediation
+1. No actionable findings — archive task artifacts and proceed
+2. Route findings to backlog for remediation
 3. Escalate to /io-architect — finding reveals a design gap
 ```
 
+**Batch (multiple CPs from completed wave) — present to the human:**
+
+```
+REVIEW COMPLETE: Wave [N]
+
+| CP    | HIGH | MEDIUM | LOW | Routing                      |
+|-------|------|--------|-----|------------------------------|
+| CP-XX | 0    | 2      | 1   | Route 2 MEDIUM to backlog    |
+| CP-YY | 0    | 0      | 1   | No actionable findings       |
+| CP-ZZ | 0    | 0      | 0   | No actionable findings       |
+
+Recommended:
+- Route findings for [CPs with actionable findings] via /review-capture
+- Archive task artifacts: bash .claude/scripts/archive-approved.sh [all CP-IDs]
+```
+
 - **Human decides.** Do not auto-approve.
-- **If option 1 selected:** Run `bash .claude/scripts/archive-approved.sh [CP-ID]` — this flips the status in `plan.md` to `[x] complete`, moves task artifacts to `plans/archive/[CP-ID]/`, and for remediation checkpoints automatically marks all corresponding backlog items as `[x]` with a `Remediated:` annotation.
+- **If option 1 selected (or batch archive recommended):** Run `bash .claude/scripts/archive-approved.sh [CP-ID ...]` — this moves task artifacts to `plans/archive/[CP-ID]/`, and for remediation checkpoints automatically marks all corresponding backlog items as `[x]` with a `Remediated:` annotation.
+- **If option 2 selected:** Run `/review-capture` to route findings to `plans/backlog.md`. Findings become new work items (remediation checkpoints), not re-execution of the original CP.
 
 ---
 
