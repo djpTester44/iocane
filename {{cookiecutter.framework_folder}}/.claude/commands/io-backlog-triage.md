@@ -15,7 +15,7 @@ writes until Step 6 human approval.
 **Position in chain:**
 
 ```
-post /io-review -> [/io-backlog-triage] -> human approves routing -> /io-architect | /auto-checkpoint | /validate-plan | /io-ct-remediate
+post /io-review -> [/io-backlog-triage] -> human approves routing -> /auto-architect | /auto-checkpoint | /validate-plan | /io-ct-remediate
 ```
 
 This workflow can also be invoked independently of `/io-review` for periodic triage
@@ -182,8 +182,8 @@ For each `STILL OPEN` or `PARTIALLY RESOLVED` item, determine the routing:
 
 | Tag | CP Status | Routing |
 |-----|-----------|---------|
-| `[DESIGN]` | any | `/io-architect` then `/io-checkpoint` |
-| `[REFACTOR]` | any | `/io-architect` (CRC only) then `/io-checkpoint` |
+| `[DESIGN]` | any | `/auto-architect` (batch) or `/io-architect` (manual) then `/io-checkpoint` |
+| `[REFACTOR]` | any | `/auto-architect` (batch) or `/io-architect` (CRC only, manual) then `/io-checkpoint` |
 | `[CLEANUP]` | pending | `/validate-plan` -> `/io-plan-batch` -- sub-agent picks it up |
 | `[CLEANUP]` | done | `/auto-checkpoint` (batches into plan.md), then `/validate-plan` |
 | `[TEST]` CT gap | any | `/io-ct-remediate` |
@@ -249,11 +249,13 @@ For each STILL OPEN item with a clear routing (unblocked items only):
 ### Remediation Routing (done CPs — via /io-checkpoint)
 For each completed CP with STILL OPEN items:
 
-**Items requiring design gate first (DESIGN/REFACTOR -> CLEANUP):**
-- BL-NNN [CLEANUP] [short description] (was [ORIGINAL TAG])
-  Step 1: `/io-architect` — [context: what contract/CRC change is needed]
-  Step 2: `/io-checkpoint` — [context: remediation CP scope, write targets,
-  gate inherited from parent CP, Source BL: BL-NNN]
+**Items requiring design gate first (will be created as atomic BL items):**
+- [ORIGINAL TAG] [short description] -> ATOMIC ENTRIES:
+  - **BL-NEW1** [DESIGN] [contract change description]
+    Prompt: `/io-architect` -- [context]
+  - **BL-NEW2** [CLEANUP] [implementation description]
+    Prompt: `/io-checkpoint` -- [context]
+    Blocked: BL-NEW1
 
 **Items routable directly (CLEANUP/TEST on done CP):**
 - BL-NNN [TAG] [short description]
@@ -294,31 +296,19 @@ The human reviews the summary and for each item:
 - **Confirms likely-resolved:** triage workflow changes `[ ]` to `[x]` in
   `plans/backlog.md` with a brief resolution note.
 - **Approves routing (done CP):** For items on completed checkpoints, triage:
-  (a) Writes routing prompts as annotations on the backlog item — the full
-  playbook the human needs to execute (see Step 5 format). The routing prompts
-  persist in `plans/backlog.md` so the human can return to them later without
-  re-running triage. Use this annotation format for the `Routed:` field:
-
-      - Routed:
-        - Step 1: '/io-architect [context]'
-        - Step 2: '/io-checkpoint [context]'
-
-  The entire prompt including context MUST be wrapped in single quotes so it
-  is copy-pasteable directly from the markdown file. Do NOT use backticks or
-  double quotes.
-  (b) **Atomic splitting** for items with non-None `Contract impact` (from
-  `plans/review-output.md` staging format): instead of re-tagging a single
-  item, produce separate atomic BL items:
-    - A `[DESIGN]` item with `/io-architect` routing prompt for the contract
-      change. Tags are permanent — no re-tagging.
-    - One or more `[CLEANUP]`/`[TEST]` items with `/io-checkpoint` routing
-      prompts for the implementation work. Each gets a `Blocked: BL-NNN`
-      annotation referencing the `[DESIGN]` item, so they cannot be routed
-      until the design gate clears.
-  For items with `Contract impact: None`, write routing prompts directly
-  as before (no splitting needed).
-  (c) For items from `plans/review-output.md` that have NO contract impact
-  and are tagged `[CLEANUP]` or `[TEST]`, write a single-step routing prompt:
+  (a) Creates atomic BL entries -- one routable action per entry. Determine
+  the next BL ID via `find_max_bl_id()` from `.claude/scripts/backlog_parser.py`.
+  **From staging (primary path):** Create separate BL entries directly from the
+  staging finding using the standard entry format from
+  `.claude/templates/backlog-entry.md`. No original to close.
+  **From existing backlog (re-triage path):** Mark the original `[x]` with
+  `Split: BL-NNN, BL-NNN`, create replacement entries immediately after it.
+  Each entry gets exactly one `Routed:` annotation with one prompt line.
+  Dependent entries get `Blocked: BL-NNN`. The entire prompt including context
+  MUST be wrapped in single quotes so it is copy-pasteable directly from the
+  markdown file. Do NOT use backticks or double quotes.
+  (b) For items that need only a single workflow invocation (no design gate),
+  write a single-step routing prompt:
 
       - Routed: CP-NNRN (YYYY-MM-DD)
         - '/io-checkpoint [context]'
@@ -330,7 +320,7 @@ After processing all items, output an audit table summarizing every decision:
 
 | # | Item | Classification | Human Decision | Tag Change | Action Taken |
 |---|------|----------------|----------------|------------|--------------|
-| 1 | [CLEANUP] description | STILL OPEN | APPROVE | [REFACTOR]->[CLEANUP] | Routing prompts written |
+| 1 | [REFACTOR] description | STILL OPEN | APPROVE | Atomic | BL-NNN [DESIGN], BL-NNN [CLEANUP] created |
 | 2 | [CLEANUP] description | STILL OPEN | APPROVE | -- | Routing prompt written |
 ```
 
@@ -339,9 +329,10 @@ or invoke any downstream workflow itself. All subsequent execution flows through
 existing harness:
 
 - `/io-ct-remediate` for CT gaps
-- `/io-architect` for design changes
+- `/auto-architect` for DESIGN/REFACTOR items (batch resolution, unblocks dependents)
+- `/io-architect` for manual design changes (greenfield or single-item)
 - `/auto-checkpoint` for done-CP cleanup/test items (batches into plan.md)
-- `/validate-plan` → `/io-plan-batch` for cleanup and refactor items
+- `/validate-plan` -> `/io-plan-batch` for cleanup and refactor items
 - Manual `plan.md` amendment for items requiring new checkpoint scope
 
 Human triggers each downstream workflow in sequence.
@@ -386,7 +377,7 @@ This step is skipped if the input source was `plans/backlog.md` directly
 
 ## REFERENCE: Routing Examples
 
-These examples illustrate the format for Step 5 "Route Immediately" entries:
+### Single-step routing (Step 5 "Route Immediately" format)
 
 ```
 - BL-012 [TEST] CT-NNN -- ComponentA CP-XX->CP-YY seam
@@ -404,3 +395,68 @@ These examples illustrate the format for Step 5 "Route Immediately" entries:
   Context to provide: "ErrorTypeX and ErrorTypeY need to be exported from
   interfaces/component_c.pyi. See BL-003."
 ```
+
+### Atomic entry creation (Step 6 -- from staging)
+
+A staging finding with non-None Contract impact produces two atomic BL entries:
+
+```
+- [ ] **BL-042** [DESIGN] Export ErrorTypeX from ComponentC Protocol
+  - Severity: HIGH
+  - Component: ComponentC
+  - Files: interfaces/component_c.pyi
+  - Detail: ErrorTypeX and ErrorTypeY not exported; downstream handlers cannot type-check
+  - Contract impact: Add error types to component_c.pyi Protocol exports
+  - Source: CP-12 /io-review 2026-04-04
+  - Routed: CP-12R1 (2026-04-04)
+    - '/io-architect -- Export ErrorTypeX and ErrorTypeY from interfaces/component_c.pyi. See BL-042.'
+
+- [ ] **BL-043** [CLEANUP] Update ComponentC error handlers for new exports
+  - Severity: HIGH
+  - Component: ComponentC
+  - Files: src/component_c/handlers.py
+  - Detail: Handlers reference error types by string; update to use Protocol exports
+  - Contract impact: None
+  - Source: CP-12 /io-review 2026-04-04
+  - Blocked: BL-042
+  - Routed: CP-12R2 (2026-04-04)
+    - '/io-checkpoint -- Remediation for CP-12. Source BL: BL-043. Scope: update error handlers. Write targets: src/component_c/handlers.py. Gate: inherited from CP-12.'
+```
+
+### Atomic entry creation (Step 6 -- from re-triage)
+
+An existing backlog item that needs splitting gets closed and replaced:
+
+```
+- [x] **BL-020** [REFACTOR] ComponentD config validation missing
+  - Severity: MEDIUM
+  - Component: ComponentD
+  - Files: src/component_d/config.py, interfaces/component_d.pyi
+  - Detail: Validation logic not enforced at Protocol level
+  - Contract impact: Add validate() to Protocol
+  - Source: CP-08 /io-review 2026-03-15
+  - Split: BL-044, BL-045
+
+- [ ] **BL-044** [DESIGN] Add validate() to ComponentD Protocol
+  - Severity: MEDIUM
+  - Component: ComponentD
+  - Files: interfaces/component_d.pyi
+  - Detail: Protocol needs validate() method signature
+  - Contract impact: Add validate() to component_d.pyi
+  - Source: Split from BL-020
+  - Routed: CP-08R1 (2026-04-04)
+    - '/io-architect -- Add validate() to ComponentD Protocol. See BL-044, split from BL-020.'
+
+- [ ] **BL-045** [CLEANUP] Implement ComponentD config validation
+  - Severity: MEDIUM
+  - Component: ComponentD
+  - Files: src/component_d/config.py
+  - Detail: Implement validate() per new Protocol contract
+  - Contract impact: None
+  - Source: Split from BL-020
+  - Blocked: BL-044
+  - Routed: CP-08R2 (2026-04-04)
+    - '/io-checkpoint -- Remediation for CP-08. Source BL: BL-045. Scope: implement validate(). Write targets: src/component_d/config.py. Gate: inherited from CP-08.'
+```
+
+See `.claude/templates/backlog-entry.md` for the canonical field format and parser contract.

@@ -43,6 +43,15 @@ if [ -z "$FILE_PATH" ]; then
     exit 0
 fi
 
+# IOCANE_REFACTOR_MODE: block writes to interfaces/*.pyi during REFACTOR execution.
+# Prevents REFACTOR items from accidentally modifying contracts.
+if [ "${IOCANE_REFACTOR_MODE:-0}" = "1" ]; then
+    if echo "$FILE_PATH" | grep -qE 'interfaces/[^/]+\.pyi$'; then
+        echo "BLOCKED: $FILE_PATH -- IOCANE_REFACTOR_MODE is active. REFACTOR items must not modify .pyi contracts. Re-triage as [DESIGN] if .pyi changes are needed." >&2
+        exit 2
+    fi
+fi
+
 # Exempt interactive sessions: only haiku sub-agents are gated.
 SESSION_MODEL=$(cat .iocane/session-model 2>/dev/null || echo "")
 if [[ "$SESSION_MODEL" != *"haiku"* ]]; then

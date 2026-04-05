@@ -1,7 +1,7 @@
 """Shared backlog/plan parsing utilities.
 
 Standalone module (no third-party deps). Used by route-backlog-item.sh,
-assign-backlog-ids.sh, archive-approved.sh, and auto_checkpoint.py.
+assign-backlog-ids.sh, archive-approved.sh, auto_checkpoint.py, and auto_architect.py.
 """
 
 import re
@@ -32,12 +32,14 @@ def write_lines(path: str, lines: list[str]) -> None:
 def build_bl_index(lines: list[str]) -> dict[str, int]:
     """Build {BL-NNN: line_number} index from backlog lines.
 
-    Pattern: re.match(r'^\\*\\*(BL-\\d{3})\\*\\*$', line.strip())
+    Pattern: re.search(r'\\*\\*(BL-\\d{3})\\*\\*', line)
+    Matches both standalone anchor lines and inline format:
+      - [ ] **BL-001** [CLEANUP] Description...
     Source: archive-approved.sh lines 138-141
     """
     index: dict[str, int] = {}
     for i, line in enumerate(lines):
-        m = re.match(r"^\*\*(BL-\d{3})\*\*$", line.strip())
+        m = re.search(r"\*\*(BL-\d{3})\*\*", line)
         if m:
             index[m.group(1)] = i
     return index
@@ -60,23 +62,28 @@ def find_max_bl_id(lines: list[str]) -> int:
 def find_bl_anchor(lines: list[str], bl_id: str) -> int:
     """Find line index of **BL-NNN** anchor. Returns -1 if not found.
 
-    Pattern: line.strip() == f'**{bl_id}**'
+    Pattern: marker in line (substring match)
+    Matches both standalone anchor lines and inline format:
+      - [ ] **BL-001** [CLEANUP] Description...
     Source: route-backlog-item.sh lines 44-49
     """
     marker = f"**{bl_id}**"
     for i, line in enumerate(lines):
-        if line.strip() == marker:
+        if marker in line:
             return i
     return -1
 
 
 def find_summary_line(lines: list[str], anchor: int) -> int | None:
-    """Find the '- [ ]' or '- [x]' summary line after an anchor.
+    """Find the '- [ ]' or '- [x]' summary line at or after an anchor.
 
-    Searches up to 4 lines after the anchor.
+    If the anchor line itself is a checklist item (inline BL-ID format),
+    returns the anchor. Otherwise searches up to 4 lines after.
     Pattern: re.match(r'^- \\[[ x]\\]', lines[j])
     Source: archive-approved.sh lines 152-155
     """
+    if re.match(r"^- \[[ x]\]", lines[anchor]):
+        return anchor
     for j in range(anchor + 1, min(anchor + 5, len(lines))):
         if re.match(r"^- \[[ x]\]", lines[j]):
             return j
@@ -161,3 +168,23 @@ def extract_bl_ids_from_text(text: str) -> list[str]:
     Source: archive-approved.sh line 129
     """
     return re.findall(r"BL-\d{3}", text)
+
+
+def extract_architect_prompt(block_lines: list[str]) -> str | None:
+    """Extract the /io-architect prompt text from a BL item's sub-field lines.
+
+    Triage invariant: exactly one Routed: annotation with exactly one prompt line.
+    Returns the prompt text (without the command prefix), or None if not found.
+
+    Pattern: line containing '/io-architect' in the block's nested sub-fields.
+    Source: backlog-entry.md annotation format
+    """
+    for line in block_lines:
+        stripped = line.strip()
+        if "/io-architect" not in stripped:
+            continue
+        # Remove leading "- '" and the command prefix, trailing "'"
+        prompt = re.sub(r"^-\s*'?\\?/?io-architect\s*", "", stripped)
+        prompt = prompt.rstrip("'")
+        return prompt
+    return None

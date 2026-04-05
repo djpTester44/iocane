@@ -19,7 +19,7 @@ checkpoints to `plans/plan.md`.
 **Position in chain:**
 
 ```
-/io-backlog-triage (routing prompts written) -> [/auto-checkpoint] -> /validate-plan -> /io-plan-batch
+/io-backlog-triage (routing prompts written) -> /auto-architect (DESIGN/REFACTOR) -> [/auto-checkpoint] -> /validate-plan -> /io-plan-batch
 ```
 
 ---

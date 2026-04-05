@@ -200,6 +200,9 @@ To reference a specific item: `grep 'BL-005' plans/backlog.md` -- read downward 
 /io-backlog-triage           --> drains staging to plans/backlog.md with BL-NNN IDs,
                                  assesses open items, outputs prioritized routing summary
                                  with explicit prompts per item (Tier 1 -- plan mode)
+/auto-architect               --> resolves [DESIGN]/[REFACTOR] items (CRC + Protocol changes),
+                                 unblocks dependent CLEANUP/TEST items
+/auto-checkpoint             --> batches unblocked CLEANUP/TEST items into remediation CPs
 /io-checkpoint (remediation) --> writes Source BL: BL-NNN in CP section, runs
                                  route-backlog-item.sh to add Routed: annotation
 dispatch-agents.sh           --> reads backlog.md, warns on [DESIGN]/[REFACTOR] conflicts
@@ -225,8 +228,8 @@ routable item, referenced by BL-ID.
 
 | Tag | Meaning | Blocks orchestration? | Routing workflow |
 |-----|---------|----------------------|-----------------|
-| `[DESIGN]` | CRC or Protocol gap -- requires `/io-architect` | Yes (warning) | `/io-architect` |
-| `[REFACTOR]` | DI, layer, or SOLID violation | Yes (warning) | `/io-architect` (CRC only) then `/validate-plan` |
+| `[DESIGN]` | CRC or Protocol gap -- requires `/io-architect` | Yes (warning) | `/auto-architect` (batch) or `/io-architect` (manual) |
+| `[REFACTOR]` | DI, layer, or SOLID violation | Yes (warning) | `/auto-architect` (batch) or `/io-architect` (CRC only, manual) |
 | `[CLEANUP]` | Minor improvement | No | `/validate-plan` -> `/io-plan-batch` |
 | `[TEST]` | Missing test coverage | No | `/io-ct-remediate` (CT gaps) or checkpoint amendment (unit test gaps) |
 | `[DEFERRED]` | Acknowledged, intentionally postponed | No | -- |

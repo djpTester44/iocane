@@ -308,17 +308,10 @@ def generate_title(prompt: str, fields: dict[str, str]) -> str:
             text = text[batch_match.end():]
         return text
 
-    # Fallback: component from scope + first 60 chars
+    # Fallback: first 60 chars of scope (component name is prepended by the
+    # checkpoint template in generate_checkpoint_markdown, so omit it here
+    # to avoid duplication like "Component -- Component -- scope").
     scope = fields.get("Scope", "")
-    # Try to extract component name from write targets
-    write_targets = fields.get("Write targets", "")
-    component = ""
-    src_match = re.search(r"src/\w+/(\w+)\.py", write_targets)
-    if src_match:
-        # Convert snake_case to PascalCase for component name
-        parts = src_match.group(1).split("_")
-        component = "".join(p.capitalize() for p in parts)
-
     scope_truncated = scope[:60]
     if len(scope) > 60:
         # Truncate at word boundary
@@ -326,8 +319,6 @@ def generate_title(prompt: str, fields: dict[str, str]) -> str:
         if last_space > 30:
             scope_truncated = scope_truncated[:last_space]
 
-    if component:
-        return f"{component} -- {scope_truncated}"
     return scope_truncated
 
 
@@ -442,10 +433,9 @@ def extract_component_name(write_targets_str: str) -> str:
 
 
 def extract_write_target_list(write_targets_str: str) -> list[str]:
-    """Parse write targets from a comma/period-separated string."""
-    # Split on comma or period, strip whitespace
+    """Parse write targets from a comma-separated string."""
     targets: list[str] = []
-    for chunk in re.split(r"[,.]", write_targets_str):
+    for chunk in write_targets_str.split(","):
         chunk = chunk.strip()
         if chunk:
             targets.append(chunk)

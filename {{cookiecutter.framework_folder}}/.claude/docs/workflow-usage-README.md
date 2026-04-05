@@ -6,6 +6,9 @@
 Primary Path:
 /io-clarify -> /io-init -> /io-specify -> /io-architect -> /io-checkpoint -> /validate-plan -> /io-plan-batch -> /validate-tasks -> dispatch-agents.sh -> /io-review
 
+Remediation Path (after /io-backlog-triage routes DESIGN/REFACTOR items):
+/io-backlog-triage -> /auto-architect -> /auto-checkpoint -> /validate-plan -> /io-plan-batch
+
 Batch Loop (repeat until all checkpoints complete):
 /io-review -> /io-plan-batch -> /validate-tasks -> dispatch-agents.sh -> /io-review
 
@@ -53,6 +56,7 @@ The following are internal helper scripts. Do not run them directly unless debug
 
 - `write-status.sh` -- internal: writes checkpoint status files during /io-execute
 - `auto_checkpoint.py` -- internal: backing script for /auto-checkpoint (7-criterion filter + CP generation + backlog routing)
+- `auto_architect.py` -- internal: backing script for /auto-architect (5-criterion filter + dependency graph + JSON manifest)
 - `backlog_parser.py` -- internal: parses plans/backlog.md for programmatic queries
 - `extract_structure.py` -- internal: AST-based project structure extraction
 - `smart_search.sh` -- internal: targeted codebase search utility
@@ -60,6 +64,7 @@ The following are internal helper scripts. Do not run them directly unless debug
 - `check_di_compliance.py` -- internal: DI compliance checker used in REFACTOR gate
 - `check_write_target_overlap.py` -- internal: write-target collision detection for /io-plan-batch Step C [HARD GATE] / Step E [HARD GATE]
 - `pre-invoke-auto-checkpoint.sh` -- internal: pre-invocation gate before /auto-checkpoint
+- `pre-invoke-auto-architect.sh` -- internal: pre-invocation gate before /auto-architect
 
 ---
 
@@ -160,6 +165,7 @@ The sentinel is automatically cleared on session start. If it is unexpectedly pr
 | `/io-architect` | Design CRC cards, Protocols, Interface Registry | `plans/project-spec.md`, `interfaces/*.pyi` |
 | `/io-replan` | Propagate PRD deltas into roadmap/spec and route impacts | `plans/roadmap.md`, `plans/project-spec.md`, `plans/backlog.md` |
 | `/io-checkpoint` | Define atomic checkpoints and connectivity tests | `plans/plan.md`, `plans/backlog.md` (remediation: Routed annotation via script) |
+| `/auto-architect` | Resolve DESIGN/REFACTOR backlog items via sub-agent research + evaluator gate | `plans/project-spec.md`, `interfaces/*.pyi`, `plans/component-contracts.toml`, `plans/seams.md`, `plans/backlog.md` |
 | `/auto-checkpoint` | Batch-generate remediation CPs from triage-approved routing prompts | `plans/plan.md`, `plans/backlog.md` (Routed annotation) |
 | `/validate-plan` | Validate `plan.md` CDD compliance before batch composition | `plans/plan.md` (stamp only) |
 | `/io-plan-batch` | Compose dispatch batch, score confidence, get human approval | `plans/tasks/CP-XX.md` (on acceptance) |
@@ -182,7 +188,7 @@ These workflows are part of the full lifecycle and are intentionally outside the
 
 - Brownfield adoption path: `/io-adopt` -> `/io-clarify` -> `/io-init` -> `/io-specify` -> `/io-architect`.
 - Execution internals: `dispatch-agents.sh` dispatches Tier 3 sub-agents that run `/io-execute` per checkpoint task file.
-- Post-review backlog routing: `/io-review` -> `/review-capture` (staging) -> `/io-backlog-triage` (drain to backlog) -> (`/io-architect` | `/auto-checkpoint` | `/validate-plan` | `/io-ct-remediate`) based on tag/risk.
+- Post-review backlog routing: `/io-review` -> `/review-capture` (staging) -> `/io-backlog-triage` (drain to backlog) -> (`/auto-architect` | `/auto-checkpoint` | `/validate-plan` | `/io-ct-remediate`) based on tag/risk.
 - Archived checkpoint CT recovery: `/io-review` (detect missing CT) -> `/io-ct-remediate` -> backlog item resolved.
 - PRD-change replan path (non-linear): `/io-replan` when requirements change after initial planning.
 
@@ -213,6 +219,7 @@ The following workflows require human interaction and must never be dispatched h
 - `/io-clarify`
 - `/io-specify`
 - `/io-architect`
+- `/auto-architect`
 - `/io-checkpoint`
 - `/validate-spec`
 - `/io-review`
