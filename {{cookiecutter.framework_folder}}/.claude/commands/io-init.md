@@ -103,11 +103,11 @@ Create the following directory scaffolding if not already present:
 plans/
   PRD.md          (already exists — do not modify)
   roadmap.md      (stub — created in Step D)
-  backlog.md      (create empty with standard header)
+  backlog.yaml      (create empty with standard header)
   tasks/          (empty directory — populated by /io-plan-batch)
 ```
 
-Do not create `plans/PLAN.md`. Checkpoint planning is handled by `/io-checkpoint` after contracts are locked. The `tasks/` directory is intentionally empty at this stage — `/io-plan-batch` populates it.
+Do not create `plans/plan.yaml`. Checkpoint planning is handled by `/io-checkpoint` after contracts are locked. The `tasks/` directory is intentionally empty at this stage — `/io-plan-batch` populates it.
 
 ---
 
@@ -141,9 +141,9 @@ Do not create `plans/PLAN.md`. Checkpoint planning is handled by `/io-checkpoint
 
 ---
 
-### Step E: CREATE EMPTY BACKLOG (`plans/backlog.md`)
+### Step E: CREATE EMPTY BACKLOG (`plans/backlog.yaml`)
 
-- **Action:** If `plans/backlog.md` does not exist, create it with the standard header:
+- **Action:** If `plans/backlog.yaml` does not exist, create it with the standard header:
 
 ```markdown
 # Backlog
@@ -154,7 +154,7 @@ Items marked [x] are resolved. Items marked [ ] are active.
 ---
 ```
 
-- **Rule:** If `plans/backlog.md` already exists (e.g., brownfield adoption), do not overwrite it.
+- **Rule:** If `plans/backlog.yaml` already exists (e.g., brownfield adoption), do not overwrite it.
 
 ---
 
@@ -166,7 +166,7 @@ BOOTSTRAP COMPLETE.
 pyproject.toml scaffolded (runtime deps empty -- add with uv add).
 CLAUDE.md localized with project identity.
 plans/roadmap.md created (stub -- ready for /io-specify).
-plans/backlog.md initialized.
+plans/backlog.yaml initialized.
 
 Next step: Run /io-specify to generate the dependency-ordered feature roadmap from the clarified PRD.
 ```
@@ -176,7 +176,7 @@ Next step: Run /io-specify to generate the dependency-ordered feature roadmap fr
 ## 3. CONSTRAINTS
 
 - This workflow does NOT generate `plans/project-spec.md`. That is `/io-architect`'s output.
-- This workflow does NOT generate `plans/plan.md` or any checkpoint plan. That is `/io-checkpoint`'s output.
+- This workflow does NOT generate `plans/plan.yaml` or any checkpoint plan. That is `/io-checkpoint`'s output.
 - This workflow does NOT generate `interfaces/*.pyi` files.
 - Do not reference or create `execution-handoff-bundle.md` — that artifact is retired.
 - The stub `plans/roadmap.md` must not contain feature entries. `/io-specify` owns that content.

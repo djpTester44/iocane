@@ -1,190 +1,130 @@
-"""Shared backlog/plan parsing utilities.
+"""Backlog parsing utilities.
 
-Standalone module (no third-party deps). Used by route-backlog-item.sh,
-assign-backlog-ids.sh, archive-approved.sh, auto_checkpoint.py, and auto_architect.py.
+YAML-based backlog I/O with Pydantic validation.
+Plan parsing has moved to plan_parser.py (Phase 2).
+
+Used by hooks, scripts, auto_checkpoint.py, and auto_architect.py.
 """
 
 import re
+from pathlib import Path
 
-
-# ---------------------------------------------------------------------------
-# File I/O
-# ---------------------------------------------------------------------------
-
-
-def read_lines(path: str) -> list[str]:
-    """Read file into lines list."""
-    with open(path, "r", encoding="utf-8") as f:
-        return f.readlines()
-
-
-def write_lines(path: str, lines: list[str]) -> None:
-    """Write lines list to file."""
-    with open(path, "w", encoding="utf-8") as f:
-        f.writelines(lines)
-
+import yaml
+from schemas import Annotation, Backlog, BacklogItem
 
 # ---------------------------------------------------------------------------
-# Backlog parsing
+# Backlog I/O (YAML)
 # ---------------------------------------------------------------------------
 
 
-def build_bl_index(lines: list[str]) -> dict[str, int]:
-    """Build {BL-NNN: line_number} index from backlog lines.
-
-    Pattern: re.search(r'\\*\\*(BL-\\d{3})\\*\\*', line)
-    Matches both standalone anchor lines and inline format:
-      - [ ] **BL-001** [CLEANUP] Description...
-    Source: archive-approved.sh lines 138-141
-    """
-    index: dict[str, int] = {}
-    for i, line in enumerate(lines):
-        m = re.search(r"\*\*(BL-\d{3})\*\*", line)
-        if m:
-            index[m.group(1)] = i
-    return index
+def load_backlog(path: str) -> Backlog:
+    """Load and validate plans/backlog.yaml."""
+    text = Path(path).read_text(encoding="utf-8")
+    if not text.strip():
+        return Backlog()
+    raw = yaml.safe_load(text)
+    if raw is None:
+        return Backlog()
+    return Backlog.model_validate(raw)
 
 
-def find_max_bl_id(lines: list[str]) -> int:
-    """Find highest BL-NNN numeric ID. Returns 0 if none.
+def save_backlog(path: str, backlog: Backlog) -> None:
+    """Serialize backlog to YAML and write to disk."""
+    data = backlog.model_dump(mode="json", exclude_none=True)
+    # Clean up empty lists to keep YAML readable
+    for item in data.get("items", []):
+        for key in ("files", "blocked_by", "annotations"):
+            if key in item and not item[key]:
+                del item[key]
+    output = yaml.dump(data, default_flow_style=False, sort_keys=False, allow_unicode=True)
+    Path(path).write_text(output, encoding="utf-8")
 
-    Pattern: re.search(r'\\*\\*BL-(\\d{3})\\*\\*', line)
-    Source: assign-backlog-ids.sh lines 30-34
-    """
+
+# ---------------------------------------------------------------------------
+# Queries
+# ---------------------------------------------------------------------------
+
+
+def find_item(backlog: Backlog, bl_id: str) -> BacklogItem | None:
+    """Find a backlog item by BL-ID."""
+    for item in backlog.items:
+        if item.id == bl_id:
+            return item
+    return None
+
+
+def find_max_id(backlog: Backlog) -> int:
+    """Find the highest numeric BL-ID. Returns 0 if no items."""
     max_id = 0
-    for line in lines:
-        m = re.search(r"\*\*BL-(\d{3})\*\*", line)
-        if m:
-            max_id = max(max_id, int(m.group(1)))
+    for item in backlog.items:
+        match = re.match(r"BL-(\d{3})", item.id)
+        if match:
+            max_id = max(max_id, int(match.group(1)))
     return max_id
 
 
-def find_bl_anchor(lines: list[str], bl_id: str) -> int:
-    """Find line index of **BL-NNN** anchor. Returns -1 if not found.
+def open_items(backlog: Backlog) -> list[BacklogItem]:
+    """Return all items with status == open."""
+    return [item for item in backlog.items if item.status.value == "open"]
 
-    Pattern: marker in line (substring match)
-    Matches both standalone anchor lines and inline format:
-      - [ ] **BL-001** [CLEANUP] Description...
-    Source: route-backlog-item.sh lines 44-49
+
+def items_by_tag(backlog: Backlog, *tags: str) -> list[BacklogItem]:
+    """Return items matching any of the given tag strings."""
+    tag_set = set(tags)
+    return [item for item in backlog.items if item.tag.value in tag_set]
+
+
+def items_with_routing(backlog: Backlog, command: str) -> list[BacklogItem]:
+    """Return items whose routing_prompt contains the given command string."""
+    return [
+        item for item in backlog.items
+        if item.routing_prompt and command in item.routing_prompt
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Mutations (return new Backlog)
+# ---------------------------------------------------------------------------
+
+
+def add_item(backlog: Backlog, item: BacklogItem) -> Backlog:
+    """Return a new Backlog with the item appended."""
+    return Backlog(items=[*backlog.items, item])
+
+
+def update_item(backlog: Backlog, bl_id: str, **changes: object) -> Backlog:
+    """Return a new Backlog with the specified item updated.
+
+    Uses model_copy(update=...) on the frozen BacklogItem.
     """
-    marker = f"**{bl_id}**"
-    for i, line in enumerate(lines):
-        if marker in line:
-            return i
-    return -1
-
-
-def find_summary_line(lines: list[str], anchor: int) -> int | None:
-    """Find the '- [ ]' or '- [x]' summary line at or after an anchor.
-
-    If the anchor line itself is a checklist item (inline BL-ID format),
-    returns the anchor. Otherwise searches up to 4 lines after.
-    Pattern: re.match(r'^- \\[[ x]\\]', lines[j])
-    Source: archive-approved.sh lines 152-155
-    """
-    if re.match(r"^- \[[ x]\]", lines[anchor]):
-        return anchor
-    for j in range(anchor + 1, min(anchor + 5, len(lines))):
-        if re.match(r"^- \[[ x]\]", lines[j]):
-            return j
-    return None
-
-
-def walk_subfields(lines: list[str], summary_idx: int) -> int:
-    """Walk sub-field lines ('  - ...') after summary. Returns index of last sub-field.
-
-    If no sub-fields exist, returns summary_idx.
-    Pattern: lines[i].startswith('  - ')
-    Source: route-backlog-item.sh lines 64-74, archive-approved.sh lines 164-169
-    """
-    insert_after = summary_idx
-    i = summary_idx + 1
-    while i < len(lines):
-        if lines[i].rstrip("\n").startswith("  - "):
-            insert_after = i
-            i += 1
+    new_items: list[BacklogItem] = []
+    for item in backlog.items:
+        if item.id == bl_id:
+            new_items.append(item.model_copy(update=changes))
         else:
-            break
-    return insert_after
+            new_items.append(item)
+    return Backlog(items=new_items)
 
 
-def insert_subfield(
-    lines: list[str], insert_after: int, annotation: str
-) -> list[str]:
-    """Insert a sub-field annotation line after the given index. Returns updated lines."""
-    lines.insert(insert_after + 1, annotation)
-    return lines
+def add_annotation(backlog: Backlog, bl_id: str, annotation: Annotation) -> Backlog:
+    """Return a new Backlog with an annotation appended to the specified item."""
+    new_items: list[BacklogItem] = []
+    for item in backlog.items:
+        if item.id == bl_id:
+            new_items.append(
+                item.model_copy(update={"annotations": [*item.annotations, annotation]})
+            )
+        else:
+            new_items.append(item)
+    return Backlog(items=new_items)
 
 
-def shift_bl_index(
-    bl_index: dict[str, int], after: int, delta: int = 1
-) -> None:
-    """Shift all BL index entries after the given line by delta. Mutates in place.
+def mark_resolved(backlog: Backlog, bl_id: str) -> Backlog:
+    """Return a new Backlog with the specified item marked resolved."""
+    return update_item(backlog, bl_id, status="resolved")
 
-    Source: archive-approved.sh lines 174-176
-    """
-    for k, v in bl_index.items():
-        if v > after:
-            bl_index[k] = v + delta
-
-
-# ---------------------------------------------------------------------------
-# Plan.md parsing
-# ---------------------------------------------------------------------------
-
-
-def extract_cp_section(plan_text: str, cp_id: str) -> str | None:
-    """Extract full text of a ### CP-ID: section from plan.md.
-
-    Pattern: r'### ' + re.escape(cp_id) + r':.*?(?=\\n###|\\Z)' with re.DOTALL
-    Source: archive-approved.sh lines 109, 124-125
-    """
-    pattern = r"### " + re.escape(cp_id) + r":.*?(?=\n###|\Z)"
-    m = re.search(pattern, plan_text, re.DOTALL)
-    return m.group(0) if m else None
-
-
-def extract_field(section_text: str, field_name: str) -> str | None:
-    """Extract value of **FieldName:** from a CP section.
-
-    Handles multi-line values by reading until next **Field:** or section end.
-    """
-    pattern = (
-        r"\*\*"
-        + re.escape(field_name)
-        + r":\*\*\s*(.*?)(?=\n\*\*[A-Z].*?:\*\*|\Z)"
-    )
-    m = re.search(pattern, section_text, re.DOTALL)
-    if not m:
-        return None
-    value = m.group(1).strip()
-    return value if value else None
 
 
 def extract_bl_ids_from_text(text: str) -> list[str]:
-    """Find all BL-NNN references in text.
-
-    Pattern: re.findall(r'BL-\\d{3}', text)
-    Source: archive-approved.sh line 129
-    """
+    """Find all BL-NNN references in text."""
     return re.findall(r"BL-\d{3}", text)
-
-
-def extract_architect_prompt(block_lines: list[str]) -> str | None:
-    """Extract the /io-architect prompt text from a BL item's sub-field lines.
-
-    Triage invariant: exactly one Routed: annotation with exactly one prompt line.
-    Returns the prompt text (without the command prefix), or None if not found.
-
-    Pattern: line containing '/io-architect' in the block's nested sub-fields.
-    Source: backlog-entry.md annotation format
-    """
-    for line in block_lines:
-        stripped = line.strip()
-        if "/io-architect" not in stripped:
-            continue
-        # Remove leading "- '" and the command prefix, trailing "'"
-        prompt = re.sub(r"^-\s*'?\\?/?io-architect\s*", "", stripped)
-        prompt = prompt.rstrip("'")
-        return prompt
-    return None

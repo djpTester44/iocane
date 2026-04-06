@@ -23,10 +23,11 @@ Maps every harness constraint to its enforcement mechanism.
 | .py file creation context injection | `py-create-context.sh` | PreToolUse Edit/Write | yes |
 | Validation stamp reset on PRD write | `reset-on-prd-write.sh` | PostToolUse Edit/Write | |
 | Validation stamp reset on project-spec write | `reset-on-project-spec-write.sh` | PostToolUse Edit/Write | |
-| Validation stamp reset on plan.md write | `reset-on-plan-write.sh` | PostToolUse Edit/Write | |
+| Validation stamp reset on plan.yaml write | `reset-on-plan-write.sh` | PostToolUse Edit/Write | |
 | Validation stamp reset on .pyi write | `reset-on-pyi-write.sh` | PostToolUse Edit/Write | |
 | BL-NNN assignment on backlog write | `backlog-id-assign.sh` | PostToolUse Edit/Write | |
 | Backlog tag validation | `backlog-tag-validate.sh` | PostToolUse Edit/Write | yes |
+| YAML schema validation (task, plan, backlog, seams) | `validate-yaml.sh` | PostToolUse Edit/Write | |
 | Archive sync on checkpoint approval | `archive-sync.sh` | PostToolUse Edit/Write | yes |
 | Escalation capture on command failure | `escalation-gate.sh` | PostToolUse Bash | |
 | Tool failure logging and corrective feedback | `tool-failure.sh` | PostToolUseFailure | |
@@ -53,7 +54,7 @@ Maps every harness constraint to its enforcement mechanism.
 | Import-linter layer contracts | `run-compliance.sh` → `uv run rtk lint-imports` | io-review Step D, gap-analysis Step C |
 | Bandit security scan (optional) | `run-compliance.sh` → `bandit -q -ll` (WARN if not installed) | io-review Step D, gap-analysis Step C |
 | DI compliance (full run) | `run-compliance.sh` → `check_di_compliance.py` | io-review Step D, gap-analysis Step C |
-| `ci-sidecar.sh post-wave` | Advisory | Post-dispatch regression diff -- appends `[CI-REGRESSION]` / `[CI-COLLECTION-ERROR]` findings to `plans/backlog.md` |
+| `ci-sidecar.sh post-wave` | Advisory | Post-dispatch regression diff -- appends `[CI-REGRESSION]` / `[CI-COLLECTION-ERROR]` findings to `plans/backlog.yaml` |
 
 ---
 

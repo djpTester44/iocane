@@ -1,13 +1,13 @@
 ---
 name: io-plan-batch
-description: Compose a dispatch batch from plans/plan.md. Sits between /io-checkpoint and dispatch-agents.sh in the orchestration chain.
+description: Compose a dispatch batch from plans/plan.yaml. Sits between /io-checkpoint and dispatch-agents.sh in the orchestration chain.
 ---
 
 # /io-plan-batch
 
 ## Purpose
 
-Compose a dispatch batch from `plans/plan.md`. Sits between `/io-checkpoint` and `dispatch-agents.sh` in the orchestration chain.
+Compose a dispatch batch from `plans/plan.yaml`. Sits between `/io-checkpoint` and `dispatch-agents.sh` in the orchestration chain.
 
 ```
 /io-checkpoint -> /io-plan-batch -> /validate-tasks -> bash .claude/scripts/dispatch-agents.sh
@@ -35,19 +35,27 @@ Read `.claude/iocane.config.yaml` and extract `parallel.limit`. This is the maxi
 
 ### Step B — Identify Unblocked Checkpoints
 
-**B1 — Discover completed checkpoints (cheap):**
-Read `plans/plan.md` and collect all checkpoint IDs whose section contains `**Status:** [x] complete`. This is authoritative — `dispatch-agents.sh` flips the status at merge time. No archive glob needed.
+**B1-B3 — Load plan and resolve unblocked checkpoints:**
+Use plan_parser to load the plan and query checkpoint state:
 
-**B2 — Discover checkpoint metadata (targeted):**
-Grep `plans/plan.md` for `^### CP-` to obtain line numbers for every checkpoint header. For each checkpoint NOT in the completed set from B1, perform a line-bounded read of that checkpoint's section (from its header to the next `---` separator) to extract: dependencies (`Depends on`), write targets, status, and sequence number. Do NOT read sections for completed checkpoints — their data is not needed.
+```bash
+uv run rtk python -c "
+import sys, json
+sys.path.insert(0, '.claude/scripts')
+from plan_parser import load_plan, completed_checkpoints, unblocked_checkpoints, remediation_checkpoints, pending_checkpoints
+plan = load_plan('plans/plan.yaml')
+comp = [cp.id for cp in completed_checkpoints(plan)]
+unblocked = unblocked_checkpoints(plan)
+remed_pending = [cp for cp in remediation_checkpoints(plan) if cp.id in {u.id for u in unblocked}]
+candidates = remed_pending if remed_pending else unblocked
+result = {'completed': comp, 'candidates': [{'id': cp.id, 'title': cp.title, 'depends_on': cp.depends_on, 'write_targets': cp.write_targets, 'remediates': cp.remediates, 'source_bl': cp.source_bl} for cp in candidates]}
+print(json.dumps(result, indent=2))
+"
+```
 
-**B3 — Resolve unblocked set:**
-From the pending checkpoints read in B2, identify those where all declared dependencies appear in the completed set from B1.
+This replaces all grep/regex extraction. The `unblocked_checkpoints` function handles dependency resolution (B3).
 
-**Remediation gate:** Before producing the candidate list, check whether `plans/plan.md`
-contains a `## Remediation Checkpoints` section with any `[ ] pending` entries. If it
-does, apply the dependency filter from B1/B2 to those remediation CPs to identify which
-are unblocked (all their `Depends on` entries are in the completed set).
+**Remediation gate:** If any unblocked remediation CPs exist (checkpoint has `remediates` set), restrict the candidate list exclusively to those. Roadmap checkpoints are excluded from this batch. Remediation items MUST be cleared before the plan advances to roadmap checkpoints.
 
 - If one or more remediation CPs are unblocked: restrict the candidate list exclusively
   to those unblocked remediation CPs. Roadmap checkpoints are excluded from this batch
@@ -70,47 +78,53 @@ Apply `parallel.limit` cap: take only the first N checkpoints that pass the disj
 
 ### Step D — Generate Draft Task Files (in memory only)
 
-**Context gathering:** Before constructing task files, read `plans/seams.md` once. For each checkpoint in the batch, identify the components in its write targets and extract their seam entries (fields: `Receives (DI)`, `Key failure modes`, `External terminal`). Exclude `Backlog refs` — backlog remediation is a separate workflow concern. Hold this data in memory for embedding below.
+**Context gathering:** Before constructing task files, load seams once via `seam_parser.load_seams('plans/seams.yaml')`. For each checkpoint in the batch, identify the components in its write targets and use `find_by_component()` to extract their seam entries, then project via `to_seam_entry()` (fields: `receives_di`, `key_failure_modes`, `external_terminal`). `to_seam_entry()` automatically excludes `backlog_refs` and `layer` -- backlog remediation is a separate workflow concern. Hold this data in memory for embedding below.
 
-For each checkpoint in the confirmed batch, construct the full `CP-XX.md` task file content. Do **not** write to disk at this step. The checkpoint section data needed below was already read (line-bounded) in Step B2 — do not re-read `plan.md` for it.
+For each checkpoint in the confirmed batch, construct the full `CP-XX.yaml` task file content following the `TaskFile` schema defined in `.claude/scripts/schemas.py`. Do **not** write to disk at this step. Checkpoint data was already loaded via plan_parser in Step B — do not re-read `plan.yaml`.
 
-For connectivity tests (see below), grep `plans/plan.md` for the relevant `CT-` block headers and perform line-bounded reads of only the matching CT sections.
-
-Each task file must include:
-
-- Checkpoint ID and title
-- Objective and acceptance criteria (from the checkpoint section read in B2)
-- Declared write targets (including CT test file paths — see below)
-- Any interface contracts or `.pyi` references
-- Self-contained instructions sufficient for an agent to execute without clarification
-- A `## Seam Context` section: for each component in this checkpoint's write targets, embed its seam entry from `plans/seams.md` (fields: `Receives (DI)`, `Key failure modes`, `External terminal` only — omit `Backlog refs`). Sub-agents executing this task must not read `plans/seams.md` directly; this section is their only seam reference. If a component has no entry in `plans/seams.md`, note it as "Not yet populated."
-- For remediation checkpoints (identified by a `**Remediates:**` field): include a `Source: plans/backlog.md BL-NNN` line in the task file, where `BL-NNN` is read from the `**Source BL:**` field in the checkpoint's `plan.md` section. Sub-agents use this to `grep BL-NNN plans/backlog.md` for targeted context instead of reading the full backlog.
-- A `## Connectivity Tests to Keep Green` section: scan `plans/plan.md` for all connectivity tests whose **downstream** checkpoint matches this task's checkpoint ID (i.e., this checkpoint appears on the right side of the arrow in `CT-NNN: CP-XX -> CP-YY`, or on the right side of a multi-source arrow like `CT-NNN: CP-XX + CP-YY -> CP-ZZ`). For each matching CT, include the full CT specification block verbatim from `plan.md` (test_id, function, file, fixture_deps, contract_under_test, assertion, gate). The CT test file path from the `file:` field must also be added to `## Declared Write Targets` so the sub-agent is authorized to create it. If no connectivity tests target this checkpoint as downstream, include the section header with the text "None for this checkpoint."
-- A `## Step G` section with the exact status-write command. This must be verbatim — do not paraphrase or substitute a different script path:
-
-```markdown
-## Step G — Commit and Write Status
-
+For connectivity tests, use plan_parser to query CTs for each checkpoint:
 ```bash
-find plans/tasks/ -maxdepth 1 \( -name "CP-*.log" -o -name "CP-*.result.json" -o -name "CP-*.exit" -o -name "CP-*.status" \) 2>/dev/null | grep -v "plans/tasks/CP-[CP-ID]\." | xargs rm -f 2>/dev/null || true
-git add -A
-git commit -m "CP-[CP-ID]: [one-line summary]"
-bash "$IOCANE_REPO_ROOT/.claude/scripts/write-status.sh" CP-[CP-ID] PASS
+uv run rtk python -c "
+import sys, json
+sys.path.insert(0, '.claude/scripts')
+from plan_parser import load_plan, connectivity_tests_for_cp
+plan = load_plan('plans/plan.yaml')
+cts = connectivity_tests_for_cp(plan, 'CP-XX')
+for ct in cts:
+    print(json.dumps(ct.model_dump(mode='json', exclude_none=True), indent=2))
+"
 ```
 
-```
+Each task file is a YAML document conforming to the `TaskFile` schema (`.claude/scripts/schemas.py`). Use `.claude/templates/tasks.yaml` as the structural reference. Required fields:
 
-- A `## Step Progress` section with checkboxes for resumable steps B–G (Step A is context-gathering and is never checkboxed):
-
-```markdown
-## Step Progress
-- [ ] B: Red — write failing test
-- [ ] C: Green — write implementation
-- [ ] D: Gate command
-- [ ] E: Connectivity tests
-- [ ] F: Refactor
-- [ ] G: Commit and write status
-```
+- `id`, `title`, `feature`, `workflow` (always "io-execute")
+- `objective` and `acceptance_criteria` (from the checkpoint section read in B2)
+- `contract` — the `.pyi` interface file path
+- `write_targets` — including CT test file paths (see connectivity_tests below)
+- `context_files` — read-only files the sub-agent needs
+- `gate_command` — the pytest command to pass
+- `seam_context` -- for each component in this checkpoint's write targets, embed its seam entry from `plans/seams.yaml` via `to_seam_entry()` (fields: `receives_di`, `key_failure_modes`, `external_terminal` only). Sub-agents must not read `plans/seams.yaml` directly; this field is their only seam reference. If a component has no entry in `plans/seams.yaml`, note it as `component: "[Name] -- Not yet populated"`.
+- For remediation checkpoints (identified by a `remediates` field): set `source` to `"plans/backlog.yaml BL-NNN"`, where `BL-NNN` is read from the checkpoint's `source_bl` list.
+- `connectivity_tests` — use `connectivity_tests_for_cp(plan, cp_id)` to find all CTs where this checkpoint appears as `target_cp` or in `source_cps`. For each matching CT, include a `TaskConnectivityTest` entry (test_id, function, file, fixture_deps, contract_under_test, assertion, gate). Omit `source_cps`/`target_cp` (those are plan-level topology fields). The CT test file path from the `file` field must also be added to `write_targets` so the sub-agent is authorized to create it. If no CTs target this checkpoint, set `connectivity_tests: []`.
+- `refactor_commands` — ruff/mypy commands scoped to write targets
+- `execution_notes` — any checkpoint-specific guidance (null if none)
+- `execution_findings: []` — always present, initially empty
+- `step_progress` — the canonical 6-step list (B through G), all `done: false`:
+  ```yaml
+  step_progress:
+    - step: "B: Red -- write failing test"
+      done: false
+    - step: "C: Green -- minimum implementation"
+      done: false
+    - step: "D: Gate -- run checkpoint gate"
+      done: false
+    - step: "E: Connectivity tests"
+      done: false
+    - step: "F: Refactor -- DI and compliance"
+      done: false
+    - step: "G: Commit and write status"
+      done: false
+  ```
 
 ### Step E — [HARD GATE] Score Confidence Rubric
 
@@ -161,7 +175,7 @@ Accept / Modify / Reject?
 ### Step G — Handle Response
 
 **Accept:**
-Write all draft task files to `plans/tasks/CP-XX.md`. Confirm each file written. Remind the user to invoke `/validate-tasks`, then `bash .claude/scripts/dispatch-agents.sh` to dispatch agents.
+Write all draft task files to `plans/tasks/CP-XX.yaml` using the Write tool. The PostToolUse YAML validation hook automatically validates each file against the `TaskFile` schema on write -- no manual validation call needed. Confirm each file written. Remind the user to invoke `/validate-tasks`, then `bash .claude/scripts/dispatch-agents.sh` to dispatch agents.
 
 **Modify:**
 Acknowledge the requested modifications. Do not write any task files. Re-run from Step B incorporating the user's natural language modifications as constraints.
@@ -175,7 +189,7 @@ Do not write any task files. Re-run from Step B from scratch.
 
 On acceptance, for each checkpoint in the batch:
 
-- `plans/tasks/CP-XX.md` written to disk
+- `plans/tasks/CP-XX.yaml` written to disk
 
 No other files are written or modified by this workflow.
 
@@ -185,14 +199,14 @@ No other files are written or modified by this workflow.
 
 - Does not dispatch agents
 - Does not invoke `dispatch-agents.sh`
-- Does not modify `plan.md`
+- Does not modify `plan.yaml`
 - Does not update `.status` files
 
 ---
 
 ## Related
 
-- `/io-checkpoint` — upstream; produces `plan.md`
+- `/io-checkpoint` — upstream; produces `plan.yaml`
 - `/validate-plan` — must pass before this workflow runs
 - `/validate-tasks` — validation gate between task file generation and dispatch
 - `/task-recovery` — remediates MECHANICAL validation findings

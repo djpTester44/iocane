@@ -1,0 +1,78 @@
+# Backlog Entry Template
+#
+# Canonical YAML format for items in plans/backlog.yaml.
+# Schema enforcement: .claude/scripts/schemas.py (BacklogItem, Backlog)
+# Validation hook: .claude/hooks/backlog-tag-validate.sh
+#
+# Three variants exist depending on the producer.
+# All variants share the same Pydantic schema -- optional fields are omitted
+# when not applicable.
+
+# ---------------------------------------------------------------------------
+# Variant 1: Standard entry (from triage drain or manual creation)
+# ---------------------------------------------------------------------------
+# - id: BL-NNN                              # assigned by assign_backlog_ids.py
+#   tag: DESIGN | REFACTOR | CLEANUP | DEFERRED | TEST
+#   title: Short description of the issue
+#   severity: HIGH | MEDIUM | LOW           # default: MEDIUM
+#   status: open | resolved | deferred      # default: open
+#   component: ComponentName                 # optional
+#   files:                                   # optional
+#     - path/to/file.py
+#     - path/to/other.py
+#   detail: What the issue is and what to fix   # optional
+#   contract_impact: None or description        # optional
+#   source: "CP-NN /io-review YYYY-MM-DD"      # optional
+#   blocked_by:                                 # optional, list of BL-NNN
+#     - BL-NNN
+#   routed_to: CP-NNRN                         # optional, set by triage
+#   routing_prompt: "/io-checkpoint ..."        # optional, set by triage
+#   annotations:                                # optional, appended by workflows
+#     - type: Routed
+#       value: CP-NNRN
+#       date: "YYYY-MM-DD"
+#       prompt: "/io-checkpoint ..."            # for Routed annotations
+#     - type: Triaged
+#       value: reason
+#       date: "YYYY-MM-DD"
+
+# ---------------------------------------------------------------------------
+# Variant 2: CI-REGRESSION entry (from ci-sidecar.sh)
+# ---------------------------------------------------------------------------
+# - id: BL-NNN
+#   tag: CI-REGRESSION
+#   title: "tests/path/test_file.py::test_name -- new failure after wave merge"
+#   source: ci-sidecar post-wave
+#   pre_wave_commit: abc123def
+#   post_wave_commit: 456789abc
+#   error: "AssertionError: expected 5 got 3"
+
+# ---------------------------------------------------------------------------
+# Variant 3: CI-COLLECTION-ERROR entry (from ci-sidecar.sh)
+# ---------------------------------------------------------------------------
+# - id: BL-NNN
+#   tag: CI-COLLECTION-ERROR
+#   title: "tests/path/test_file.py -- new collection error after wave merge"
+#   source: ci-sidecar post-wave
+#   pre_wave_commit: abc123def
+#   post_wave_commit: 456789abc
+#   error: "ImportError: No module named 'foo'"
+
+# ---------------------------------------------------------------------------
+# Annotation types
+# ---------------------------------------------------------------------------
+# Routed:      Item has been routed to a checkpoint for resolution.
+#              value = CP-ID, date = routing date, prompt = full command
+# Remediated:  Item was resolved by a checkpoint.
+#              value = CP-ID, date = remediation date
+# Triaged:     Item was assessed during triage.
+#              value = triage outcome, date = triage date
+# Split:       Item was split into multiple items.
+#              value = comma-separated BL-IDs of children
+# Blocked:     Item is blocked by another item.
+#              value = BL-ID of blocker
+#
+# Rules:
+# - One Routed annotation per item, with exactly one prompt
+# - Blocked references the BL-ID of the prerequisite item
+# - Split only appears on resolved items (the original that was split)

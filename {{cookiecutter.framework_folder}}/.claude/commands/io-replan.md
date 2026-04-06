@@ -14,7 +14,7 @@ description: Propagate PRD changes to roadmap.md and project-spec.md without des
 
 # WORKFLOW: IO-REPLAN
 
-**Objective:** Propagate changes from an updated `plans/PRD.md` into `plans/roadmap.md` and `plans/project-spec.md`, preserving all completed work and routing necessary codebase changes to `plans/backlog.md`.
+**Objective:** Propagate changes from an updated `plans/PRD.md` into `plans/roadmap.md` and `plans/project-spec.md`, preserving all completed work and routing necessary codebase changes to `plans/backlog.yaml`.
 
 **When to use:** Only when `plans/PRD.md` itself has changed. This is not part of the linear execution chain — it is triggered on-demand when requirements shift.
 
@@ -24,8 +24,8 @@ description: Propagate PRD changes to roadmap.md and project-spec.md without des
 2. `plans/roadmap.md` — existing feature sequence (to be updated)
 3. `plans/project-spec.md` — existing architecture (to be updated)
 4. `interfaces/*.pyi` — existing contracts (read-only in this workflow)
-5. `plans/plan.md` — existing checkpoint plan (read-only — checkpoints are not replanned here)
-6. `plans/backlog.md` — existing backlog (append target for regressions)
+5. `plans/plan.yaml` — existing checkpoint plan (read-only — checkpoints are not replanned here)
+6. `plans/backlog.yaml` — existing backlog (append target for regressions)
 
 ---
 
@@ -85,7 +85,7 @@ Present proposed spec changes. Wait for human approval before write.
 
 If any MODIFIED or REMOVED item corresponds to already-implemented code:
 
-* Append a `[DESIGN]` or `[REFACTOR]` item to `plans/backlog.md` via `/review-capture`.
+* Append a `[DESIGN]` or `[REFACTOR]` item to `plans/backlog.yaml` via `/review-capture`.
 * This ensures the execution pipeline will safely update or remove the orphaned code.
 
 ---
@@ -94,7 +94,7 @@ If any MODIFIED or REMOVED item corresponds to already-implemented code:
 
 * Cross-check: every feature in `roadmap.md` has a corresponding entry in `project-spec.md` Interface Registry.
 * Cross-check: every CRC card maps to a feature. Flag orphans as warnings.
-* Cross-check: `plans/plan.md` — identify any checkpoints that are now invalidated by the PRD delta. Flag them for human decision (re-run, deprecate, or keep).
+* Cross-check: `plans/plan.yaml` — identify any checkpoints that are now invalidated by the PRD delta. Flag them for human decision (re-run, deprecate, or keep).
 
 ---
 
@@ -105,14 +105,14 @@ REPLAN COMPLETE.
 
 roadmap.md: [N] features added, [N] modified, [N] deprecated
 project-spec.md: [N] CRC cards updated, [N] deprecated
-backlog.md: [N] items appended
+backlog.yaml: [N] items appended
 
-plan.md checkpoint impact: [N checkpoints flagged for review]
+plan.yaml checkpoint impact: [N checkpoints flagged for review]
 
 Next steps:
 - Run /io-architect to update or add Protocol contracts (.pyi files)
 - Run /io-checkpoint if new checkpoints are needed for new features
-- Review flagged checkpoints in plan.md before next dispatch-agents.sh run
+- Review flagged checkpoints in plan.yaml before next dispatch-agents.sh run
 ```
 
 ---
@@ -120,7 +120,7 @@ Next steps:
 ## 2. CONSTRAINTS
 
 * Does not generate `.pyi` files — that is `/io-architect`'s job
-* Does not modify `plans/plan.md` directly — checkpoint replanning is a separate `/io-checkpoint` invocation
-* Does not delete any existing entries in `roadmap.md`, `project-spec.md`, or `backlog.md`
+* Does not modify `plans/plan.yaml` directly — checkpoint replanning is a separate `/io-checkpoint` invocation
+* Does not delete any existing entries in `roadmap.md`, `project-spec.md`, or `backlog.yaml`
 * All writes require human approval via plan mode
-* `backlog.md` appends go via `/review-capture` — not written directly
+* `backlog.yaml` appends go via `/review-capture` — not written directly

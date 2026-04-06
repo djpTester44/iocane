@@ -1,6 +1,6 @@
 ---
 name: validate-plan
-description: Validate plans/plan.md checkpoint structure against CDD principles before orchestration. Pre-entry gate for /io-plan-batch.
+description: Validate plans/plan.yaml checkpoint structure against CDD principles before orchestration. Pre-entry gate for /io-plan-batch.
 ---
 
 > **[CRITICAL] CONTEXT LOADING**
@@ -9,12 +9,12 @@ description: Validate plans/plan.md checkpoint structure against CDD principles 
 
 # WORKFLOW: VALIDATE-PLAN (CDD Compliance)
 
-**Objective:** Pre-orchestration validation that `plans/plan.md` maintains CDD structural integrity — CRC-Protocol symmetry, checkpoint atomicity, connectivity test completeness, and write-target registry alignment — before any sub-agent is dispatched.
+**Objective:** Pre-orchestration validation that `plans/plan.yaml` maintains CDD structural integrity — CRC-Protocol symmetry, checkpoint atomicity, connectivity test completeness, and write-target registry alignment — before any sub-agent is dispatched.
 
 **Context:**
 
-* Target artifact: `plans/plan.md`
-* Output: Findings table with actionable recommendations and a PASS/FAIL stamp on `plans/plan.md`
+* Target artifact: `plans/plan.yaml`
+* Output: Findings table with actionable recommendations and a PASS/FAIL stamp on `plans/plan.yaml`
 * Trigger: Run before `/io-plan-batch` to catch structural violations before task files are generated. Iterate until PASS.
 
 **Position in chain:**
@@ -29,8 +29,17 @@ description: Validate plans/plan.md checkpoint structure against CDD principles 
 
 ### Step 1: IDENTIFY SCOPE
 
-* Load `plans/plan.md`.
-* Identify all checkpoint entries (CP-NN sections).
+* Load `plans/plan.yaml` via plan_parser:
+  ```bash
+  uv run rtk python -c "
+  import sys, json
+  sys.path.insert(0, '.claude/scripts')
+  from plan_parser import load_plan
+  plan = load_plan('plans/plan.yaml')
+  print(json.dumps({'total_cps': len(plan.checkpoints), 'with_deps': sum(1 for cp in plan.checkpoints if cp.depends_on), 'cts': len(plan.connectivity_tests), 'validated': plan.validated}))
+  "
+  ```
+* Identify all checkpoint entries.
 * Count: total checkpoints, checkpoints with `depends_on`, parallelizable pairs, connectivity test signatures defined.
 
 ---
@@ -44,9 +53,9 @@ Load the following — and only the following — before running Phase 1 checks:
 
 If `plans/component-contracts.toml` does not exist, HALT: "Run `/io-architect` to generate component contracts before validation."
 
-`plans/plan.md` is already in context from Step 1.
+`plans/plan.yaml` is already in context from Step 1.
 
-Do NOT load CRC cards, Protocol files, `plans/seams.md`, or run `extract_structure.py` here. Those belong to Phase 2.
+Do NOT load CRC cards, Protocol files, `plans/seams.yaml`, or run `extract_structure.py` here. Those belong to Phase 2.
 
 Files loaded in this step remain in context for all subsequent steps — do not re-read any file already loaded unless it has been modified during this run.
 
@@ -56,7 +65,7 @@ Files loaded in this step remain in context for all subsequent steps — do not 
 
 > **[HARD]** `_`-prefixed methods are internal implementation details.
 
-* If any checkpoint write target or Protocol reference in `plan.md` names a `_`-prefixed method as a deliverable, flag immediately.
+* If any checkpoint write target or Protocol reference in `plan.yaml` names a `_`-prefixed method as a deliverable, flag immediately.
 * **Flag:** `PRIVATE_METHOD_PROMOTION`
 
 ---
@@ -92,7 +101,7 @@ Using the contracts loaded in Step 2 (`pyproject.toml`):
 
 ### Step 9: CHECK — Connectivity Test Completeness [Phase 1]
 
-For the Connectivity Tests section of `plan.md`:
+For the Connectivity Tests section of `plan.yaml`:
 
 * Every seam between checkpoints with a dependency relationship must have at least one connectivity test.
 * Each connectivity test must have: a CT-ID, a gate command (concrete pytest invocation), and a named checkpoint pair (producer → consumer).
@@ -119,7 +128,7 @@ Load the following before running Phase 2 checks:
 
 * **CRC cards** from `plans/project-spec.md` for every component referenced across all checkpoints that survived Phase 1.
 * **Protocol files** (`interfaces/*.pyi`) for those same components.
-* **`plans/seams.md`** — load now, not earlier. Steps 4, 7, 8, 9 do not require seam data.
+* **`plans/seams.yaml`** -- load now via `seam_parser.load_seams('plans/seams.yaml')`, not earlier. Steps 4, 7, 8, 9 do not require seam data.
 
 Do NOT run `extract_structure.py` here. It runs at Step 10 only, scoped to checkpoints with new collaborators.
 
@@ -147,15 +156,15 @@ For each checkpoint:
 
 ### Step 10: CHECK — DI Compliance Preview [Phase 2 — requires CRC/Protocol context loaded above]
 
-`plans/seams.md` is already in context from Step 2B.
+`plans/seams.yaml` is already in context from Step 2B (loaded via `seam_parser.load_seams()`).
 
 If any checkpoint introduces a new collaborator:
 
-* Run `python extract_structure.py <file>` **only for checkpoints that introduce a new collaborator** — do not run it for all implementation files. Load structural skeletons (signatures, decorators, docstrings) into context for those files only.
+* Run `python extract_structure.py <file>` **only for checkpoints that introduce a new collaborator** -- do not run it for all implementation files. Load structural skeletons (signatures, decorators, docstrings) into context for those files only.
 * Verify the task description specifies injection via `__init__` parameter, not inline instantiation.
-* Cross-reference the collaborator name against the `Receives (DI)` list for the receiving component in `plans/seams.md`. If the collaborator is absent from that list, flag `HARDCODED_DEPENDENCY` — the collaborator is either undeclared or being wired outside the approved DI contract.
+* Use `find_by_component()` to locate the receiving component's seam entry and cross-reference the collaborator name against its `receives_di` list. If the collaborator is absent, flag `HARDCODED_DEPENDENCY` -- the collaborator is either undeclared or being wired outside the approved DI contract.
 * **Flag:** New collaborator described as instantiated inline = `HARDCODED_DEPENDENCY`
-* **Flag:** New collaborator not present in the component's `Receives (DI)` entry in `plans/seams.md` = `HARDCODED_DEPENDENCY`
+* **Flag:** New collaborator not present in the component's `receives_di` entry in `plans/seams.yaml` = `HARDCODED_DEPENDENCY`
 * **Flag:** `os.environ` / `os.getenv` described outside Entrypoint layer = `ENV_LEAK`
 
 ---
@@ -171,13 +180,13 @@ Generate a Plan Validation report:
 |---|-------|------------|-----------|---------|----------|-----------------|
 | 1 | CRC-Protocol Symmetry | CP-NN | ... | ... | VIOLATION | Yes/No |
 
-* **Required Amendments:** Specific changes to `plan.md` (as checkboxes).
+* **Required Amendments:** Specific changes to `plan.yaml` (as checkboxes).
 
 ---
 
 ### Step 12: SELF-HEALING LOOP
 
-**Auto-Remediable Violations** (agent amends `plan.md` directly):
+**Auto-Remediable Violations** (agent amends `plan.yaml` directly):
 
 | Flag | Auto-Fix Action |
 |---|---|
@@ -202,7 +211,7 @@ Generate a Plan Validation report:
 
 **Loop Procedure:**
 
-1. If all VIOLATIONs are auto-remediable: amend `plan.md`, mark each change `[AUTO-AMENDED]`, and re-run **Phase 1 checks only** (Steps 4, 7, 8, 9). Do not reload Phase 2 context on each loop iteration — Phase 2 context remains in context from initial load.
+1. If all VIOLATIONs are auto-remediable: amend `plan.yaml`, mark each change `[AUTO-AMENDED]`, and re-run **Phase 1 checks only** (Steps 4, 7, 8, 9). Do not reload Phase 2 context on each loop iteration — Phase 2 context remains in context from initial load.
 2. If any non-auto-remediable VIOLATION exists: stop immediately and escalate to user with findings.
 3. After each pass, compare violation set to previous pass. If no new violations appear, the loop has converged — proceed to Step 13.
 4. If the same violation recurs across 3 passes: the violation is structural. Execute the 3x-failure path below.
@@ -210,10 +219,10 @@ Generate a Plan Validation report:
 
 **3x-Failure Path:**
 
-When a violation has appeared in 3 consecutive passes without being resolved, auto-heal has exhausted its scope. The problem is in the underlying design, not in `plan.md` surface edits.
+When a violation has appeared in 3 consecutive passes without being resolved, auto-heal has exhausted its scope. The problem is in the underlying design, not in `plan.yaml` surface edits.
 
-1. Stamp `plans/plan.md` with `**Plan Validated:** FAIL` (via Step 13 sentinel procedure).
-2. Append an `## Architect Brief` section to `plans/plan.md`:
+1. Stamp `plans/plan.yaml` with `**Plan Validated:** FAIL` (via Step 13 sentinel procedure).
+2. Append an `## Architect Brief` section to `plans/plan.yaml`:
 
 ```markdown
 ## Architect Brief
@@ -242,7 +251,7 @@ to be split, or the checkpoint boundary redrawn at /io-checkpoint."]
 ```
 VALIDATE-PLAN: 3x self-heal failure. Plan stamped FAIL.
 
-Architect Brief written to plans/plan.md — open the file and read the
+Architect Brief written to plans/plan.yaml — open the file and read the
 ## Architect Brief section. Then run /io-architect to correct the design.
 
 Path forward: /io-architect -> /io-checkpoint -> /validate-plan
@@ -264,7 +273,7 @@ Do NOT offer to re-run `/validate-plan`. The loop cannot converge without a desi
 
 * If all VIOLATIONs are auto-remediable, the agent fixes them and re-validates until no new violations appear.
 * If any non-auto-remediable VIOLATION exists, the plan **FAILS** immediately and the user must intervene.
-* If the same violation recurs across 3 passes, the plan **FAILS** and an Architect Brief is written to `plans/plan.md`. Path forward: `/io-architect` → `/io-checkpoint` → `/validate-plan`.
+* If the same violation recurs across 3 passes, the plan **FAILS** and an Architect Brief is written to `plans/plan.yaml`. Path forward: `/io-architect` → `/io-checkpoint` → `/validate-plan`.
 * Only a **PASS** result (zero VIOLATIONs) allows `/io-plan-batch` to proceed.
 
 **Gate Artifact:**
@@ -272,30 +281,41 @@ Do NOT offer to re-run `/validate-plan`. The loop cannot converge without a desi
 Write the stamp using the following strictly sequential steps. Do NOT parallelize — the sentinel must exist before the Edit tool call fires.
 
 * **Step 13-pre:** `bash: mkdir -p .iocane && touch .iocane/validating`
-* **Step 13:** On **PASS**, stamp `plans/plan.md` with: `**Plan Validated:** PASS (YYYY-MM-DD)`. On **FAIL**, stamp `plans/plan.md` with: `**Plan Validated:** FAIL (YYYY-MM-DD)` and list the blocking violations.
+* **Step 13:** On **PASS**, stamp `plans/plan.yaml` with `validated: true`, `validated_date`, and `validated_note` via plan_parser:
+  ```bash
+  uv run rtk python -c "
+  import sys
+  sys.path.insert(0, '.claude/scripts')
+  from plan_parser import load_plan, set_validated, save_plan
+  plan = load_plan('plans/plan.yaml')
+  plan = set_validated(plan, True, date='YYYY-MM-DD', note='PASS')
+  save_plan('plans/plan.yaml', plan)
+  "
+  ```
+  On **FAIL**, stamp with `validated: false` and a note listing blocking violations.
 
-The sentinel prevents `reset-on-plan-write.sh` from immediately reverting a PASS stamp back to FAIL. The hook auto-deletes the sentinel when it detects the `**Plan Validated:** PASS` or `**Plan Validated:** FAIL` stamp write — no explicit cleanup step required.
+The sentinel prevents `reset-on-plan-write.sh` from immediately reverting a PASS stamp back to FAIL. The hook auto-deletes the sentinel when it detects the `validated: true` stamp write — no explicit cleanup step required.
 
-* `/io-plan-batch` **MUST** check for a `**Plan Validated:** PASS` marker before composing the batch. If missing or FAIL, halt and recommend `/validate-plan`.
+* `/io-plan-batch` **MUST** check for `validated: true` before composing the batch. If missing or false, halt and recommend `/validate-plan`.
 
 **Self-Healing Log:**
 
-* All auto-amendments must be logged in `plans/plan.md` under a `## Self-Healing Log` section.
-* Each entry: `[AUTO-AMENDED] <iteration> | <flag> | <checkpoint> | <what was changed>`
+* All auto-amendments must be logged in `plans/plan.yaml` under the `self_healing_log` list.
+* Each entry is a structured object: `{tag: "AUTO-AMENDED", iteration: N, flag: "<flag>", checkpoint: "<CP-ID>", description: "<what was changed>"}`. Use `save_plan` to persist.
 
 ---
 
 ## 2. CONSTRAINTS
 
-* Target artifact is `plans/plan.md` — not any session-specific plan document.
+* Target artifact is `plans/plan.yaml` — not any session-specific plan document.
 * Files loaded into context are not re-read unless the file has been modified during the current run.
 * Auto-amend only the violations classified as auto-remediable above.
-* Do not expand scope beyond what `plan.md` proposes.
-* Do not route findings to `plans/backlog.md` — this is a pre-orchestration gate, not a post-implementation review.
+* Do not expand scope beyond what `plan.yaml` proposes.
+* Do not route findings to `plans/backlog.yaml` — this is a pre-orchestration gate, not a post-implementation review.
 * Do not execute the plan. Amend and validate only.
 * `UNREGISTERED_WRITE_TARGET` findings must route to `/io-architect`, not be auto-amended.
 * `MISSING_CONNECTIVITY_TEST` findings must route to `/io-checkpoint` amendment, not be auto-amended.
-* Phase 1 context load (Step 2) does not load CRC cards, Protocol files, seams.md, or run extract_structure.py.
+* Phase 1 context load (Step 2) does not load CRC cards, Protocol files, seams.yaml, or run extract_structure.py.
 * Phase 2 context load (Step 2B) does not re-load anything already in context from Phase 1.
 * Self-healing loop re-validates Phase 1 checks only — no Phase 2 context reload per iteration.
 * `extract_structure.py` runs only at Step 10, and only for checkpoints that introduce a new collaborator.

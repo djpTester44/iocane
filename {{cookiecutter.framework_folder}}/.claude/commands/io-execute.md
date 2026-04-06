@@ -9,8 +9,17 @@ description: Minimal sub-agent execution context. Receives one checkpoint task f
 
 > **[CRITICAL] CONTEXT LOADING**
 > Load ONLY the task file you were given.
-> You have no access to plan.md, roadmap.md, project-spec.md, or other task files.
+> You have no access to plan.yaml, roadmap.md, project-spec.md, or other task files.
 > Read the task file first. It contains everything you need.
+>
+> Implement via Red-Green-Refactor exactly as specified below.
+> Context hygiene: Do not read files outside `context_files`. Speculative reads
+> waste tokens against your fixed turn limit and risk acting on stale state.
+> TDD: No implementation without a test. Untested code is invisible to the gate
+> command -- a FAIL wastes the entire session. YAGNI -- no "just in case" helpers.
+> Test structure: Tests mirror src/ directory structure under tests/. Shared
+> fixtures go in tests/conftest.py (root) or tests/[subdir]/conftest.py (scoped).
+> One test file per module, one test class per Protocol.
 
 # WORKFLOW: IO-EXECUTE
 
@@ -25,9 +34,9 @@ This workflow runs inside a git worktree (`$REPO_ROOT/.worktrees/[CP-ID]`) on br
 
 Before proceeding:
 
-1. Read your task file completely. It contains the checkpoint ID, write targets, contract path, and gate command. Do not load additional files beyond what the task file lists.
+1. Read your task file completely (YAML format). It contains the checkpoint ID, write targets, contract path, and gate command as structured fields. Do not load additional files beyond what the task file's `context_files` list specifies.
 
-2. Check the `## Step Progress` section for checked boxes. Any step marked `[x]` is already complete — skip it and resume from the first unchecked step. If all boxes are unchecked, start at Step B.
+2. Check the `step_progress` field. Any step with `done: true` is already complete — skip it and resume from the first step with `done: false`. If all steps have `done: false`, start at Step B.
 
 3. Output:
 
@@ -43,7 +52,7 @@ Before proceeding:
 
 ### Step A: READ CONTRACT
 
-- **Action:** Read the Protocol file listed under `## Contract` in your task file.
+- **Action:** Read the Protocol file listed in the `contract` field of your task file.
 - **Goal:** Understand every method signature you are required to implement.
 - **Rule:** You implement exactly what the Protocol defines. No additional public methods. No deviation from signatures.
 
@@ -70,7 +79,15 @@ Before proceeding:
   - If test PASSES immediately → test is invalid. Rewrite it.
   - If test FAILS with `ImportError` or `ModuleNotFoundError` → create empty skeleton implementation file first, then re-run. This is acceptable.
   - If test FAILS with assertion error or `NotImplementedError` → correct RED state. Proceed.
-- **On completion:** Mark `- [x] B` in `## Step Progress` of the task file.
+- **On completion:** Mark step B done via Bash tool:
+  ```bash
+  uv run python -c "
+  import sys; sys.path.insert(0, '.claude/scripts')
+  from task_parser import load_task, mark_step_done, save_task
+  t = mark_step_done(load_task(sys.argv[1]), 'B')
+  save_task(sys.argv[1], t)
+  " plans/tasks/CP-XX.yaml
+  ```
 
 ---
 
@@ -86,29 +103,29 @@ Before proceeding:
   - Protocol imports inside `if TYPE_CHECKING:` only
 - **Gate:** Run `uv run rtk pytest [test_file_path]`
   - Must PASS. If fail: attempt remediation up to 3 times. If still failing after 3 attempts → escalate (see Section 3).
-- **On completion:** Mark `- [x] C` in `## Step Progress` of the task file.
+- **On completion:** Mark step C done via the same `mark_step_done` pattern as Step B (substitute `'C'` for the step prefix).
 
 ---
 
 ### Step D: GATE — RUN CHECKPOINT GATE COMMAND
 
-- **Action:** Run the exact gate command from `## Gate command` in the task file.
+- **Action:** Run the exact gate command from the `gate_command` field in the task file.
 - **This is the checkpoint's acceptance test.**
 - Must PASS before proceeding to refactor.
 - If fail after 3 attempts → escalate (see Section 3).
-- **On completion:** Mark `- [x] D` in `## Step Progress` of the task file.
+- **On completion:** Mark step D done via the same `mark_step_done` pattern (substitute `'D'`).
 
 ---
 
 ### Step E: CONNECTIVITY TESTS
 
-- **Action:** For each CT entry in `## Connectivity Tests to Keep Green` in the task file:
-  1. Check whether the CT test file exists at the `file:` path specified in the CT spec.
-  2. If it does **not** exist, create it: write the test at that path using the `function:`, `fixture_deps:`, `contract_under_test:`, and `assertion:` fields from the CT spec. Both sides of the seam must use real implementations — no mocking either side. Create the `tests/connectivity/` directory if it does not exist.
-  3. Run the gate command from the `gate:` field.
+- **Action:** For each CT entry in the `connectivity_tests` list in the task file:
+  1. Check whether the CT test file exists at the `file` path specified in the CT spec.
+  2. If it does **not** exist, create it: write the test at that path using the `function`, `fixture_deps`, `contract_under_test`, and `assertion` fields from the CT spec. Both sides of the seam must use real implementations — no mocking either side. Create the `tests/connectivity/` directory if it does not exist.
+  3. Run the gate command from the `gate` field.
 - **Rule:** All CT gates must pass. Any failure is an escalation trigger. Do not attempt autonomous remediation. Escalate immediately (see Section 3).
-- **If `## Connectivity Tests to Keep Green` contains "None for this checkpoint":** skip this step entirely.
-- **On completion:** Mark `- [x] E` in `## Step Progress` of the task file.
+- **If `connectivity_tests` is empty:** skip this step entirely.
+- **On completion:** Mark step E done via the same `mark_step_done` pattern (substitute `'E'`).
 
 ---
 
@@ -130,7 +147,7 @@ uv run rtk lint-imports
   - `lint-imports`: Must exit 0. If a layer violation is detected, this is an escalation trigger. Escalate (see Section 3).
 
 - **After all checks pass:** Re-run gate command to confirm refactoring did not break GREEN state.
-- **On completion:** Mark `- [x] F` in `## Step Progress` of the task file.
+- **On completion:** Mark step F done via the same `mark_step_done` pattern (substitute `'F'`).
 
 ---
 
@@ -144,18 +161,22 @@ uv run rtk lint-imports
   - Type annotation inaccuracies in Protocol files you consumed
   - Hardcoded values that should be configurable
 
-  Append to your task file:
-
-  ```markdown
-  ## Execution Findings
-
-  | Adjacent File | Observation | Severity |
-  |---------------|-------------|----------|
-  | `src/path/file.py` | [description] | LOW/MEDIUM/HIGH |
+  Write all findings at once via Bash tool calling `task_parser.set_execution_findings`:
+  ```bash
+  uv run python -c "
+  import sys, json; sys.path.insert(0, '.claude/scripts')
+  from task_parser import load_task, set_execution_findings, save_task
+  from schemas import ExecutionFinding
+  findings = [
+      ExecutionFinding(adjacent_file='src/path/file.py', observation='[description]', severity='MEDIUM'),
+  ]
+  t = set_execution_findings(load_task(sys.argv[1]), findings)
+  save_task(sys.argv[1], t)
+  " plans/tasks/CP-XX.yaml
   ```
 
 - **Rule:** Only report observations about code OUTSIDE your write targets.
-- **Rule:** If you have no observations, do NOT add this section.
+- **Rule:** If you have no observations, skip this step entirely.
 - **Rule:** Do not attempt to fix adjacent code. Record only.
 
 ---
@@ -207,8 +228,8 @@ The `PostToolUse` hook will detect the non-zero exit or FAIL status and append t
 
 ## 4. CONSTRAINTS
 
-- Read ONLY the files listed in your task file's `## Context Files` section plus the Protocol
-- Write ONLY to files listed in `## Write Targets`, plus the task file itself (for checkbox updates in `## Step Progress`)
+- Read ONLY the files listed in your task file's `context_files` field plus the Protocol
+- Write ONLY to files listed in `write_targets`, plus the task file itself (for `step_progress` and `execution_findings` updates via `task_parser`)
 - No internet access, no package installation, no git operations (worktree is already set up)
 - No awareness of other checkpoints, other task files, or the broader plan
 - No `print()` statements in implementation — use `logging` or `structlog`
@@ -216,4 +237,4 @@ The `PostToolUse` hook will detect the non-zero exit or FAIL status and append t
 - No backslashes in file paths
 - Forward slashes only, even on Windows
 - Do not modify the Protocol `.pyi` file under any circumstances
-- If the task file is malformed or missing required sections, write FAIL and terminate immediately
+- If the task file is malformed YAML or missing required fields, write FAIL and terminate immediately

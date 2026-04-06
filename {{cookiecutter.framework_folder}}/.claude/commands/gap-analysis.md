@@ -1,6 +1,6 @@
 ---
 name: gap-analysis
-description: Full-system integration correctness analysis after all checkpoints complete. Findings route to backlog.md.
+description: Full-system integration correctness analysis after all checkpoints complete. Findings route to backlog.yaml.
 ---
 
 > **[NO PLAN MODE]**
@@ -32,9 +32,9 @@ description: Full-system integration correctness analysis after all checkpoints 
 Before proceeding, output:
 
 - **Scope:** [Feature F-XX / Full project]
-- **Checkpoints covered:** [list from plan.md with PASS/FAIL status]
+- **Checkpoints covered:** [list from plan.yaml with PASS/FAIL status]
 - **Interface Registry entries:** [N components]
-- **Connectivity tests defined:** [N total in plan.md]
+- **Connectivity tests defined:** [N total in plan.yaml]
 
 ---
 
@@ -42,8 +42,8 @@ Before proceeding, output:
 
 ### Step A: ALL-GATES VERIFICATION
 
-- **Action:** For every checkpoint in `plans/plan.md`, verify `tasks/[CP-ID].status` is `PASS`.
-- **Action:** Run every connectivity test gate command listed in `plans/plan.md`.
+- **Action:** For every checkpoint in `plans/plan.yaml`, verify `tasks/[CP-ID].status` is `PASS`.
+- **Action:** Run every connectivity test gate command listed in `plans/plan.yaml`.
 - **Output:** Full pass/fail table.
 
 If any checkpoint gate or connectivity test is failing, output a warning and continue — do not halt. Surface all failures in the findings report.
@@ -121,8 +121,8 @@ Verify cross-component wiring:
 
 ### Step H: ROUTE FINDINGS
 
-- **Action:** Run `/review-capture` to classify and log all HIGH and MEDIUM findings to `plans/backlog.md`.
-- **Rule:** Findings not in `backlog.md` are invisible to subsequent planning. This step is mandatory if any findings exist.
+- **Action:** Run `/review-capture` to classify and log all HIGH and MEDIUM findings to `plans/backlog.yaml`.
+- **Rule:** Findings not in `backlog.yaml` are invisible to subsequent planning. This step is mandatory if any findings exist.
 
 ---
 
@@ -133,7 +133,7 @@ GAP ANALYSIS COMPLETE.
 
 Contracts satisfied: [N/N]
 Connectivity tests: [N/N passing]
-Findings routed to backlog.md: [N]
+Findings routed to backlog.yaml: [N]
 
 Next step: Run /doc-sync to reconcile project-spec.md and roadmap.md with current codebase state.
 ```
@@ -143,6 +143,6 @@ Next step: Run /doc-sync to reconcile project-spec.md and roadmap.md with curren
 ## 3. CONSTRAINTS
 
 - Read-only — no fixes, no file writes beyond `/review-capture`
-- Findings route to `plans/backlog.md` only — never to `plans/plan.md` or `plans/roadmap.md`
+- Findings route to `plans/backlog.yaml` only — never to `plans/plan.yaml` or `plans/roadmap.md`
 - Do not modify `interfaces/*.pyi` — if a contract gap is found, it goes to backlog as a `[DESIGN]` item
 - No git operations

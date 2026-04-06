@@ -1,0 +1,51 @@
+id: "CP-[NN]"
+title: "[Checkpoint Name]"
+feature: "F-[NN] -- [Feature name from roadmap.md]"
+workflow: io-execute
+objective: "[One sentence -- what is built and verifiably complete when this checkpoint passes its gate command.]"
+acceptance_criteria:
+  - "[Criterion 1 -- observable, testable.]"
+  - "[Criterion 2]"
+  - "[Criterion 3]"
+contract: "interfaces/[protocol].pyi"
+write_targets:
+  - "src/[path]/[module].py"
+  - "tests/[path]/test_[module].py"
+context_files:
+  - "interfaces/[protocol].pyi"
+  - "plans/project-spec.md (lines [N]-[N])"
+gate_command: "uv run rtk pytest tests/[path]/test_[module].py"
+connectivity_tests:
+  - test_id: "CT-[NNN]"
+    function: "test_[function_name]"
+    file: "tests/connectivity/test_[cp_a]_[cp_nn].py"
+    fixture_deps: []
+    contract_under_test: "interfaces/[protocol].pyi :: [Method]"
+    assertion: "[What the test asserts]"
+    gate: "uv run rtk pytest tests/connectivity/test_[cp_a]_[cp_nn].py::[function_name]"
+refactor_commands:
+  - "uv run ruff check src/[path]/"
+  - "uv run mypy src/[path]/"
+source: null
+execution_notes: "[Any checkpoint-specific guidance not captured in contract or acceptance criteria. null if none.]"
+seam_context:
+  - component: "[ComponentName]"
+    receives_di:
+      - "[ProtocolName]"
+    key_failure_modes:
+      - "[failure mode]"
+    external_terminal: null
+execution_findings: []
+step_progress:
+  - step: "B: Red -- write failing test"
+    done: false
+  - step: "C: Green -- minimum implementation"
+    done: false
+  - step: "D: Gate -- run checkpoint gate"
+    done: false
+  - step: "E: Connectivity tests"
+    done: false
+  - step: "F: Refactor -- DI and compliance"
+    done: false
+  - step: "G: Commit and write status"
+    done: false

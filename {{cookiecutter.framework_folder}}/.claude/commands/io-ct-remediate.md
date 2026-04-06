@@ -1,12 +1,12 @@
 ---
 name: io-ct-remediate
-description: Retroactively create a missing connectivity test file from its CT spec in plan.md. Resolves open [TEST] HIGH backlog entries that have no /io-execute path.
+description: Retroactively create a missing connectivity test file from its CT spec in plan.yaml. Resolves open [TEST] HIGH backlog entries that have no /io-execute path.
 ---
 
 # WORKFLOW: IO-CT-REMEDIATE
 
 **Objective:** Write a missing connectivity test file from its fully-specified CT spec in
-`plans/plan.md`. This is the remediation path for MISSING CT backlog entries that cannot
+`plans/plan.yaml`. This is the remediation path for MISSING CT backlog entries that cannot
 be resolved via `/io-execute` because the checkpoint is archived.
 
 **Mode:** Mechanical execution — NO plan mode. CT spec is fully deterministic; no design
@@ -29,7 +29,7 @@ This workflow is OPTIONAL — only invoked when `/io-review` Step B finds a MISS
 Identify the target CT ID(s):
 
 - If a CT ID argument was provided (e.g. `CT-001`), use it.
-- Otherwise: scan `plans/backlog.md` for all open `[ ] [TEST]` items that contain a CT ID
+- Otherwise: scan `plans/backlog.yaml` for all open `[ ] [TEST]` items that contain a CT ID
   reference. List each found ID.
 
 For each CT ID, output:
@@ -43,7 +43,18 @@ For each CT ID, output:
 
 ### Step 2 — LOAD CT SPEC
 
-Read the CT spec block from `plans/plan.md` for each target CT ID.
+Read the CT spec from `plans/plan.yaml` for each target CT ID using plan_parser:
+```bash
+uv run rtk python -c "
+import sys, json
+sys.path.insert(0, '.claude/scripts')
+from plan_parser import load_plan
+plan = load_plan('plans/plan.yaml')
+ct = next((ct for ct in plan.connectivity_tests if ct.test_id == 'CT-NNN'), None)
+if ct: print(json.dumps(ct.model_dump(mode='json', exclude_none=True), indent=2))
+else: print('NOT_FOUND')
+"
+```
 
 Required fields:
 
@@ -57,7 +68,7 @@ Required fields:
 
 HALT if any of the following are true:
 
-- The CT spec block is not found in `plans/plan.md`.
+- The CT spec block is not found in `plans/plan.yaml`.
 - Any required field is missing or contains a placeholder (e.g. `# TODO`).
 - The `gate` command is not a concrete, runnable pytest invocation.
 
@@ -67,10 +78,9 @@ Do NOT proceed without a fully-specified spec.
 
 ### Step 3 — LOAD SEAM CONTEXT
 
-Read the relevant seam entry from `plans/seams.md` for the CP-A → CP-B boundary named
-in the CT spec.
+Load seams via `seam_parser.load_seams('plans/seams.yaml')` and use `find_by_component()` to read the relevant seam entry for the CP-A -> CP-B boundary named in the CT spec.
 
-Use the `Receives (DI)` and `Key failure modes` fields to inform:
+Use the `receives_di` and `key_failure_modes` fields to inform:
 
 - Fixture wiring (which dependencies are injected vs. local)
 - Error-case assertions (what failures are observable at the boundary)
@@ -118,7 +128,7 @@ Run the `gate:` command from the CT spec exactly as written.
 
 ### Step 6 — RESOLVE BACKLOG
 
-In `plans/backlog.md`, find the open `[ ] [TEST]` entry for this CT ID.
+In `plans/backlog.yaml`, find the open `[ ] [TEST]` entry for this CT ID.
 
 - Change `- [ ]` to `- [x]`.
 - Append on a new line: `  Resolved: CT file written and gate passes (YYYY-MM-DD).`
@@ -140,9 +150,9 @@ Backlog item closed.
 
 ## CONSTRAINTS
 
-- Writes ONLY to the `file:` path and `plans/backlog.md`. Nothing else.
-- Does NOT modify `plans/plan.md`, any `interfaces/*.pyi`, or any implementation file.
-- Does NOT modify `plans/seams.md`.
+- Writes ONLY to the `file:` path and `plans/backlog.yaml`. Nothing else.
+- Does NOT modify `plans/plan.yaml`, any `interfaces/*.pyi`, or any implementation file.
+- Does NOT modify `plans/seams.yaml`.
 - HALT and surface to human if the spec is ambiguous, any `fixture_deps` do not exist,
   or the gate command fails.
 - This workflow has no self-healing loop. Gate failure = human escalation.

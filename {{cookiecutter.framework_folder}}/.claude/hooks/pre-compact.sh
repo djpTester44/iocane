@@ -24,20 +24,31 @@ print(d.get('trigger', 'unknown'))
 
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-# Capture active checkpoint from plan.md before compaction discards context
-PLAN_FILE="plans/plan.md"
+# Capture active checkpoint from plan.yaml before compaction discards context
+PLAN_FILE="plans/plan.yaml"
 ACTIVE_CHECKPOINT=""
 PENDING_CHECKPOINTS=""
 
 if [ -f "$PLAN_FILE" ]; then
-    ACTIVE_CHECKPOINT=$(grep -E "^\*\*Status:\*\* \[~\] in-progress" "$PLAN_FILE" -B5 \
-        | grep "^### CP-" | sed 's/### //' || echo "")
-    if [ -z "$ACTIVE_CHECKPOINT" ]; then
-        ACTIVE_CHECKPOINT=$(grep -E "^\*\*Status:\*\* \[ \] pending" "$PLAN_FILE" -B5 \
-            | grep "^### CP-" | head -1 | sed 's/### //' || echo "")
-    fi
-    PENDING_CHECKPOINTS=$(grep -E "^\*\*Status:\*\* \[ \] pending" "$PLAN_FILE" -B5 \
-        | grep "^### CP-" | sed 's/### //' | tr '\n' ',' | sed 's/,$//' || echo "")
+    eval "$(uv run python -c "
+import sys
+sys.path.insert(0, '.claude/scripts')
+from plan_parser import load_plan, pending_checkpoints, in_progress_checkpoints
+plan = load_plan('plans/plan.yaml')
+pend = pending_checkpoints(plan)
+prog = in_progress_checkpoints(plan)
+active = ''
+if prog:
+    active = f'{prog[0].id}: {prog[0].title}'
+elif pend:
+    active = f'{pend[0].id}: {pend[0].title}'
+pend_str = ','.join(cp.id for cp in pend)
+print(f'ACTIVE_CHECKPOINT=\"{active}\"')
+print(f'PENDING_CHECKPOINTS=\"{pend_str}\"')
+" 2>/dev/null)" || {
+        ACTIVE_CHECKPOINT=""
+        PENDING_CHECKPOINTS=""
+    }
 fi
 
 ESCALATION_FLAG=""

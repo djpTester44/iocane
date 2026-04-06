@@ -22,7 +22,7 @@ line-length = 88
 target-version = "py__PYTHON_VERSION_NODOT__"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM", "D100", "T201"]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM", "S110", "D100", "T201"]
 ignore = ["E501"]
 
 [tool.ruff.format]

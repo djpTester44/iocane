@@ -6,7 +6,7 @@ Defines the procedure for determining whether an `ACTUAL_STATE_ASSERTION` findin
 
 ## Step 1 — Build the File-to-Checkpoint Map
 
-From `plans/plan.md`, read each checkpoint's declared write targets. Produce a map:
+From `plans/plan.yaml`, read each checkpoint's declared write targets. Produce a map:
 
 ```
 file_path -> CP-ID
@@ -36,7 +36,7 @@ Files outside the reachable set are at ACTUAL state. Acceptance criteria must no
 
 **Broad directory patterns:** Language like "all components pass", "all tests green", "entire src/ directory". These implicitly reference all files in the named scope. Resolve to the registered file list from `plans/component-contracts.toml` for that directory.
 
-**Behavioral assertions:** Criteria phrased as "X behavior works end-to-end". Cross-reference `plans/seams.md` and `component-contracts.toml` to identify implicated files.
+**Behavioral assertions:** Criteria phrased as "X behavior works end-to-end". Cross-reference `plans/seams.yaml` and `component-contracts.toml` to identify implicated files.
 
 ---
 
@@ -44,7 +44,7 @@ Files outside the reachable set are at ACTUAL state. Acceptance criteria must no
 
 For each file outside the reachable set that an acceptance criterion references:
 
-**Computable → MECHANICAL:** The file appears in `component-contracts.toml` and is owned by a CP-ID resolvable from the file-to-checkpoint map. The exclusion set is fully enumerable from `plan.md` + `component-contracts.toml`.
+**Computable → MECHANICAL:** The file appears in `component-contracts.toml` and is owned by a CP-ID resolvable from the file-to-checkpoint map. The exclusion set is fully enumerable from `plan.yaml` + `component-contracts.toml`.
 
 **Not computable → DESIGN:** Any of the following conditions:
 - The file is absent from `component-contracts.toml` (unregistered component).

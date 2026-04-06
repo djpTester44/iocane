@@ -3,8 +3,8 @@
 # Pre-invocation gate for /auto-checkpoint.
 # Validates preconditions before the workflow runs.
 
-PLAN_FILE="plans/plan.md"
-BACKLOG_FILE="plans/backlog.md"
+PLAN_FILE="plans/plan.yaml"
+BACKLOG_FILE="plans/backlog.yaml"
 SCRIPT_FILE=".claude/scripts/auto_checkpoint.py"
 
 errors=0
@@ -22,9 +22,18 @@ fi
 if [ ! -f "$PLAN_FILE" ]; then
   echo "ERROR: Plan file not found: $PLAN_FILE -- run /io-checkpoint first." >&2
   errors=$((errors + 1))
-elif ! grep -q "## Connectivity Tests" "$PLAN_FILE"; then
-  echo "ERROR: $PLAN_FILE lacks '## Connectivity Tests' section -- plan has not been through /io-checkpoint yet." >&2
-  errors=$((errors + 1))
+else
+  HAS_CTS=$(uv run python -c "
+import sys
+sys.path.insert(0, '.claude/scripts')
+from plan_parser import load_plan
+plan = load_plan('$PLAN_FILE')
+print('yes' if plan.connectivity_tests else 'no')
+" 2>/dev/null || echo "no")
+  if [ "$HAS_CTS" != "yes" ]; then
+    echo "ERROR: $PLAN_FILE has no connectivity_tests -- plan has not been through /io-checkpoint yet." >&2
+    errors=$((errors + 1))
+  fi
 fi
 
 if [ $errors -gt 0 ]; then

@@ -18,7 +18,7 @@ description: End a session and write a handoff summary to LEFTOFF.md at the proj
 
 Inspect the current session to determine:
 
-1. **Last work item** — the most recent task, checkpoint, or user request that was actively being worked on. Check `plans/plan.md` for the current checkpoint and `plans/backlog.md` for any in-progress items.
+1. **Last work item** — the most recent task, checkpoint, or user request that was actively being worked on. Check `plans/plan.yaml` for the current checkpoint and `plans/backlog.yaml` for any in-progress items.
 2. **Workflow / command run** — the last `/io-*` command or named workflow that was invoked (e.g., `/io-execute CP-09`, `/io-review CP-08`).
 3. **Files updated** — list every source file, test file, interface, or plan document that was written or modified during this session. Use the conversation history and any terminal output to compile this list. Be specific (file paths relative to repo root).
 4. **Recommended next action** — based on the project state, plan status, and any pending backlog items, determine the single most logical next command or action the human should run when resuming.

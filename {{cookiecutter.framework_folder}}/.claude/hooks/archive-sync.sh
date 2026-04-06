@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # PostToolUse hook: Edit | Write
 # Self-healing guard: if the agent writes Remediated: annotations directly to
-# plans/backlog.md without running archive-approved.sh, this hook detects the
-# drift and runs archive-approved.sh to sync plan.md.
+# plans/backlog.yaml without running archive-approved.sh, this hook detects the
+# drift and runs archive-approved.sh to sync plan.yaml.
 #
 # NOTE: Designed to run from the project root.
 # This script is a harness template artifact.
@@ -25,33 +25,35 @@ fi
 MATCH=$(FILE_PATH="$FILE_PATH" uv run python -c "
 import os, sys
 p = os.path.normpath(os.environ['FILE_PATH']).replace('\\\\', '/')
-print('yes' if p.endswith('plans/backlog.md') else 'no')
+print('yes' if p.endswith('plans/backlog.yaml') else 'no')
 ")
 
-if [ "$MATCH" != "yes" ] || [ ! -f "plans/backlog.md" ] || [ ! -f "plans/plan.md" ]; then
+if [ "$MATCH" != "yes" ] || [ ! -f "plans/backlog.yaml" ] || [ ! -f "plans/plan.yaml" ]; then
     exit 0
 fi
 
-# Find CP-IDs with Remediated: annotations in backlog.md where plan.md still
-# shows [ ] pending — these are stale due to bypassing archive-approved.sh.
+# Find CP-IDs with Remediated: annotations in backlog.yaml where plan.yaml still
+# shows pending status — these are stale due to bypassing archive-approved.sh.
 STALE_CPS=$(uv run python -c "
-import re, sys
+import sys
+sys.path.insert(0, '.claude/scripts')
+from backlog_parser import load_backlog
+from plan_parser import load_plan, find_checkpoint
+from schemas import CheckpointStatus
 
-with open('plans/backlog.md', 'r', encoding='utf-8') as f:
-    backlog = f.read()
-with open('plans/plan.md', 'r', encoding='utf-8') as f:
-    plan = f.read()
+backlog = load_backlog('plans/backlog.yaml')
+plan = load_plan('plans/plan.yaml')
 
-remediated = re.findall(r'Remediated:\s+(CP-\w+)', backlog)
 stale = []
 seen = set()
-for cp_id in remediated:
-    if cp_id in seen:
-        continue
-    seen.add(cp_id)
-    pattern = r'### ' + re.escape(cp_id) + r':.*?\*\*Status:\*\*\s*\[ \] pending'
-    if re.search(pattern, plan, re.DOTALL):
-        stale.append(cp_id)
+for item in backlog.items:
+    for ann in item.annotations:
+        if ann.type == 'Remediated' and ann.value not in seen:
+            cp_id = ann.value
+            seen.add(cp_id)
+            cp = find_checkpoint(plan, cp_id)
+            if cp and cp.status == CheckpointStatus.PENDING:
+                stale.append(cp_id)
 
 print(' '.join(stale))
 ")
@@ -69,7 +71,7 @@ done
 
 if [ ${#CORRECTED[@]} -gt 0 ]; then
     JOINED="${CORRECTED[*]}"
-    MSG="archive-sync: ran archive-approved.sh for ${JOINED// /, } (plan.md was stale)"
+    MSG="archive-sync: ran archive-approved.sh for ${JOINED// /, } (plan.yaml was stale)"
     echo "{\"type\": \"systemPrompt\", \"content\": \"$MSG\"}"
 fi
 

@@ -67,7 +67,7 @@ checkpoints.
 
 ### CP-[NN]R1: [Remediation Checkpoint Name]
 **Remediates:** CP-[NN]
-**Source:** plans/backlog.md (From CP-[NN] -- YYYY-MM-DD)
+**Source:** plans/backlog.yaml (From CP-[NN] -- YYYY-MM-DD)
 **Source BL:** BL-NNN
 **Severity:** HIGH | MEDIUM | LOW
 **Description:** [One sentence — what defect is fixed]

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SessionStart hook: orient Claude at the start of every session.
 #
-# Reads plan.md, plans/tasks/, and backlog.md to determine project state.
+# Reads plan.yaml, plans/tasks/, and backlog.yaml to determine project state.
 # Outputs a structured briefing and suggests the appropriate next workflow.
 #
 # NOTE: Designed to run from a generated project root.
@@ -66,24 +66,38 @@ Clear $ESCALATION_FLAG after review to re-enable dispatch.
 "
 fi
 
-# --- Read plan.md for checkpoint status ---
-PLAN_FILE="plans/plan.md"
+# --- Read plan.yaml for checkpoint status ---
+PLAN_FILE="plans/plan.yaml"
 ACTIVE_CHECKPOINT=""
 PENDING_CHECKPOINTS=""
 COMPLETED_CHECKPOINTS=""
 
 if [ -f "$PLAN_FILE" ]; then
-    # Extract checkpoints and their status from plan.md
-    COMPLETED_CHECKPOINTS=$(grep -E "^\*\*Status:\*\* \[x\]" "$PLAN_FILE" -B5 | grep "^### CP-" | sed 's/### //' || echo "none")
-    PENDING_CHECKPOINTS=$(grep -E "^\*\*Status:\*\* \[ \] pending" "$PLAN_FILE" -B5 | grep "^### CP-" | sed 's/### //' || echo "none")
-    IN_PROGRESS=$(grep -E "^\*\*Status:\*\* \[~\] in-progress" "$PLAN_FILE" -B5 | grep "^### CP-" | sed 's/### //' || echo "")
-
-    if [ -n "$IN_PROGRESS" ]; then
-        ACTIVE_CHECKPOINT="$IN_PROGRESS"
-    else
-        # First pending checkpoint is the active one
-        ACTIVE_CHECKPOINT=$(echo "$PENDING_CHECKPOINTS" | head -1)
-    fi
+    eval "$(uv run python -c "
+import sys
+sys.path.insert(0, '.claude/scripts')
+from plan_parser import (
+    load_plan, pending_checkpoints, completed_checkpoints, in_progress_checkpoints,
+)
+plan = load_plan('plans/plan.yaml')
+pend = pending_checkpoints(plan)
+comp = completed_checkpoints(plan)
+prog = in_progress_checkpoints(plan)
+pend_str = '\n'.join(f'{cp.id}: {cp.title}' for cp in pend) or 'none'
+comp_str = '\n'.join(f'{cp.id}: {cp.title}' for cp in comp) or 'none'
+active = ''
+if prog:
+    active = f'{prog[0].id}: {prog[0].title}'
+elif pend:
+    active = f'{pend[0].id}: {pend[0].title}'
+print(f'PENDING_CHECKPOINTS=\"{pend_str}\"')
+print(f'COMPLETED_CHECKPOINTS=\"{comp_str}\"')
+print(f'ACTIVE_CHECKPOINT=\"{active}\"')
+" 2>/dev/null)" || {
+        PENDING_CHECKPOINTS="none"
+        COMPLETED_CHECKPOINTS="none"
+        ACTIVE_CHECKPOINT=""
+    }
 fi
 
 # --- Read plans/tasks/ for recent status files ---
@@ -112,15 +126,25 @@ if [ -d "$TASKS_DIR" ]; then
     done || echo "")
 fi
 
-# --- Read backlog.md for open items ---
-BACKLOG_FILE="plans/backlog.md"
+# --- Read backlog.yaml for open items ---
+BACKLOG_FILE="plans/backlog.yaml"
 BACKLOG_ALERT=""
 DESIGN_ITEMS=""
 REFACTOR_ITEMS=""
 
 if [ -f "$BACKLOG_FILE" ]; then
-    DESIGN_ITEMS=$(grep -c "^\- \[ \] \[DESIGN\]" "$BACKLOG_FILE" 2>/dev/null | tr -d '\r' || echo "0")
-    REFACTOR_ITEMS=$(grep -c "^\- \[ \] \[REFACTOR\]" "$BACKLOG_FILE" 2>/dev/null | tr -d '\r' || echo "0")
+    COUNTS=$(uv run python -c "
+import sys
+sys.path.insert(0, '.claude/scripts')
+from backlog_parser import load_backlog, items_by_tag, open_items
+backlog = load_backlog('plans/backlog.yaml')
+opened = open_items(backlog)
+design = sum(1 for i in opened if i.tag.value == 'DESIGN')
+refactor = sum(1 for i in opened if i.tag.value == 'REFACTOR')
+print(f'{design} {refactor}')
+" 2>/dev/null || echo "0 0")
+    DESIGN_ITEMS=$(echo "$COUNTS" | awk '{print $1}')
+    REFACTOR_ITEMS=$(echo "$COUNTS" | awk '{print $2}')
 
     if [ "$DESIGN_ITEMS" -gt 0 ] || [ "$REFACTOR_ITEMS" -gt 0 ]; then
         BACKLOG_ALERT="
@@ -130,7 +154,7 @@ Open items requiring attention before next orchestration cycle:
 - [DESIGN] items: $DESIGN_ITEMS
 - [REFACTOR] items: $REFACTOR_ITEMS
 
-Run /io-review or inspect plans/backlog.md for details.
+Run /io-review or inspect plans/backlog.yaml for details.
 "
     fi
 fi
@@ -143,7 +167,7 @@ suggest_next_workflow() {
         return
     fi
 
-    # No plan.md yet
+    # No plan.yaml yet
     if [ ! -f "$PLAN_FILE" ]; then
         if [ ! -f "plans/PRD.md" ]; then
             echo "No PRD found. Start with /brainstorm or create plans/PRD.md, then run /io-clarify."

@@ -2,7 +2,7 @@
 paths:
   - "plans/project-spec.md"
   - "plans/roadmap.md"
-  - "plans/plan.md"
+  - "plans/plan.yaml"
   - "interfaces/**"
 ---
 

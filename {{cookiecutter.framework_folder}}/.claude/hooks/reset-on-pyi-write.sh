@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # PostToolUse hook: Edit | Write
-# Resets both the project-spec.md Approved stamp and plan.md Plan Validated stamp
+# Resets both the project-spec.md Approved stamp and plan.yaml validated stamp
 # after any write to an interfaces/*.pyi contract file.
 #
 # Rationale: .pyi changes are binding contract changes. Both the architecture
 # approval and the plan validation are invalidated because:
 #   - project-spec.md: the approved CRC cards may no longer match the contracts
-#   - plan.md: checkpoints that depend on the old contract signatures are stale
+#   - plan.yaml: checkpoints that depend on the old contract signatures are stale
 #
 # Exempt: if .iocane/validating sentinel file exists, the write originates from
 # /io-architect or another validating workflow that manages stamps explicitly.
@@ -46,8 +46,19 @@ if [ "$IS_PYI" = "yes" ]; then
     if [ -f "plans/project-spec.md" ]; then
         sed -i 's/\*\*Approved:\*\* True/\*\*Approved:\*\* False/g' "plans/project-spec.md"
     fi
-    if [ -f "plans/plan.md" ]; then
-        sed -i 's/\*\*Plan Validated:\*\* PASS/\*\*Plan Validated:\*\* FAIL/g' "plans/plan.md"
+    if [ -f "plans/plan.yaml" ]; then
+        uv run python -c "
+import yaml
+path = 'plans/plan.yaml'
+with open(path, 'r', encoding='utf-8') as f:
+    data = yaml.safe_load(f)
+if data and data.get('validated') is True:
+    data['validated'] = False
+    data.pop('validated_date', None)
+    data.pop('validated_note', None)
+    with open(path, 'w', encoding='utf-8') as f:
+        yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+"
     fi
 fi
 

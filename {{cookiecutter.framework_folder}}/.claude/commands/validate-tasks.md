@@ -1,6 +1,6 @@
 ---
 name: validate-tasks
-description: Validate generated task files against plan.md and component-contracts.toml before agent dispatch. Sits between /io-plan-batch and dispatch-agents.sh.
+description: Validate generated task files against plan.yaml and component-contracts.toml before agent dispatch. Sits between /io-plan-batch and dispatch-agents.sh.
 ---
 
 # /validate-tasks
@@ -37,11 +37,11 @@ If it exits non-zero, HALT immediately with the error message from the script. D
 
 Load in a single phase — no re-reads during check execution:
 
-- `plans/plan.md` — line-bounded reads of checkpoint sections per CP-ID (write targets, `Depends on` chains)
+- `plans/plan.yaml` — line-bounded reads of checkpoint sections per CP-ID (write targets, `Depends on` chains)
 - `plans/component-contracts.toml` — component-to-file mapping
-- `plans/tasks/CP-*.md` — all task files in the current batch
+- `plans/tasks/CP-*.yaml` — all task files in the current batch
 - `plans/archive/CP-*/CP-*.status` — completed checkpoint status (glob, then read each)
-- `plans/seams.md` — seam entries for completeness check
+- `plans/seams.yaml` -- seam entries for completeness check (via `seam_parser.load_seams()`)
 
 **Token budget estimate:** ~3000–6000 tokens. Read only the sections for CP-IDs present in `plans/tasks/`.
 
@@ -53,21 +53,21 @@ Run all four checks on every task file before classifying severity.
 
 ### Check 1 — WRITE_TARGET_FIDELITY
 
-The task file's `## Declared Write Targets` must exactly match the write targets declared in `plans/plan.md` for that CP-ID.
+The task file's `write_targets` field must exactly match the write targets declared in `plans/plan.yaml` for that CP-ID.
 
-- Compare task file write targets against `plan.md` one-for-one.
-- **WRITE_TARGET_ADDITION:** Task file lists a path not in `plan.md` (CT paths exempt — see below).
-- **WRITE_TARGET_OMISSION:** `plan.md` lists a path absent from the task file.
-- **CT_PATH_UNLISTED:** A connectivity test's `file:` path from `plan.md` is not in the task file's write targets (CT paths must be present per io-plan-batch Step D).
+- Compare task file write targets against `plan.yaml` one-for-one.
+- **WRITE_TARGET_ADDITION:** Task file lists a path not in `plan.yaml` (CT paths exempt — see below).
+- **WRITE_TARGET_OMISSION:** `plan.yaml` lists a path absent from the task file.
+- **CT_PATH_UNLISTED:** A connectivity test's `file:` path from `plan.yaml` is not in the task file's write targets (CT paths must be present per io-plan-batch Step D).
 - **CONTEXT_FILE_IN_WRITE_TARGETS:** A file appears in both write targets and the task file's context/reference section (read-only files must not be declared as write targets).
 
-CT file paths derived from the CT spec's `file:` field in `plan.md` are exempt from WRITE_TARGET_ADDITION.
+CT file paths derived from the CT spec's `file:` field in `plan.yaml` are exempt from WRITE_TARGET_ADDITION.
 
 ### Check 2 — GATE_COMMAND_VALIDITY
 
 The task file's gate command must reference only files that exist or will exist as write targets of this checkpoint or a predecessor archived PASS.
 
-- **GATE_COMMAND_STALE:** The gate command references a file path that differs from what `plan.md` specifies for this CP.
+- **GATE_COMMAND_STALE:** The gate command references a file path that differs from what `plan.yaml` specifies for this CP.
 - **GATE_REFERENCES_NONEXISTENT:** The gate command references a file not in write targets and not in any archived-PASS checkpoint's write targets. No known source of truth for this path.
 - **GATE_DEPENDS_ON_BLOCKED:** The gate command depends on output from an upstream CP that is neither archived PASS nor an earlier sequence position in the current batch.
 
@@ -77,23 +77,23 @@ Acceptance criteria must not assert TARGET state (post-implementation behavior) 
 
 Apply the computability test from `references/actual-target-heuristic.md`:
 
-1. Build the file-to-checkpoint map from `plan.md` write targets.
+1. Build the file-to-checkpoint map from `plan.yaml` write targets.
 2. Compute the transitive reachable set: archived PASS checkpoints + this CP's own write targets.
 3. Scan acceptance criteria for explicit file paths and broad directory patterns.
-4. For each referenced path outside the reachable set: determine whether the full exclusion set is derivable from `plan.md` + `component-contracts.toml`.
+4. For each referenced path outside the reachable set: determine whether the full exclusion set is derivable from `plan.yaml` + `component-contracts.toml`.
 
-- **ACTUAL_STATE_ASSERTION (exclusions computable):** Criterion asserts TARGET state on an unreachable file, and the full exclusion set is derivable from plan.md + component-contracts.toml. → MECHANICAL. Include computed exclusions in the finding detail.
+- **ACTUAL_STATE_ASSERTION (exclusions computable):** Criterion asserts TARGET state on an unreachable file, and the full exclusion set is derivable from plan.yaml + component-contracts.toml. → MECHANICAL. Include computed exclusions in the finding detail.
 - **ACTUAL_STATE_ASSERTION (exclusions have gaps):** Criterion asserts TARGET state on an unreachable file, but the exclusion set contains paths absent from `component-contracts.toml` or unresolvable dependency links. → DESIGN.
 - **ACTUAL_STATE_UNCERTAIN:** An acceptance criterion's scope is ambiguous (e.g., implicit "all components" language without a file list). Log count, do not halt.
 - **ACCEPTANCE_CRITERION_UNTESTABLE:** An acceptance criterion cannot be verified by any deterministic command or file check. Log count, do not halt.
 
 ### Check 4 — SEAM_CONTEXT_COMPLETENESS
 
-Every `src/` component in the checkpoint's write targets must have a seam entry in the task file's `## Seam Context` section.
+Every `src/` component in the checkpoint's write targets must have a seam entry in the task file's `seam_context` field.
 
-- **SEAM_ENTRY_MISSING:** A component from write targets has no entry in the task file's `## Seam Context` section.
-- **SEAM_ENTRY_STALE:** The task file's seam data diverges from `plans/seams.md` (field values differ). Log count, surface in summary. Not a blocking finding.
-- **SEAM_SOURCE_FABRICATED:** The task file contains a seam entry for a component that has no entry in `plans/seams.md`, or field values (`Receives (DI)`, `Key failure modes`, `External terminal`) do not match any `plans/seams.md` entry. → DESIGN.
+- **SEAM_ENTRY_MISSING:** A component from write targets has no entry in the task file's `seam_context` field.
+- **SEAM_ENTRY_STALE:** The task file's seam data diverges from `plans/seams.yaml` (field values differ). Use `seam_parser.find_by_component()` and `to_seam_entry()` for comparison. Log count, surface in summary. Not a blocking finding.
+- **SEAM_SOURCE_FABRICATED:** The task file contains a seam entry for a component that has no entry in `plans/seams.yaml`, or field values (`receives_di`, `key_failure_modes`, `external_terminal`) do not match. -> DESIGN.
 
 ---
 
@@ -122,8 +122,8 @@ Every `src/` component in the checkpoint's write targets must have a seam entry 
 
 ```
 Step 0: [HARD GATE] bash .claude/scripts/pre-invoke-validate-tasks.sh
-Step 1: Load context (plan.md sections, component-contracts.toml, task files,
-        archive status, seams.md)
+Step 1: Load context (plan.yaml sections, component-contracts.toml, task files,
+        archive status, seams.yaml)
 Step 2: Run all four checks on all task files
 Step 3: Classify findings by severity using the flag taxonomy.
         For ACTUAL_STATE_ASSERTION: apply computability test
@@ -187,7 +187,7 @@ Written to `plans/validation-reports/task-validation-report.yaml`. Schema: `.cla
 ## Constraints
 
 - Does NOT edit task files
-- Does NOT edit `plan.md`, `project-spec.md`, or `component-contracts.toml`
+- Does NOT edit `plan.yaml`, `project-spec.md`, or `component-contracts.toml`
 - Remediation owned by `/task-recovery`
 - DESIGN findings escalate immediately — never enter the recovery loop
 - Same finding persisting across two consecutive passes → escalate to DESIGN

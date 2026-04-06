@@ -2,7 +2,7 @@
 # .claude/scripts/dispatch-agents.sh
 #
 # Owns the full batch lifecycle for sub-agent execution:
-#   1. Scans plans/tasks/ for pending CP-XX.md files (no matching .status)
+#   1. Scans plans/tasks/ for pending CP-XX.yaml files (no matching .status)
 #   2. Enforces parallel.limit from .claude/iocane.config.yaml
 #   3. Per checkpoint (in parallel up to limit):
 #      a. Sets up isolated git worktree via setup-worktree.sh
@@ -143,12 +143,12 @@ fi
 PARENT_BRANCH=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD)
 
 # --- Collect pending task files ---
-# A task file is pending if CP-XX.md exists but CP-XX.status does not.
+# A task file is pending if CP-XX.yaml exists but CP-XX.status does not.
 PENDING=()
 
-for task_file in "$TASKS_DIR"/CP-*.md; do
+for task_file in "$TASKS_DIR"/CP-*.yaml; do
     [ -f "$task_file" ] || continue
-    CP_ID=$(basename "$task_file" .md)
+    CP_ID=$(basename "$task_file" .yaml)
     STATUS_FILE="$TASKS_DIR/$CP_ID.status"
     if [ ! -f "$STATUS_FILE" ]; then
         if [ ! -f "$TASKS_DIR/$CP_ID.task.validation" ]; then
@@ -208,11 +208,16 @@ run_checkpoint_pipeline() {
     # Full suite regression detection is the CI sidecar's job (BL-001).
     cd "$WORKTREE_PATH"
 
-    # Extract CT file paths from the task file's CT spec blocks
+    # Extract CT file paths from the task file via task_parser
     CT_FILES=()
     while IFS= read -r ct_path; do
         [[ -n "$ct_path" ]] && CT_FILES+=("$ct_path")
-    done < <(grep '^file:' "$TASKS_DIR/$CP_ID.md" 2>/dev/null | awk '{print $2}')
+    done < <(uv run python -c "
+import sys; sys.path.insert(0, '.claude/scripts')
+from task_parser import load_task, extract_ct_files
+for f in extract_ct_files(load_task('$TASKS_DIR/$CP_ID.yaml')):
+    print(f)
+" 2>/dev/null)
 
     for ct_file in "${CT_FILES[@]}"; do
         if [ -f "$ct_file" ]; then
@@ -240,16 +245,20 @@ run_checkpoint_pipeline() {
 
         # --- Checkpoint reset for regen ---
         if [ "$ATTEMPT" -gt 1 ]; then
-            # Reset step progress checkboxes so regen agent starts from Step B
-            sed -i '/^## Step Progress/,/^##/{s/- \[x\]/- [ ]/g}' \
-                "$WORKTREE_PATH/plans/tasks/$CP_ID.md"
-            echo "[REGEN] $CP_ID: reset step progress checkboxes for attempt $ATTEMPT" >> "$LOG_FILE"
+            # Reset step progress so regen agent starts from Step B
+            uv run python -c "
+import sys; sys.path.insert(0, '.claude/scripts')
+from task_parser import load_task, reset_step_progress, save_task
+p = '$WORKTREE_PATH/plans/tasks/$CP_ID.yaml'
+save_task(p, reset_step_progress(load_task(p)))
+"
+            echo "[REGEN] $CP_ID: reset step progress for attempt $ATTEMPT" >> "$LOG_FILE"
         fi
 
         # --- Generator (or Regen) ---
         local GEN_PROMPT
         if [ "$ATTEMPT" -eq 1 ]; then
-            GEN_PROMPT="Read and execute the workflow defined in .claude/commands/io-execute.md. Your task file is plans/tasks/${CP_ID}.md. Follow every step exactly. Terminate after writing the status file."
+            GEN_PROMPT="Read and execute the workflow defined in .claude/commands/io-execute.md. Your task file is plans/tasks/${CP_ID}.yaml. Follow every step exactly. Terminate after writing the status file."
         else
             # Regen: include eval findings as negative constraints
             local REGEN_HINT
@@ -261,7 +270,7 @@ try:
     print(hint if hint and hint != 'null' else '')
 except: print('')
 " 2>/dev/null) || true
-            GEN_PROMPT="Read and execute the workflow defined in .claude/commands/io-execute.md. Your task file is plans/tasks/${CP_ID}.md. This is retry attempt $ATTEMPT. Your previous attempt was evaluated and failed. The evaluator found these issues: ${REGEN_HINT}. Fix these specific issues. Follow every step exactly. Terminate after writing the status file."
+            GEN_PROMPT="Read and execute the workflow defined in .claude/commands/io-execute.md. Your task file is plans/tasks/${CP_ID}.yaml. This is retry attempt $ATTEMPT. Your previous attempt was evaluated and failed. The evaluator found these issues: ${REGEN_HINT}. Fix these specific issues. Follow every step exactly. Terminate after writing the status file."
         fi
 
         # Export sub-agent env vars
@@ -295,7 +304,7 @@ except: print('')
         fi
 
         # --- Evaluator ---
-        local EVAL_PROMPT="Read and execute the workflow defined in .claude/commands/io-evaluator-dispatch.md. Your task file is plans/tasks/${CP_ID}.md. This is evaluation of attempt $ATTEMPT. Grade the implementation. Write the eval result to $REPO_ROOT/plans/tasks/${CP_ID}.eval.json (use this exact absolute path). Terminate."
+        local EVAL_PROMPT="Read and execute the workflow defined in .claude/commands/io-evaluator-dispatch.md. Your task file is plans/tasks/${CP_ID}.yaml. This is evaluation of attempt $ATTEMPT. Grade the implementation. Write the eval result to $REPO_ROOT/plans/tasks/${CP_ID}.eval.json (use this exact absolute path). Terminate."
 
         # Clear previous eval for retry
         rm -f "$EVAL_FILE"
@@ -396,19 +405,19 @@ for CP_ID in "${BATCH[@]}"; do
             git -C "$REPO_ROOT" merge "iocane/$CP_ID" --no-ff -m "Merge checkpoint $CP_ID into $PARENT_BRANCH"
             echo "$CP_ID: Merged into $PARENT_BRANCH."
 
-            # --- Register completion in plan.md ---
+            # --- Register completion in plan.yaml ---
             uv run python -c "
-import re, sys
-path, cp_id = sys.argv[1], sys.argv[2]
-with open(path, 'r', encoding='utf-8') as f:
-    text = f.read()
-pattern = r'(### ' + re.escape(cp_id) + r':.*?\n(?:(?!###).*?\n)*?\*\*Status:\*\*) \[ \] pending'
-updated, count = re.subn(pattern, r'\1 [x] complete', text)
-if count > 0:
-    with open(path, 'w', encoding='utf-8') as f:
-        f.write(updated)
-    print(f'{cp_id}: plan.md -> [x] complete')
-" "$REPO_ROOT/plans/plan.md" "$CP_ID" 2>/dev/null || true
+import sys
+sys.path.insert(0, '${REPO_ROOT}/.claude/scripts')
+from plan_parser import load_plan, update_checkpoint_status, save_plan
+from schemas import CheckpointStatus
+path = sys.argv[1]
+cp_id = sys.argv[2]
+plan = load_plan(path)
+plan = update_checkpoint_status(plan, cp_id, CheckpointStatus.COMPLETE)
+save_plan(path, plan)
+print(f'{cp_id}: plan.yaml -> complete')
+" "$REPO_ROOT/plans/plan.yaml" "$CP_ID" 2>/dev/null || true
         fi
 
         git -C "$REPO_ROOT" worktree remove "$REPO_ROOT/.worktrees/$CP_ID" --force 2>/dev/null || true

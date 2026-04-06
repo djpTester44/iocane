@@ -1,11 +1,11 @@
 ---
 paths:
-  - "plans/backlog.md"
+  - "plans/backlog.yaml"
 ---
 
 # TICKET TAXONOMY
 
-Backlog items in `plans/backlog.md` carry one tag that governs routing.
+Backlog items in `plans/backlog.yaml` carry one tag that governs routing.
 
 ## Valid Tags
 

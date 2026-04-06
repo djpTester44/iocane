@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-PLAN_FILE="plans/plan.md"
+PLAN_FILE="plans/plan.yaml"
 CONTRACTS_FILE="plans/component-contracts.toml"
 TASKS_DIR="plans/tasks"
 
@@ -18,7 +18,7 @@ if [ ! -f "$CONTRACTS_FILE" ]; then
   exit 1
 fi
 
-if ! ls "$TASKS_DIR"/CP-*.md 1> /dev/null 2>&1; then
+if ! ls "$TASKS_DIR"/CP-*.yaml 1> /dev/null 2>&1; then
   echo "ERROR: No task files found in $TASKS_DIR/. Run /io-plan-batch before /validate-tasks." >&2
   exit 1
 fi

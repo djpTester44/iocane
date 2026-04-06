@@ -1,7 +1,7 @@
 """Extract DESIGN/REFACTOR backlog items with /io-architect routing prompts.
 
 Reads open backlog items, applies a 5-criterion eligibility filter, builds
-a dependency graph (explicit Blocked: edges), performs topological sort,
+a dependency graph (explicit blocked_by edges), performs topological sort,
 and outputs a JSON manifest to stdout.
 
 Usage:
@@ -10,7 +10,6 @@ Usage:
 
 import json
 import logging
-import re
 import subprocess
 import sys
 from collections import deque
@@ -20,12 +19,9 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from backlog_parser import (
-    build_bl_index,
-    extract_architect_prompt,
-    extract_bl_ids_from_text,
-    find_summary_line,
-    read_lines,
+    load_backlog,
 )
+from schemas import BacklogItem
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -38,162 +34,76 @@ TAG_ORDER: dict[str, int] = {"DESIGN": 2, "REFACTOR": 1}
 
 
 # ---------------------------------------------------------------------------
-# Block line walker (mirrors auto_checkpoint._walk_item_block)
-# ---------------------------------------------------------------------------
-
-
-def _walk_item_block(lines: list[str], summary_idx: int) -> list[str]:
-    """Walk all lines belonging to a backlog item (sub-fields + nested lines).
-
-    Captures 2-space and 4-space indented continuation lines.
-    """
-    block: list[str] = []
-    i = summary_idx + 1
-    while i < len(lines):
-        line = lines[i].rstrip("\n")
-        if line.startswith("  - ") or line.startswith("    - "):
-            block.append(line)
-            i += 1
-        else:
-            break
-    return block
-
-
-# ---------------------------------------------------------------------------
-# Sub-field extraction helpers
-# ---------------------------------------------------------------------------
-
-
-def _extract_field_value(block_lines: list[str], field_name: str) -> str:
-    """Extract value from a sub-field like '  - FieldName: value'."""
-    pattern = re.compile(rf"^\s+-\s+{re.escape(field_name)}:\s+(.+)")
-    for line in block_lines:
-        m = pattern.match(line)
-        if m:
-            return m.group(1).strip()
-    return ""
-
-
-def _extract_blocked_by(block_lines: list[str]) -> list[str]:
-    """Extract BL-IDs from Blocked: sub-fields."""
-    bl_ids: list[str] = []
-    for line in block_lines:
-        if re.match(r"^\s+-\s+Blocked:", line):
-            bl_ids.extend(extract_bl_ids_from_text(line))
-    return bl_ids
-
-
-def _has_resolved(block_lines: list[str]) -> bool:
-    """Check if item has a Resolved: annotation."""
-    for line in block_lines:
-        if re.match(r"^\s+-\s+Resolved:", line):
-            return True
-    return False
-
-
-# ---------------------------------------------------------------------------
 # Extraction and eligibility filter
 # ---------------------------------------------------------------------------
 
 
 def extract_eligible_items(
-    lines: list[str],
-    bl_index: dict[str, int],
+    backlog_items: list[BacklogItem],
 ) -> list[dict[str, Any]]:
     """Extract open DESIGN/REFACTOR items with /io-architect routing prompts.
 
     Applies 5-criterion eligibility filter:
-      1. Open (- [ ] status)
+      1. Open (status == open)
       2. Tagged DESIGN or REFACTOR
-      3. Has Routed: with /io-architect prompt
-      4. Not already resolved (no Resolved: annotation)
+      3. Has routing_prompt containing /io-architect
+      4. Not already resolved (no Resolved annotation)
       5. Not blocked by non-DESIGN/REFACTOR item (external blocker = skip)
     """
-    # First pass: collect all items to know tags for criterion 5.
-    all_items: dict[str, dict[str, Any]] = {}
-    for bl_id, anchor_idx in bl_index.items():
-        summary_idx = find_summary_line(lines, anchor_idx)
-        if summary_idx is None:
-            continue
-        summary_line = lines[summary_idx].rstrip("\n")
-
-        tag_match = re.search(
-            r"\[(CLEANUP|TEST|DESIGN|REFACTOR|DEFERRED)\]", summary_line
-        )
-        tag = tag_match.group(1) if tag_match else None
-        is_open = summary_line.startswith("- [ ]")
-
-        all_items[bl_id] = {
-            "tag": tag,
-            "is_open": is_open,
-            "summary_idx": summary_idx,
-        }
-
     # Build set of DESIGN/REFACTOR BL-IDs for criterion 5.
-    design_refactor_ids: set[str] = {
-        bl_id
-        for bl_id, info in all_items.items()
-        if info["tag"] in ("DESIGN", "REFACTOR")
-    }
+    design_refactor_ids: set[str] = set()
+    all_tags: dict[str, str] = {}
+    for item in backlog_items:
+        all_tags[item.id] = item.tag.value
+        if item.tag.value in ("DESIGN", "REFACTOR"):
+            design_refactor_ids.add(item.id)
 
     eligible: list[dict[str, Any]] = []
 
-    for bl_id, info in all_items.items():
-        summary_idx = info["summary_idx"]
-        summary_line = lines[summary_idx].rstrip("\n")
-
+    for item in backlog_items:
         # Criterion 1: Open
-        if not info["is_open"]:
+        if item.status.value != "open":
             continue
 
         # Criterion 2: Tagged DESIGN or REFACTOR
-        tag = info["tag"]
-        if tag not in ("DESIGN", "REFACTOR"):
+        if item.tag.value not in ("DESIGN", "REFACTOR"):
             continue
 
-        block_lines = _walk_item_block(lines, summary_idx)
-
-        # Criterion 4: Not already resolved
-        if _has_resolved(block_lines):
-            logger.info("  SKIP %s: already resolved", bl_id)
+        # Criterion 4: Not already resolved (check annotations)
+        has_resolved = any(ann.type == "Resolved" for ann in item.annotations)
+        if has_resolved:
+            logger.info("  SKIP %s: already resolved", item.id)
             continue
 
-        # Criterion 3: Has Routed: with /io-architect prompt
-        architect_prompt = extract_architect_prompt(block_lines)
-        if not architect_prompt:
-            logger.info("  SKIP %s: no /io-architect routing prompt", bl_id)
+        # Criterion 3: Has /io-architect routing prompt
+        if not item.routing_prompt or "/io-architect" not in item.routing_prompt:
+            logger.info("  SKIP %s: no /io-architect routing prompt", item.id)
             continue
-
-        # Extract sub-fields.
-        severity = _extract_field_value(block_lines, "Severity") or "MEDIUM"
-        files_str = _extract_field_value(block_lines, "Files")
-        detail = _extract_field_value(block_lines, "Detail")
-        blocked_by = _extract_blocked_by(block_lines)
 
         # Criterion 5: Not blocked by non-DESIGN/REFACTOR item
         external_blockers = [
-            b for b in blocked_by if b not in design_refactor_ids
+            b for b in item.blocked_by if b not in design_refactor_ids
         ]
         if external_blockers:
             logger.info(
                 "  SKIP %s: blocked by external item(s): %s",
-                bl_id,
+                item.id,
                 ", ".join(external_blockers),
             )
             continue
 
         # Intra-set blockers only (resolvable via ordering).
-        intra_blockers = [b for b in blocked_by if b in design_refactor_ids]
+        intra_blockers = [b for b in item.blocked_by if b in design_refactor_ids]
 
         eligible.append({
-            "bl_id": bl_id,
-            "tag": tag,
-            "severity": severity,
-            "architect_prompt": architect_prompt,
-            "files": [f.strip() for f in files_str.split(",") if f.strip()],
-            "detail": detail,
+            "bl_id": item.id,
+            "tag": item.tag.value,
+            "severity": item.severity.value,
+            "architect_prompt": item.routing_prompt,
+            "files": item.files,
+            "detail": item.detail or "",
             "blocked_by": intra_blockers,
-            "summary_line": summary_line,
+            "summary_line": item.title,
         })
 
     return eligible
@@ -221,9 +131,7 @@ def topological_sort(
     }
     eligible_ids: set[str] = set(item_map.keys())
 
-    # Build adjacency: edge from blocker -> blocked (blocker must come first).
-    # in_degree[node] = number of blockers still unresolved.
-    in_degree: dict[str, int] = {bl_id: 0 for bl_id in eligible_ids}
+    in_degree: dict[str, int] = dict.fromkeys(eligible_ids, 0)
     dependents: dict[str, list[str]] = {bl_id: [] for bl_id in eligible_ids}
 
     for item in items:
@@ -232,7 +140,6 @@ def topological_sort(
                 in_degree[item["bl_id"]] += 1
                 dependents[blocker].append(item["bl_id"])
 
-    # Seed queue with items that have no intra-set blockers.
     def sort_key(bl_id: str) -> tuple[int, int, str]:
         item = item_map[bl_id]
         return (
@@ -260,24 +167,20 @@ def topological_sort(
         sorted_items.append(item)
         processed_in_wave += 1
 
-        # Release dependents.
         next_wave_candidates: list[str] = []
         for dep in dependents[bl_id]:
             in_degree[dep] -= 1
             if in_degree[dep] == 0:
                 next_wave_candidates.append(dep)
 
-        # Add newly-freed items to queue (sorted for determinism).
         for candidate in sorted(next_wave_candidates, key=sort_key):
             queue.append(candidate)
 
-        # Advance wave when current wave exhausted.
         if processed_in_wave == wave_size:
             wave += 1
             wave_size = len(queue)
             processed_in_wave = 0
 
-    # Cycle detection: if not all items were processed.
     if len(sorted_items) < len(items):
         cycle_members = [
             bl_id
@@ -367,25 +270,23 @@ def main() -> int:
         return 1
 
     repo = Path(repo_root)
-    backlog_path = repo / "plans/backlog.md"
+    backlog_path = repo / "plans/backlog.yaml"
 
     if not backlog_path.is_file():
         logger.error("ERROR: %s not found.", backlog_path)
         return 1
 
-    backlog_lines = read_lines(str(backlog_path))
-    bl_index = build_bl_index(backlog_lines)
+    backlog = load_backlog(str(backlog_path))
     today = date.today().isoformat()
 
-    logger.info("Auto-architect scan: %d BL items indexed", len(bl_index))
+    logger.info("Auto-architect scan: %d BL items indexed", len(backlog.items))
 
     # Step 1: Extract eligible items.
-    eligible = extract_eligible_items(backlog_lines, bl_index)
+    eligible = extract_eligible_items(backlog.items)
     logger.info("Eligible DESIGN/REFACTOR items: %d", len(eligible))
 
     if not eligible:
         logger.info("No eligible items found. Nothing to do.")
-        # Output empty manifest for scripting consumers.
         print(json.dumps({"extraction_date": today, "item_count": 0, "items": []}, indent=2))
         return 0
 
@@ -428,7 +329,6 @@ def main() -> int:
     if dry_run:
         logger.info("[DRY RUN] Would output manifest with %d item(s).", manifest["item_count"])
 
-    # Output JSON manifest to stdout.
     print(json.dumps(manifest, indent=2))
     return 0
 

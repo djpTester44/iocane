@@ -251,16 +251,27 @@ Use `.claude/templates/dir-claude.md` as the structure. For each directory:
 
 **Rule:** These files are generated artifacts — overwrite on every `/io-architect` run. They must stay under 20 lines. If content would exceed 20 lines, the directory has too many responsibilities and should be flagged as a `[DESIGN]` finding.
 
-**Step I-2: Update `plans/seams.md`.**
+**Step I-2: Update `plans/seams.yaml`.**
 
-For each component added or modified in this architect run (identified from the Interface Registry delta), update its entry in `plans/seams.md`:
+For each component added or modified in this architect run (identified from the Interface Registry delta), update its entry in `plans/seams.yaml` using `seam_parser` functions:
 
-- `Receives (DI)`: derive from the CRC card Collaborators list
-- `External terminal`: derive from CRC card Responsibilities (any external system explicitly mentioned) and Must NOT constraints
-- `Key failure modes`: derive from Protocol method docstrings (exception types documented)
-- `Backlog refs`: leave blank — backlog is populated by `/io-review`, not `/io-architect`
+```bash
+uv run python -c "
+import sys; sys.path.insert(0, '.claude/scripts')
+from seam_parser import load_seams, save_seams, add_component, update_component
+from schemas import SeamComponent
+seams = load_seams('plans/seams.yaml')
+# Use add_component() for new entries, update_component() for existing
+"
+```
 
-If `plans/seams.md` does not exist, create it from `.claude/templates/seams.md`.
+- `receives_di`: derive from the CRC card Collaborators list
+- `external_terminal`: derive from CRC card Responsibilities (any external system explicitly mentioned) and Must NOT constraints
+- `key_failure_modes`: derive from Protocol method docstrings (exception types documented)
+- `layer`: assign based on component placement (1=Foundation, 2=Utility, 3=Domain)
+- `backlog_refs`: leave empty — backlog is populated by `/io-review`, not `/io-architect`
+
+If `plans/seams.yaml` does not exist, create it from `.claude/templates/seams.yaml`.
 Derive from `plans/project-spec.md` only — do not read source code.
 
 ---
@@ -280,7 +291,7 @@ If `project-spec.md` and `interfaces/*.pyi` already exist:
 ## 4. CONSTRAINTS
 
 - No implementation code in this workflow.
-- No `tasks.md`, `plan.md`, or `roadmap.md` edits.
+- No task file, `plan.yaml`, or `roadmap.md` edits.
 - `project-spec.md` reflects current codebase state only — no debt tracking, no state artifacts.
 - Protocol files are binding contracts. They are the source of truth for sub-agent execution.
 - The human's approval at Step G is the point of no return for Tier 2 delegation.

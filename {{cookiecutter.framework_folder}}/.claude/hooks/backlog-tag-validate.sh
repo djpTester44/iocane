@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # PostToolUse hook: Edit | Write
-# Advisory check: warns when checkbox lines in plans/backlog.md lack a valid tag.
-# Valid tags: [DESIGN] [REFACTOR] [CLEANUP] [DEFERRED] [TEST]
-# Does not block (exit 0 always) -- backlog items sometimes need human triage.
+# Validates backlog.yaml items against Pydantic schema on every write.
+# Replaces grep-based tag validation with full schema enforcement.
 
 INPUT=$(cat)
 
@@ -22,21 +21,23 @@ fi
 MATCH=$(FILE_PATH="$FILE_PATH" uv run python -c "
 import os, sys
 p = os.path.normpath(os.environ['FILE_PATH']).replace('\\\\', '/')
-print('yes' if p.endswith('plans/backlog.md') else 'no')
+print('yes' if p.endswith('plans/backlog.yaml') else 'no')
 ")
 
-if [ "$MATCH" != "yes" ] || [ ! -f "plans/backlog.md" ]; then
+if [ "$MATCH" != "yes" ] || [ ! -f "plans/backlog.yaml" ]; then
     exit 0
 fi
 
-UNTAGGED=$(grep -E '^\s*- \[[ x]\] ' plans/backlog.md | grep -vE '\[(DESIGN|REFACTOR|CLEANUP|DEFERRED|TEST|CI-REGRESSION|CI-COLLECTION-ERROR|CI-EXTERNAL)\]' || true)
-
-if [ -n "$UNTAGGED" ]; then
-    echo "WARNING: Untagged backlog items found in plans/backlog.md:"
-    echo "$UNTAGGED" | while IFS= read -r line; do
-        echo "  $line"
-    done
-    echo "  Valid tags: [DESIGN] [REFACTOR] [CLEANUP] [DEFERRED] [TEST] [CI-REGRESSION] [CI-COLLECTION-ERROR] [CI-EXTERNAL]"
-fi
+# Validate via Pydantic schema -- load_backlog raises on invalid data
+uv run python -c "
+import sys
+sys.path.insert(0, '.claude/scripts')
+from backlog_parser import load_backlog
+try:
+    backlog = load_backlog('plans/backlog.yaml')
+    print(f'backlog-tag-validate: {len(backlog.items)} item(s) validated OK.')
+except Exception as e:
+    print(f'WARNING: backlog.yaml schema validation failed: {e}')
+"
 
 exit 0

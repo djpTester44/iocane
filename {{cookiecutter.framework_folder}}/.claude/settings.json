@@ -52,6 +52,10 @@
             "async": true,
             "command": "bash .claude/hooks/archive-sync.sh",
             "type": "command"
+          },
+          {
+            "command": "bash .claude/hooks/validate-yaml.sh",
+            "type": "command"
           }
         ],
         "matcher": "Edit|Write"

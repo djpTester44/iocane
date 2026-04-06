@@ -6,7 +6,7 @@ Enforces the Dependency Injection rule.
    - Provides: component -> file mapping, collaborators per component,
      composition roots exempt from DI enforcement.
    - Validates that every resolved path is strictly inside src/.
-2. Parses plans/PLAN.md to build an active debt registry of components
+2. Parses plans/plan.yaml to build an active debt registry of components
    that carry a tracked [REFACTOR] or [CLEANUP] backlog ticket.
 3. Parses each implementation file's __init__ method via AST.
 4. **Sweeps tests/ directory** for bare component instantiations to
@@ -16,7 +16,7 @@ Enforces the Dependency Injection rule.
 5. Reports violations at three severity levels:
    - [CRITICAL]: Collaborator instantiated inside __init__ body (bare class
                  call, not factory-mediated); OR a component uses # noqa: DI
-                 without a matching active ticket in plans/PLAN.md; OR a
+                 without a matching active ticket in plans/plan.yaml; OR a
                  registry entry resolves outside the src/ boundary; OR a
                  test file instantiates a component without passing required
                  collaborators.
@@ -25,7 +25,7 @@ Enforces the Dependency Injection rule.
    - [INFO]:     Tracked exemptions and factory-param heuristic notices.
 
 Exit codes (strict binary gate):
-  0 -- All clean, OR every exemption has a matching PLAN.md debt ticket
+  0 -- All clean, OR every exemption has a matching plan.yaml debt ticket
       and no unresolved WARNINGs remain.
   1 -- Any CRITICAL or WARNING remains unresolved.
 
@@ -44,7 +44,7 @@ Injection patterns recognised (no false-positive for any of these):
 
 Escape hatches:
   ``# noqa: DI``      -- exempt a class or __init__ from all DI checks;
-                         requires a matching active ticket in plans/PLAN.md.
+                         requires a matching active ticket in plans/plan.yaml.
   ``# noqa: DI-TEST`` -- exempt a test-file instantiation from the test sweep.
 
 Usage:
@@ -102,7 +102,7 @@ PASCAL_CASE_RE = re.compile(r"^[A-Z][a-zA-Z0-9]*$")
 # .construct() is treated as a creational chain, not a direct instantiation.
 BUILDER_TERMINAL_RE = re.compile(r"^(build|create|construct|make|produce)$", re.IGNORECASE)
 
-# Active debt ticket line in PLAN.md.
+# Active debt ticket line in plan.yaml.
 # Matches open checkboxes (- [ ]) or plain list items containing [REFACTOR]
 # or [CLEANUP] immediately followed by a component (identifier) name.
 #
@@ -208,7 +208,7 @@ def load_contracts(
 
 def parse_plan_backlog(plan_content: str) -> set[str]:
     """Return the set of component names with an active [REFACTOR] or [CLEANUP]
-    ticket in PLAN.md.
+    ticket in plan.yaml.
 
     Only *open* items count as active debt:
       - Unchecked checkboxes:  ``- [ ] [REFACTOR] ComponentName ...``
@@ -1040,7 +1040,7 @@ def check_component(
     """Check a single component for DI violations.
 
     *tracked_debt* is the set of component names that have an active
-    ``[REFACTOR]`` or ``[CLEANUP]`` ticket in ``plans/PLAN.md``.  It
+    ``[REFACTOR]`` or ``[CLEANUP]`` ticket in ``plans/plan.yaml``.  It
     governs whether a ``# noqa: DI`` suppression is a legitimate tracked
     deferral (INFO) or untracked technical debt (CRITICAL).
     """
@@ -1065,7 +1065,7 @@ def check_component(
     # ------------------------------------------------------------------
     if visitor.is_exempt:
         if comp_name in tracked_debt:
-            # Legitimate deferral: tracked in PLAN.md → INFO only.
+            # Legitimate deferral: tracked in plan.yaml → INFO only.
             return [
                 Violation(
                     comp_name,
@@ -1073,7 +1073,7 @@ def check_component(
                     "INFO",
                     (
                         "Component exempted via # noqa: DI; "
-                        "active remediation ticket found in plans/PLAN.md."
+                        "active remediation ticket found in plans/plan.yaml."
                     ),
                 )
             ]
@@ -1085,7 +1085,7 @@ def check_component(
                 "CRITICAL",
                 (
                     "Component uses # noqa: DI but has no active [REFACTOR] or "
-                    "[CLEANUP] ticket in plans/PLAN.md. "
+                    "[CLEANUP] ticket in plans/plan.yaml. "
                     "Add a tracked backlog ticket or remove the suppression."
                 ),
             )
@@ -1264,14 +1264,14 @@ def _check_component_from_source(
                 Violation(
                     comp_name, path, "INFO",
                     "Component exempted via # noqa: DI; "
-                    "active remediation ticket found in plans/PLAN.md.",
+                    "active remediation ticket found in plans/plan.yaml.",
                 )
             ]
         return [
             Violation(
                 comp_name, path, "CRITICAL",
                 "Component uses # noqa: DI but has no active [REFACTOR] or "
-                "[CLEANUP] ticket in plans/PLAN.md. "
+                "[CLEANUP] ticket in plans/plan.yaml. "
                 "Add a tracked backlog ticket or remove the suppression.",
             )
         ]
@@ -1368,7 +1368,7 @@ def main() -> None:
 
     root_dir = Path.cwd()
     src_dir = root_dir / "src"
-    plan_path = root_dir / "plans" / "PLAN.md"
+    plan_path = root_dir / "plans" / "plan.yaml"
 
     # ------------------------------------------------------------------
     # Resolve staged file sets when in --diff-only mode
@@ -1393,18 +1393,18 @@ def main() -> None:
         root_dir, src_dir
     )
 
-    # PLAN.md is optional; if absent, no component can have tracked debt and
+    # plan.yaml is optional; if absent, no component can have tracked debt and
     # every "noqa: DI" suppression will be escalated to CRITICAL.
     if plan_path.exists():
         plan_content = plan_path.read_text(encoding="utf-8")
         tracked_debt = parse_plan_backlog(plan_content)
-        print(f"Debt tickets tracked in PLAN.md: {len(tracked_debt)}")
+        print(f"Debt tickets tracked in plan.yaml: {len(tracked_debt)}")
         if tracked_debt:
             print(f"  Tracked components: {', '.join(sorted(tracked_debt))}")
     else:
         tracked_debt = set()
         print(
-            "plans/PLAN.md not found - "
+            "plans/plan.yaml not found - "
             "all # noqa: DI suppressions will be escalated to CRITICAL."
         )
 

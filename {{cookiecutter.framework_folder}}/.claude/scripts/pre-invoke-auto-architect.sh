@@ -3,7 +3,7 @@
 # Pre-invocation gate for /auto-architect.
 # Validates preconditions before the workflow runs.
 
-BACKLOG_FILE="plans/backlog.md"
+BACKLOG_FILE="plans/backlog.yaml"
 PROJECT_SPEC="plans/project-spec.md"
 ROADMAP_FILE="plans/roadmap.md"
 SCRIPT_FILE=".claude/scripts/auto_architect.py"
@@ -34,18 +34,28 @@ elif grep -qi "Draft" "$ROADMAP_FILE" 2>/dev/null; then
   errors=$((errors + 1))
 fi
 
-# At least one open DESIGN/REFACTOR item with Routed: containing /io-architect.
+# At least one open DESIGN/REFACTOR item with routing_prompt containing /io-architect.
 if [ -f "$BACKLOG_FILE" ]; then
-  HAS_ELIGIBLE=$(grep -E '^\s*- \[ \] .*\[(DESIGN|REFACTOR)\]' "$BACKLOG_FILE" | head -1 || true)
-  if [ -z "$HAS_ELIGIBLE" ]; then
+  CHECK_RESULT=$(uv run python -c "
+import sys
+sys.path.insert(0, '.claude/scripts')
+from backlog_parser import load_backlog, open_items
+backlog = load_backlog('$BACKLOG_FILE')
+opened = open_items(backlog)
+dr_items = [i for i in opened if i.tag.value in ('DESIGN', 'REFACTOR')]
+if not dr_items:
+    print('no_items')
+elif not any(i.routing_prompt and '/io-architect' in i.routing_prompt for i in dr_items):
+    print('no_routed')
+else:
+    print('ok')
+" 2>/dev/null || echo "error")
+  if [ "$CHECK_RESULT" = "no_items" ]; then
     echo "ERROR: No open [DESIGN] or [REFACTOR] items found in $BACKLOG_FILE." >&2
     errors=$((errors + 1))
-  else
-    HAS_ROUTED=$(grep -A 5 -E '^\s*- \[ \] .*\[(DESIGN|REFACTOR)\]' "$BACKLOG_FILE" | grep '/io-architect' || true)
-    if [ -z "$HAS_ROUTED" ]; then
-      echo "ERROR: No open [DESIGN/REFACTOR] items have /io-architect routing prompts. Run /io-backlog-triage first." >&2
-      errors=$((errors + 1))
-    fi
+  elif [ "$CHECK_RESULT" = "no_routed" ]; then
+    echo "ERROR: No open [DESIGN/REFACTOR] items have /io-architect routing prompts. Run /io-backlog-triage first." >&2
+    errors=$((errors + 1))
   fi
 fi
 

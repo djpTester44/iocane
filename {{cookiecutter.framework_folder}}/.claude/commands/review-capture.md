@@ -1,6 +1,6 @@
 ---
 name: review-capture
-description: Classify review findings and append them to plans/backlog.md. Called by /io-review and /gap-analysis.
+description: Classify review findings and append them to plans/backlog.yaml. Called by /io-review and /gap-analysis.
 ---
 
 > **[NO PLAN MODE]**
@@ -15,7 +15,7 @@ description: Classify review findings and append them to plans/backlog.md. Calle
 **Objective:** Take findings from `/io-review` or `/gap-analysis` and append them to
 `plans/review-output.md` (staging file) with correct taxonomy tags and structured
 fields. Findings in staging are invisible to orchestration until `/io-backlog-triage`
-drains them into `plans/backlog.md`.
+drains them into `plans/backlog.yaml`.
 
 ---
 
@@ -48,7 +48,7 @@ Apply routing tags from `.claude/rules/ticket-taxonomy.md`:
 ### Step C: FORMAT ENTRIES
 
 Each finding becomes one structured entry in the staging file. No BL-NNN headers
-or checkboxes — those are assigned when triage drains to `plans/backlog.md`.
+or checkboxes — those are assigned when triage drains to `plans/backlog.yaml`.
 
 ```markdown
 #### Finding N
@@ -109,7 +109,7 @@ Items appended to plans/review-output.md: [N]
 [If DESIGN items captured:]
 Note: [DESIGN] items will require /io-architect after triage drains them to backlog.
 
-Next: /io-backlog-triage to drain staging into plans/backlog.md.
+Next: /io-backlog-triage to drain staging into plans/backlog.yaml.
 ```
 
 ---
@@ -117,7 +117,7 @@ Next: /io-backlog-triage to drain staging into plans/backlog.md.
 ## 2. CONSTRAINTS
 
 - Append only — no edits to existing entries under any circumstance
-- Output target is `plans/review-output.md` (staging), NOT `plans/backlog.md`
-- Does not route findings to `plans/plan.md`, `plans/roadmap.md`, or any other artifact
+- Output target is `plans/review-output.md` (staging), NOT `plans/backlog.yaml`
+- Does not route findings to `plans/plan.yaml`, `plans/roadmap.md`, or any other artifact
 - Does not create tasks — findings are pulled by `/io-backlog-triage` for routing
 - `[DEFERRED]` items must include a human-provided reason — do not defer autonomously

@@ -6,7 +6,7 @@ description: Auto-generate remediation checkpoints from triage-approved routing 
 > **[NO PLAN MODE]**
 > Tier 2 autonomous workflow. No human approval required between steps.
 
-> **[CONTEXT]** Before starting, read `plans/backlog.md` to understand which
+> **[CONTEXT]** Before starting, read `plans/backlog.yaml` to understand which
 > items carry routing prompts. The backing script handles parsing, but Claude
 > needs backlog context for Step B verification and Step D output.
 
@@ -14,7 +14,7 @@ description: Auto-generate remediation checkpoints from triage-approved routing 
 
 **Objective:** Parse open backlog items with embedded `/io-checkpoint` routing prompts,
 apply the 7-criterion eligibility filter, and atomically append new remediation
-checkpoints to `plans/plan.md`.
+checkpoints to `plans/plan.yaml`.
 
 **Position in chain:**
 
@@ -28,10 +28,10 @@ checkpoints to `plans/plan.md`.
 
 Load:
 - `.claude/scripts/auto_checkpoint.py` must exist (the backing script)
-- `plans/backlog.md` must contain triage-approved items with routing annotations
-- `plans/plan.md` must exist and contain a `## Connectivity Tests` section (insertion anchor)
+- `plans/backlog.yaml` must contain triage-approved items with routing annotations
+- `plans/plan.yaml` must exist and contain a `## Connectivity Tests` section (insertion anchor)
 
-Pre-check: If `plans/plan.md` does not exist or lacks the `## Connectivity Tests` marker, **HALT** -- the plan has not been through `/io-checkpoint` yet.
+Pre-check: If `plans/plan.yaml` does not exist or lacks the `## Connectivity Tests` marker, **HALT** -- the plan has not been through `/io-checkpoint` yet.
 
 ---
 
@@ -84,7 +84,7 @@ Run `/validate-plan`.
 
 **If PASS:** Proceed to Step D.
 
-**If FAIL:** **HALT.** Report that entries remain in `plans/plan.md` for inspection.
+**If FAIL:** **HALT.** Report that entries remain in `plans/plan.yaml` for inspection.
 The human should review the validation failures and correct manually.
 
 ---
@@ -100,9 +100,9 @@ Next: /io-plan-batch
 
 ## CONSTRAINTS
 
-- Appends to `plans/plan.md` and writes `Routed:` annotations to `plans/backlog.md` (via `route-backlog-item.sh`)
+- Appends to `plans/plan.yaml` and writes `Routed:` annotations to `plans/backlog.yaml` (via `route_backlog_item.py`)
 - Does not modify `interfaces/*.pyi` — remediation CPs never change contracts
 - Does not run `/io-plan-batch` or dispatch sub-agents
 - Does not replace `/io-checkpoint` — that workflow remains available for manual use
-- Idempotent — the 7-criterion filter (criterion 6) checks whether the target CP already exists in `plan.md`; a second run with the same backlog state produces zero new entries
-- Backlog routing is non-fatal — if `route-backlog-item.sh` fails for a BL item (e.g., already routed), the CP is still written; a warning is logged for manual follow-up
+- Idempotent — the 7-criterion filter (criterion 6) checks whether the target CP already exists in `plan.yaml`; a second run with the same backlog state produces zero new entries
+- Backlog routing is non-fatal — if `route_backlog_item.py` fails for a BL item (e.g., already routed), the CP is still written; a warning is logged for manual follow-up

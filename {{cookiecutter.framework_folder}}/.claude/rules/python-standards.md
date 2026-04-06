@@ -15,7 +15,7 @@ Blocking the event loop with synchronous calls in async contexts causes deadlock
 
 ## Error Handling
 
-Sentinel returns (None, -1, False) hide failures from callers. Raise specific custom exceptions from interfaces/exceptions.pyi.
+Sentinel returns (None, -1, False) hide failures from callers. Raise specific custom exceptions from interfaces/exceptions.pyi. Bare `except` (E722) and `except Exception: pass` (S110) are enforced by ruff -- they convert debuggable failures into silent corruption.
 
 ## Data Modeling Defaults
 

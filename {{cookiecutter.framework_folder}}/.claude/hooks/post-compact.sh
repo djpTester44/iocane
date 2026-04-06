@@ -5,7 +5,7 @@
 #   compact_summary -- the generated compaction summary string
 #
 # Output: JSON with systemPrompt to restore orientation. Uses the same injection
-# path as SessionStart so Claude re-orients without needing to re-read plan.md.
+# path as SessionStart so Claude re-orients without needing to re-read plan.yaml.
 #
 # Requires: pre-compact.sh to have written .iocane/pre-compact-state.json
 #
@@ -50,8 +50,8 @@ ${ESCALATION_ALERT}
 ${ACTIVE_CHECKPOINT:-No active checkpoint at compaction time.}
 
 ## What to Do
-- Re-read plans/plan.md if you were mid-checkpoint.
-- Re-read plans/backlog.md if you were tracking open items.
+- Re-read plans/plan.yaml if you were mid-checkpoint.
+- Re-read plans/backlog.yaml if you were tracking open items.
 - Do not assume prior approval gates survived compaction.
 - Session model: $SESSION_MODEL
 

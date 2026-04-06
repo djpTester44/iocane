@@ -59,7 +59,7 @@ mkdir -p "$CI_DIR"
 
 PRE_REPORT="$CI_DIR/ci-wave-report.json"
 POST_REPORT="$CI_DIR/ci-wave-report-post.json"
-BACKLOG_FILE="$REPO_ROOT/plans/backlog.md"
+BACKLOG_FILE="$REPO_ROOT/plans/backlog.yaml"
 
 # --- Helper: run the test suite, return output in a temp file ---
 # Sets global: SUITE_OUTPUT_FILE, SUITE_EXIT_CODE
@@ -359,20 +359,18 @@ append_backlog_failures() {
     local pre_commit="$2"
     local post_commit="$3"
 
-    if [ ! -f "$BACKLOG_FILE" ]; then
-        echo "WARNING: $BACKLOG_FILE not found -- cannot append backlog entries." >&2
-        return 0
-    fi
-
     echo "$test_ids" | while IFS= read -r test_id; do
         [ -z "$test_id" ] && continue
         local err_msg
         err_msg=$(_get_error_for_test "$POST_REPORT" "$test_id" "failures")
-        printf '\n- [ ] [CI-REGRESSION] %s -- new failure after wave merge\n' "$test_id" >> "$BACKLOG_FILE"
-        printf '  - Source: ci-sidecar post-wave\n' >> "$BACKLOG_FILE"
-        printf '  - Pre-wave commit: %s\n' "$pre_commit" >> "$BACKLOG_FILE"
-        printf '  - Post-wave commit: %s\n' "$post_commit" >> "$BACKLOG_FILE"
-        printf '  - Error: %s\n' "$err_msg" >> "$BACKLOG_FILE"
+        uv run python "$SCRIPT_DIR/append_ci_backlog.py" \
+            --test-id "$test_id" \
+            --tag CI-REGRESSION \
+            --pre-commit "$pre_commit" \
+            --post-commit "$post_commit" \
+            --error "$err_msg" \
+            --repo-root "$REPO_ROOT" \
+            || echo "WARNING: append_ci_backlog.py failed for $test_id (non-blocking)." >&2
     done
 }
 
@@ -382,20 +380,18 @@ append_backlog_collection_errors() {
     local pre_commit="$2"
     local post_commit="$3"
 
-    if [ ! -f "$BACKLOG_FILE" ]; then
-        echo "WARNING: $BACKLOG_FILE not found -- cannot append backlog entries." >&2
-        return 0
-    fi
-
     echo "$test_ids" | while IFS= read -r test_id; do
         [ -z "$test_id" ] && continue
         local err_msg
         err_msg=$(_get_error_for_test "$POST_REPORT" "$test_id" "collection_errors")
-        printf '\n- [ ] [CI-COLLECTION-ERROR] %s -- new collection error after wave merge\n' "$test_id" >> "$BACKLOG_FILE"
-        printf '  - Source: ci-sidecar post-wave\n' >> "$BACKLOG_FILE"
-        printf '  - Pre-wave commit: %s\n' "$pre_commit" >> "$BACKLOG_FILE"
-        printf '  - Post-wave commit: %s\n' "$post_commit" >> "$BACKLOG_FILE"
-        printf '  - Error: %s\n' "$err_msg" >> "$BACKLOG_FILE"
+        uv run python "$SCRIPT_DIR/append_ci_backlog.py" \
+            --test-id "$test_id" \
+            --tag CI-COLLECTION-ERROR \
+            --pre-commit "$pre_commit" \
+            --post-commit "$post_commit" \
+            --error "$err_msg" \
+            --repo-root "$REPO_ROOT" \
+            || echo "WARNING: append_ci_backlog.py failed for $test_id (non-blocking)." >&2
     done
 }
 
@@ -458,10 +454,10 @@ cmd_post_wave() {
 
     # If backlog was modified, assign IDs
     if [ "${appended:-0}" -eq 1 ]; then
-        local id_script="$SCRIPT_DIR/assign-backlog-ids.sh"
+        local id_script="$SCRIPT_DIR/assign_backlog_ids.py"
         if [ -f "$id_script" ]; then
             echo "ci-sidecar: assigning backlog IDs..."
-            bash "$id_script" || echo "WARNING: assign-backlog-ids.sh failed (non-blocking)."
+            uv run python "$id_script" --repo-root "$REPO_ROOT" || echo "WARNING: assign_backlog_ids.py failed (non-blocking)."
         else
             echo "WARNING: $id_script not found -- backlog IDs not assigned."
         fi

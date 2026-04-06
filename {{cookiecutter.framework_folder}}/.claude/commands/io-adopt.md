@@ -57,6 +57,21 @@ description: Apply Iocane framework to an existing codebase with intelligent con
 * **Action:** `mkdir -p .iocane plans plans/tasks`
 * **Note:** Do not overwrite `.iocane/session-start-payload.json` if it already exists.
 
+#### 1f. Migrate legacy plan artifacts
+
+* **Check:** For each of `plans/backlog.md`, `plans/plan.md`, `plans/seams.md`:
+  if the `.md` file exists AND the corresponding `.yaml` does not:
+* **Action:** Run the migration script:
+  ```bash
+  uv run python .claude/scripts/migrate_backlog.py plans/backlog.md
+  uv run python .claude/scripts/migrate_plan.py plans/plan.md
+  uv run python .claude/scripts/migrate_seams.py plans/seams.md
+  ```
+* **On failure:** Log the error and continue. Migration failures are non-blocking --
+  the user can fix the `.md` format and re-run `/io-adopt`.
+* **On success:** Log which files were migrated. Do NOT delete the `.md` originals
+  (user decides when to remove them).
+
 ---
 
 ### 2. CURRENT STATE ANALYSIS (Token Protection)

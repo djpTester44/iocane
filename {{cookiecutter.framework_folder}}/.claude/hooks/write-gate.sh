@@ -2,7 +2,7 @@
 # PreToolUse hook: Edit | Write
 # Blocks writes to files outside the active task's write_targets.
 #
-# v2: reads write_targets from plans/tasks/[CP-ID].md (three-tier format).
+# v2: reads write_targets from plans/tasks/[CP-ID].yaml (YAML with Pydantic validation).
 # v1 fallback: if plans/tasks/ does not exist, falls back to plans/tasks.json
 #              for backward compatibility with pre-migration projects.
 #
@@ -72,13 +72,13 @@ TASKS_DIR="plans/tasks"
 
 # --- Always allow workflow control files ---
 # .status/.exit: written by sub-agents (Tier 3) to signal completion.
-# .md: written by /io-plan-batch (Tier 2 orchestration) to generate task files.
+# .yaml: written by /io-plan-batch (Tier 2 orchestration) to generate task files.
 # write-gate must never block these.
-if echo "$FILE_PATH" | grep -qE '(plans/tasks/CP-[^/]+\.(status|exit|md|eval\.json)|\.iocane/(escalation\.log|escalation\.flag|validating))'; then
+if echo "$FILE_PATH" | grep -qE '(plans/tasks/CP-[^/]+\.(status|exit|yaml|eval\.json)|\.iocane/(escalation\.log|escalation\.flag|validating))'; then
     exit 0
 fi
 
-# --- v2: tasks/ directory present — use CP-ID.md format ---
+# --- v2: tasks/ directory present — use CP-ID.yaml format ---
 if [ -d "$TASKS_DIR" ]; then
 
     RESULT=$(FILE_PATH="$FILE_PATH" TASKS_DIR="$TASKS_DIR" uv run python -c "
@@ -90,20 +90,20 @@ tasks_dir = os.environ.get('TASKS_DIR', 'plans/tasks')
 def normalize(p):
     return os.path.normpath(p).replace('\\\\', '/')
 
-# Identify the active CP-ID: first CP-ID.md with no matching CP-ID.status
+# Identify the active CP-ID: first CP-ID.yaml with no matching CP-ID.status
 active_cp_id = None
 try:
     def cp_sort_key(f):
         m = re.search(r'(\d+)', f)
         return int(m.group(1)) if m else 0
 
-    md_files = sorted(
+    yaml_files = sorted(
         (f for f in os.listdir(tasks_dir)
-        if f.endswith('.md') and not f.startswith('.')),
+        if f.endswith('.yaml') and not f.startswith('.')),
         key=cp_sort_key
     )
-    for md_file in md_files:
-        cp_id = md_file[:-3]  # strip .md
+    for yaml_file in yaml_files:
+        cp_id = yaml_file[:-5]  # strip .yaml
         status_path = os.path.join(tasks_dir, cp_id + '.status')
         if not os.path.exists(status_path):
             active_cp_id = cp_id
@@ -116,26 +116,14 @@ if active_cp_id is None:
     print('ALLOW')
     sys.exit(0)
 
-# Parse write_targets from the active CP-ID.md
-task_file = os.path.join(tasks_dir, active_cp_id + '.md')
+# Parse write_targets from the active CP-ID.yaml via task_parser
+task_path = os.path.join(tasks_dir, active_cp_id + '.yaml')
 write_targets = []
 try:
-    with open(task_file) as f:
-        content = f.read()
-    # Find the ## Write Targets section and extract bullet list entries
-    section_match = re.search(
-        r'##\s+Write Targets\s*\n(.*?)(?=\n##|\Z)',
-        content,
-        re.DOTALL | re.IGNORECASE
-    )
-    if section_match:
-        section = section_match.group(1)
-        for line in section.splitlines():
-            line = line.strip()
-            # Match lines like: - \`path/to/file.py\` or - path/to/file.py
-            m = re.match(r'^-\s+\`?([^\`\s]+)\`?', line)
-            if m:
-                write_targets.append(m.group(1))
+    sys.path.insert(0, '.claude/scripts')
+    from task_parser import load_task
+    task = load_task(task_path)
+    write_targets = list(task.write_targets)
 except Exception:
     pass
 
@@ -156,7 +144,7 @@ print('BLOCKED:' + active_cp_id)
 
     if [[ "$RESULT" == BLOCKED:* ]]; then
         CP_ID="${RESULT#BLOCKED:}"
-        echo "BLOCKED: $FILE_PATH is not in write_targets for checkpoint $CP_ID. Update plans/tasks/$CP_ID.md or run /io-plan-batch to regenerate. Sub-agents may only write within their worktree." >&2
+        echo "BLOCKED: $FILE_PATH is not in write_targets for checkpoint $CP_ID. Update plans/tasks/$CP_ID.yaml or run /io-plan-batch to regenerate. Sub-agents may only write within their worktree." >&2
         exit 2
     fi
 

@@ -8,7 +8,7 @@ description: Post-generation evaluator. Grades checkpoint output against task fi
 
 > **[CRITICAL] CONTEXT LOADING**
 > Load ONLY the task file you were given and the files it references.
-> You have no access to plan.md, roadmap.md, project-spec.md, seams.md, or CRC cards.
+> You have no access to plan.yaml, roadmap.md, project-spec.md, seams.yaml, or CRC cards.
 
 # WORKFLOW: IO-EVALUATOR-DISPATCH
 
@@ -23,13 +23,13 @@ This workflow runs inside the same git worktree the generator used (`$REPO_ROOT/
 
 Before proceeding:
 
-1. Read your task file completely. Extract:
+1. Read your task file (YAML) completely. Extract:
    - Checkpoint ID
-   - `## Acceptance Criteria` — each criterion to grade
-   - `## Gate command` — exact command to re-run
-   - `## Write Targets` — implementation and test files to inspect
-   - `## Contract` — Protocol `.pyi` file path
-   - `## Execution Findings` — if present, pass through to eval output
+   - `acceptance_criteria` — each criterion to grade
+   - `gate_command` — exact command to re-run
+   - `write_targets` — implementation and test files to inspect
+   - `contract` — Protocol `.pyi` file path
+   - `execution_findings` — if present, pass through to eval output
 
 2. Output:
 
@@ -46,7 +46,7 @@ Before proceeding:
 ### Step A: READ CONTEXT
 
 - **Action:** Read the task file. Read the Protocol `.pyi` file. Read each implementation and test file from write targets.
-- **Rule:** Do not read plan.md, project-spec.md, seams.md, or any file not referenced by the task file.
+- **Rule:** Do not read plan.yaml, project-spec.md, seams.yaml, or any file not referenced by the task file.
 
 ---
 
@@ -60,7 +60,7 @@ Before proceeding:
 
 ### Step C: ACCEPTANCE CRITERIA CHECK
 
-- **Action:** For each criterion in `## Acceptance Criteria`:
+- **Action:** For each criterion in `acceptance_criteria`:
   1. Check whether the implementation satisfies it.
   2. If not met, classify the failure:
 

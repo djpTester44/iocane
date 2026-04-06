@@ -48,7 +48,7 @@ fi
 
 WORKTREE_PATH="$REPO_ROOT/.worktrees/$CP_ID"
 BRANCH_NAME="iocane/$CP_ID"
-TASK_FILE="$REPO_ROOT/plans/tasks/$CP_ID.md"
+TASK_FILE="$REPO_ROOT/plans/tasks/$CP_ID.yaml"
 
 # --- Preflight: task file must exist ---
 if [ ! -f "$TASK_FILE" ]; then
@@ -70,7 +70,7 @@ fi
 # Skipped when reusing an existing worktree — the merge reconciles the file.
 # Only runs in the main working tree (.git is a directory); no-ops in worktrees.
 if [ -d "$REPO_ROOT/.git" ]; then
-    REL_TASK="plans/tasks/$CP_ID.md"
+    REL_TASK="plans/tasks/$CP_ID.yaml"
     FILE_STATUS=$(git -C "$REPO_ROOT" status --porcelain -- "$REL_TASK" 2>/dev/null | cut -c1-2)
     if [ -n "$FILE_STATUS" ]; then
         git -C "$REPO_ROOT" add -- "$REL_TASK"
@@ -91,10 +91,10 @@ fi
 # Task files are untracked in the main tree and not visible to the fresh branch.
 # The sub-agent needs this file to know what to implement.
 mkdir -p "$WORKTREE_PATH/plans/tasks"
-cp "$TASK_FILE" "$WORKTREE_PATH/plans/tasks/$CP_ID.md"
+cp "$TASK_FILE" "$WORKTREE_PATH/plans/tasks/$CP_ID.yaml"
 
 # --- Remove task files and output artifacts that do not belong to this checkpoint ---
-# The worktree inherits tracked plans/tasks/CP-XX.md files from the parent
+# The worktree inherits tracked plans/tasks/CP-XX.yaml files from the parent
 # branch. Output artifacts (*.log, *.result.json, *.exit, *.status) can also
 # end up in the worktree via a prior run's git add -A commit. Remove all
 # foreign CP files to prevent sub-agents from reading or acting on the wrong task.

@@ -16,12 +16,12 @@ Execution follows a strict chronology. Design is locked before any code is writt
   2. /io-init         -- bootstrap project structure and stub roadmap from clarified PRD
   3. /io-specify      -- PLAN MODE -- propose roadmap.md, human approves
   4. /io-architect    -- PLAN MODE -- propose CRC + Protocols, human approves (contract lock)
-  5. /io-checkpoint   -- PLAN MODE -- propose plan.md + connectivity test signatures, human approves
-  6. /validate-plan   -- validate plan.md CDD compliance, stamp Plan Validated: PASS
+  5. /io-checkpoint   -- PLAN MODE -- propose plan.yaml + connectivity test signatures, human approves
+  6. /validate-plan   -- validate plan.yaml CDD compliance, stamp Plan Validated: PASS
 
 [Tier 2 -- Harness Autonomous]
   7. /io-plan-batch   -- compose batch, score confidence rubric [HARD GATE], generate task files, human approves [HUMAN GATE]
-  8. /validate-tasks  -- validate task files against plan.md before dispatch
+  8. /validate-tasks  -- validate task files against plan.yaml before dispatch
   9. bash .claude/scripts/dispatch-agents.sh  -- human executes; sub-agents run in git worktrees; ci-sidecar runs pre-wave and post-wave for regression detection
 
 [Tier 3 -- Post-Generation Evaluation]
@@ -47,7 +47,7 @@ The human is required at these moments and only these:
 | Project bootstrap | `/io-init` | Confirm project structure and stub roadmap |
 | Roadmap proposal | `/io-specify` | Approve or correct `roadmap.md` |
 | Design proposal | `/io-architect` | Approve CRC + Protocols -- contract lock |
-| Checkpoint boundaries | `/io-checkpoint` | Approve `plan.md` + connectivity signatures |
+| Checkpoint boundaries | `/io-checkpoint` | Approve `plan.yaml` + connectivity signatures |
 | Plan validation | `/validate-plan` | Review `Plan Validated` stamp before batch composition |
 | Run sub-agents | post `/io-plan-batch` | `bash .claude/scripts/dispatch-agents.sh` |
 | Validate task files | post `/io-plan-batch` | Run `/validate-tasks`; approve or route DESIGN findings |
@@ -163,15 +163,15 @@ When removing redundant or dead code, prove unused status before deletion.
 
 ## 5. Backlog Lifecycle
 
-`plans/backlog.md` is the formal tracking record for all `/io-review`, `/gap-analysis`, and `ci-sidecar.sh` findings. Findings first land in `plans/review-output.md` (staging) via `/review-capture`, then drain to `backlog.md` via `/io-backlog-triage`. The backlog is append-only and survives across all sessions.
+`plans/backlog.yaml` is the formal tracking record for all `/io-review`, `/gap-analysis`, and `ci-sidecar.sh` findings. Findings first land in `plans/review-output.md` (staging) via `/review-capture`, then drain to `backlog.yaml` via `/io-backlog-triage`. The backlog is append-only and survives across all sessions.
 
 ### Item Identifiers
 
 Every backlog item has a unique `**BL-NNN**` identifier (zero-padded 3-digit, monotonically
 increasing). IDs are assigned automatically by the `backlog-id-assign.sh` PostToolUse hook
-on every write to `plans/backlog.md`. Items are never renumbered.
+on every write to `plans/backlog.yaml`. Items are never renumbered.
 
-Format in `plans/backlog.md`:
+Format in `plans/backlog.yaml`:
 
 ```
 **BL-005**
@@ -182,30 +182,30 @@ Format in `plans/backlog.md`:
   - Detail: What to fix and why.
 ```
 
-To reference a specific item: `grep 'BL-005' plans/backlog.md` -- read downward from the ID line.
+To reference a specific item: `grep 'BL-005' plans/backlog.yaml` -- read downward from the ID line.
 
 ### Deterministic Operations
 
 | Operation | Mechanism |
 |-----------|-----------|
 | Assign BL-IDs to new entries | `backlog-id-assign.sh` PostToolUse hook (auto) |
-| Route backlog item to remediation CP | `bash .claude/scripts/route-backlog-item.sh BL-NNN CP-NNR` |
-| Mark item remediated + flip checkbox | `bash .claude/scripts/archive-approved.sh CP-NNR` (reads `Source BL:` from plan.md) |
+| Route backlog item to remediation CP | `bash .claude/scripts/route_backlog_item.py BL-NNN CP-NNR` |
+| Mark item remediated + flip checkbox | `bash .claude/scripts/archive-approved.sh CP-NNR` (reads `Source BL:` from plan.yaml) |
 
 ### Flow
 
 ```
 /io-review or /gap-analysis  --> surfaces findings
 /review-capture              --> appends structured findings to plans/review-output.md (staging)
-/io-backlog-triage           --> drains staging to plans/backlog.md with BL-NNN IDs,
+/io-backlog-triage           --> drains staging to plans/backlog.yaml with BL-NNN IDs,
                                  assesses open items, outputs prioritized routing summary
                                  with explicit prompts per item (Tier 1 -- plan mode)
 /auto-architect               --> resolves [DESIGN]/[REFACTOR] items (CRC + Protocol changes),
                                  unblocks dependent CLEANUP/TEST items
 /auto-checkpoint             --> batches unblocked CLEANUP/TEST items into remediation CPs
 /io-checkpoint (remediation) --> writes Source BL: BL-NNN in CP section, runs
-                                 route-backlog-item.sh to add Routed: annotation
-dispatch-agents.sh           --> reads backlog.md, warns on [DESIGN]/[REFACTOR] conflicts
+                                 route_backlog_item.py to add Routed: annotation
+dispatch-agents.sh           --> reads backlog.yaml, warns on [DESIGN]/[REFACTOR] conflicts
 /io-review (remediation CP)  --> archive-approved.sh resolves BL item via Source BL: lookup
 /doc-sync                    --> human marks resolved items [x] after verification
 ```
@@ -217,11 +217,11 @@ routable item, referenced by BL-ID.
 
 - **Route Immediately items:** copy the `Prompt:` verbatim and run it. The downstream workflow
   receives the full item description from the summary as context.
-- **Requires Human Scoping items:** amend `plans/plan.md` manually first -- add the target file
+- **Requires Human Scoping items:** amend `plans/plan.yaml` manually first -- add the target file
   to a checkpoint's write targets or add a new checkpoint -- then run `/validate-plan`.
 - **Likely Resolved items:** confirm by reading the referenced file at the described location.
-  If resolved, change `[ ]` to `[x]` in `plans/backlog.md` with a brief resolution note.
-- **Deferred items:** triage workflow tags them `[DEFERRED]` in `plans/backlog.md` with a
+  If resolved, change `[ ]` to `[x]` in `plans/backlog.yaml` with a brief resolution note.
+- **Deferred items:** triage workflow tags them `[DEFERRED]` in `plans/backlog.yaml` with a
   reason note on human approval. Deferred items do not block orchestration.
 
 **Tags:**

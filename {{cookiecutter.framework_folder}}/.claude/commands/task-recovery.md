@@ -9,7 +9,7 @@ description: Regenerate task files for CPs with MECHANICAL validation findings. 
 
 Accepts MECHANICAL findings from `plans/validation-reports/task-validation-report.yaml`, regenerates only the affected CPs' task files with those findings injected as negative constraints, and writes the corrected files after human approval.
 
-Does not modify `plan.md` or any other source-of-truth artifact. No coupling back to `/validate-tasks` — this command does not invoke it.
+Does not modify `plan.yaml` or any other source-of-truth artifact. No coupling back to `/validate-tasks` — this command does not invoke it.
 
 Chain position note: Called by `/validate-tasks` when MECHANICAL findings are present. After writing approved task files, the user re-runs `/validate-tasks`.
 
@@ -32,9 +32,9 @@ Do not proceed to Step 1 until both conditions are confirmed.
 Before proceeding, load the following artifacts:
 
 - `plans/validation-reports/task-validation-report.yaml` — parse the **latest pass entry** (the last entry in the `passes` list) for MECHANICAL findings
-- `plans/plan.md` — line-bounded reads of checkpoint sections for affected CP-IDs only (write targets, objective, acceptance criteria, gate command, seam context needed). Do not read sections for unaffected CPs.
+- `plans/plan.yaml` — line-bounded reads of checkpoint sections for affected CP-IDs only (write targets, objective, acceptance criteria, gate command, seam context needed). Do not read sections for unaffected CPs.
 - `plans/component-contracts.toml` — file registry
-- `plans/seams.md` — seam entries for affected components
+- `plans/seams.yaml` -- seam entries for affected components (via `seam_parser.load_seams()`)
 - `plans/archive/CP-*/CP-*.status` — completed checkpoint status files
 
 ---
@@ -52,7 +52,19 @@ Hold this data in memory.
 
 ### Step 2 — Load Checkpoint Sections
 
-For each affected CP-ID, perform a line-bounded read of that CP's section in `plans/plan.md` — from its `### CP-XX` header to the next `---` separator. Extract: objective, acceptance criteria, declared write targets, gate command, and any CT spec blocks whose downstream checkpoint matches this CP-ID.
+For each affected CP-ID, use plan_parser to extract checkpoint data and connectivity tests:
+```bash
+uv run rtk python -c "
+import sys, json
+sys.path.insert(0, '.claude/scripts')
+from plan_parser import load_plan, find_checkpoint, connectivity_tests_for_cp
+plan = load_plan('plans/plan.yaml')
+cp = find_checkpoint(plan, 'CP-XX')
+cts = connectivity_tests_for_cp(plan, 'CP-XX')
+print(json.dumps({'cp': cp.model_dump(mode='json', exclude_none=True), 'cts': [ct.model_dump(mode='json', exclude_none=True) for ct in cts]}, indent=2))
+"
+```
+Extract: description (objective), write targets, gate command, and matching CT specs.
 
 Do not read sections for unaffected CPs.
 
@@ -60,17 +72,17 @@ Do not read sections for unaffected CPs.
 
 ### Step 3 — Regenerate Task Files
 
-Regenerate the task file for each affected CP using the same construction logic as `/io-plan-batch` Step D, with findings injected as negative constraints.
+Regenerate the task file for each affected CP as YAML conforming to the `TaskFile` schema from `.claude/scripts/schemas.py`, using the same construction logic as `/io-plan-batch` Step D, with findings injected as negative constraints.
 
 Apply each flag as follows:
 
-- **WRITE_TARGET_ADDITION:** Remove the extra path from `## Declared Write Targets`. Use `plan.md` as the authoritative source.
-- **WRITE_TARGET_OMISSION:** Add the missing path to `## Declared Write Targets` from `plan.md`.
-- **CT_PATH_UNLISTED:** Add the CT file path (from the CT spec's `file:` field in `plan.md`) to `## Declared Write Targets`.
-- **CONTEXT_FILE_IN_WRITE_TARGETS:** Move the file from write targets to the context/reference section.
-- **GATE_COMMAND_STALE:** Replace the gate command with the exact gate command from `plan.md` for this CP.
-- **ACTUAL_STATE_ASSERTION (MECHANICAL):** Scope the acceptance criteria to exclude the files listed in the finding's `exclusions` array. For each excluded file, add a note: "Note: [file] is owned by [owner] and is at ACTUAL state for this checkpoint. Do not assert TARGET state on it."
-- **SEAM_ENTRY_MISSING:** Read the component's seam entry from `plans/seams.md` and embed it in `## Seam Context` using the same format as `/io-plan-batch` Step D (fields: `Receives (DI)`, `Key failure modes`, `External terminal` only — omit `Backlog refs`).
+- **WRITE_TARGET_ADDITION:** Remove the extra path from `declared_write_targets`. Use `plan.yaml` as the authoritative source.
+- **WRITE_TARGET_OMISSION:** Add the missing path to `declared_write_targets` from `plan.yaml`.
+- **CT_PATH_UNLISTED:** Add the CT file path (from the CT spec's `file:` field in `plan.yaml`) to `declared_write_targets`.
+- **CONTEXT_FILE_IN_WRITE_TARGETS:** Move the file from `declared_write_targets` to the `context_files` list.
+- **GATE_COMMAND_STALE:** Replace the `gate_command` field with the exact gate command from `plan.yaml` for this CP.
+- **ACTUAL_STATE_ASSERTION (MECHANICAL):** Scope the `acceptance_criteria` to exclude the files listed in the finding's `exclusions` array. For each excluded file, add a note: "Note: [file] is owned by [owner] and is at ACTUAL state for this checkpoint. Do not assert TARGET state on it."
+- **SEAM_ENTRY_MISSING:** Use `seam_parser.find_by_component()` to read the component's seam entry from `plans/seams.yaml`, then project via `to_seam_entry()` and embed it in `seam_context` (fields: `receives_di`, `key_failure_modes`, `external_terminal` only).
 
 Do NOT write to disk at this step. Hold regenerated content in memory.
 
@@ -94,7 +106,7 @@ Affected CPs: CP-XX, CP-YY
 
 ---
 Accept / Modify / Reject?
-- Accept: task files will be written to plans/tasks/. Re-run /validate-tasks after.
+- Accept: YAML task files will be written to plans/tasks/. Re-run /validate-tasks after.
 - Modify: describe changes. This step will be re-presented with your modifications.
 - Reject: no files written. Return to user for manual intervention.
 ```
@@ -105,7 +117,7 @@ Do not proceed until the user responds.
 
 ### Step 5 — Write Approved Task Files
 
-On Accept: write each approved task file to `plans/tasks/CP-XX.md`. Confirm each file written.
+On Accept: write each approved task file to `plans/tasks/CP-XX.yaml` via Write tool. The PostToolUse YAML validation hook enforces schema correctness automatically. Confirm each file written.
 
 On Modify: acknowledge the requested modifications. Do not write any files. Re-present Step 4 with the modifications applied.
 
@@ -127,7 +139,7 @@ Output: "Task files regenerated. Re-run /validate-tasks to validate before dispa
 
 ## Constraints
 
-- Does not modify `plan.md`, `component-contracts.toml`, `seams.md`, or other source-of-truth artifacts
+- Does not modify `plan.yaml`, `component-contracts.toml`, `seams.yaml`, or other source-of-truth artifacts
 - Human approval gate (Step 4) is mandatory before any file is written
 - Does not invoke `/validate-tasks` — no circular dependency
 - Deletes stale `.task.validation` sentinels so `/validate-tasks` re-checks regenerated files
@@ -140,4 +152,4 @@ Output: "Task files regenerated. Re-run /validate-tasks to validate before dispa
 - `/validate-tasks` — upstream; produces the validation report and invokes this command
 - `/io-plan-batch` — Step D defines the task file construction logic this command replicates
 - `plans/validation-reports/task-validation-report.yaml` — input: MECHANICAL findings
-- `plans/tasks/CP-XX.md` — output: regenerated task files
+- `plans/tasks/CP-XX.yaml` — output: regenerated task files (validated against `TaskFile` schema from `.claude/scripts/schemas.py`)

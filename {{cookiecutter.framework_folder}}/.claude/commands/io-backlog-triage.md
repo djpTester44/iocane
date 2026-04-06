@@ -5,7 +5,7 @@ description: Assess open backlog items for relevance, risk, and routing. Produce
 
 # WORKFLOW: IO-BACKLOG-TRIAGE
 
-**Objective:** Analyze all open `[ ]` items in `plans/backlog.md`, assess whether they
+**Objective:** Analyze all open `[ ]` items in `plans/backlog.yaml`, assess whether they
 are still relevant, classify their risk, and produce a prioritized routing summary with
 explicit prompt templates for each item. Human gates the routing decisions.
 
@@ -28,7 +28,7 @@ This workflow can also be invoked independently of `/io-review` for periodic tri
    unprocessed `### From CP-XXX` sections, those findings are the default input.
    The human may specify which sections to process; unprocessed sections remain
    in the staging file for a future triage cycle.
-2. All open `[ ]` items from `plans/backlog.md` (each identified by its `**BL-NNN**`
+2. All open `[ ]` items from `plans/backlog.yaml` (each identified by its `**BL-NNN**`
    header) — used for periodic re-triage or when staging is empty.
 3. A subset pasted by the human — overrides both sources above.
 
@@ -38,7 +38,7 @@ This workflow can also be invoked independently of `/io-review` for periodic tri
 
 ### Step 1 — STATE INITIALIZATION
 
-Load all open `[ ]` items from `plans/backlog.md` (or accept a pasted subset from the human).
+Load all open `[ ]` items from `plans/backlog.yaml` (or accept a pasted subset from the human).
 Each item is identified by its `**BL-NNN**` header line. Use BL-IDs when referencing
 specific items throughout this workflow.
 
@@ -185,10 +185,10 @@ For each `STILL OPEN` or `PARTIALLY RESOLVED` item, determine the routing:
 | `[DESIGN]` | any | `/auto-architect` (batch) or `/io-architect` (manual) then `/io-checkpoint` |
 | `[REFACTOR]` | any | `/auto-architect` (batch) or `/io-architect` (CRC only, manual) then `/io-checkpoint` |
 | `[CLEANUP]` | pending | `/validate-plan` -> `/io-plan-batch` -- sub-agent picks it up |
-| `[CLEANUP]` | done | `/auto-checkpoint` (batches into plan.md), then `/validate-plan` |
+| `[CLEANUP]` | done | `/auto-checkpoint` (batches into plan.yaml), then `/validate-plan` |
 | `[TEST]` CT gap | any | `/io-ct-remediate` |
-| `[TEST]` unit gap | pending | Human amends CP scope in `plan.md`, then `/validate-plan` |
-| `[TEST]` unit gap | done | `/auto-checkpoint` (batches into plan.md), then `/validate-plan` |
+| `[TEST]` unit gap | pending | Human amends CP scope in `plan.yaml`, then `/validate-plan` |
+| `[TEST]` unit gap | done | `/auto-checkpoint` (batches into plan.yaml), then `/validate-plan` |
 | `[CI-REGRESSION]` | any | Investigate causal checkpoint, route as `[CLEANUP]` against its write targets |
 | `[CI-COLLECTION-ERROR]` | any | Check if test references removed modules; route as `[CLEANUP]` or `[DEFERRED]` with structural notes |
 | `[CI-EXTERNAL]` | any | Human reclassification; route as `[DEFERRED]` with context note |
@@ -198,7 +198,7 @@ For each `STILL OPEN` or `PARTIALLY RESOLVED` item, determine the routing:
 references `tests/connectivity/` or if the Detail mentions a connectivity test ID
 (CT-NNN). All other `[TEST]` items are **unit gaps**.
 
-**CP status check:** Read `plans/plan.md` to determine whether the parent
+**CP status check:** Read `plans/plan.yaml` to determine whether the parent
 checkpoint is `[ ] pending` or `[x] done`. The routing table above uses this
 status to select the correct path.
 
@@ -219,14 +219,14 @@ For each group of items flagged in Step 2a:
 ### Likely Resolved (verify and close)
 For each LIKELY RESOLVED item:
 - BL-NNN [item description] -- [reason the issue appears resolved]
-  Action: confirm manually by reading the referenced file, then mark [x] in backlog.md.
+  Action: confirm manually by reading the referenced file, then mark [x] in backlog.yaml.
 
 ### Partially Resolved
 For each PARTIALLY RESOLVED item:
 - [item description]
   Fixed: [what was resolved]
   Remaining: [what gap persists]
-  Action: [update Detail in backlog.md | split into new entry] then route as STILL OPEN.
+  Action: [update Detail in backlog.yaml | split into new entry] then route as STILL OPEN.
 
 ### Blocked — awaiting resolution
 For each item excluded in Step 2c:
@@ -263,7 +263,7 @@ For each completed CP with STILL OPEN items:
   Context: "Remediation checkpoint for CP-NN. Source BL: BL-NNN. Scope: [backlog item description].
   Write targets: [Files from backlog item]. Gate: inherited from CP-NN."
 
-### Requires Human Scoping (no prompt available -- plan.md amendment needed first)
+### Requires Human Scoping (no prompt available -- plan.yaml amendment needed first)
 For each item that requires a new checkpoint or amendment to an existing checkpoint:
 - [item description]
   Guidance: Add [test file / implementation file] to write targets for CP-XX (or add a
@@ -289,18 +289,18 @@ The human reviews the summary and for each item:
   (the exact prompt to run next).
 - **Corrects routing:** triage workflow updates the suggestion and re-presents.
 - **Defers item:** triage workflow appends a `[DEFERRED]` tag and reason note to the
-  item in `plans/backlog.md`.
+  item in `plans/backlog.yaml`.
 - **Acknowledges (no action):** item stays open with no tag change. Use this when the
   item is valid but not ready to route — distinct from `[DEFERRED]`, which implies an
   active postponement decision with a stated reason.
 - **Confirms likely-resolved:** triage workflow changes `[ ]` to `[x]` in
-  `plans/backlog.md` with a brief resolution note.
+  `plans/backlog.yaml` with a brief resolution note.
 - **Approves routing (done CP):** For items on completed checkpoints, triage:
   (a) Creates atomic BL entries -- one routable action per entry. Determine
   the next BL ID via `find_max_bl_id()` from `.claude/scripts/backlog_parser.py`.
   **From staging (primary path):** Create separate BL entries directly from the
   staging finding using the standard entry format from
-  `.claude/templates/backlog-entry.md`. No original to close.
+  `.claude/templates/backlog-entry.yaml`. No original to close.
   **From existing backlog (re-triage path):** Mark the original `[x]` with
   `Split: BL-NNN, BL-NNN`, create replacement entries immediately after it.
   Each entry gets exactly one `Routed:` annotation with one prompt line.
@@ -331,9 +331,9 @@ existing harness:
 - `/io-ct-remediate` for CT gaps
 - `/auto-architect` for DESIGN/REFACTOR items (batch resolution, unblocks dependents)
 - `/io-architect` for manual design changes (greenfield or single-item)
-- `/auto-checkpoint` for done-CP cleanup/test items (batches into plan.md)
+- `/auto-checkpoint` for done-CP cleanup/test items (batches into plan.yaml)
 - `/validate-plan` -> `/io-plan-batch` for cleanup and refactor items
-- Manual `plan.md` amendment for items requiring new checkpoint scope
+- Manual `plan.yaml` amendment for items requiring new checkpoint scope
 
 Human triggers each downstream workflow in sequence.
 
@@ -351,7 +351,7 @@ confirms partial processing is complete for now):
    `plans/archive/review-output-YYYY-MM-DD-HHMM.md`. Unprocessed sections
    remain in the staging file.
 
-This step is skipped if the input source was `plans/backlog.md` directly
+This step is skipped if the input source was `plans/backlog.yaml` directly
 (periodic re-triage mode) or a human-pasted subset.
 
 ---
@@ -359,8 +359,8 @@ This step is skipped if the input source was `plans/backlog.md` directly
 ## CONSTRAINTS
 
 - Steps 1-5 are ANALYSIS AND PROPOSAL ONLY. No writes until Step 6 human approval.
-- Does NOT modify `plans/plan.md`, any `interfaces/*.pyi`, or any source or test file.
-- Writes to `plans/backlog.md` (Step 6: tagging deferred items, closing
+- Does NOT modify `plans/plan.yaml`, any `interfaces/*.pyi`, or any source or test file.
+- Writes to `plans/backlog.yaml` (Step 6: tagging deferred items, closing
   confirmed-resolved items, writing routing prompt annotations, atomic BL items
   from staging).
 - Archives processed staging sections from `plans/review-output.md` to
@@ -387,7 +387,7 @@ This step is skipped if the input source was `plans/backlog.md` directly
 - BL-015 [CLEANUP] ComponentB docstring out of sync with implementation
   Risk: Low urgency
   Prompt: `/validate-plan`
-  Context to provide: "CLEANUP items require no plan.md amendment -- route directly."
+  Context to provide: "CLEANUP items require no plan.yaml amendment -- route directly."
 
 - BL-003 [DESIGN] ComponentC error types not exported from Protocol
   Risk: Orchestration blocker
@@ -459,4 +459,4 @@ An existing backlog item that needs splitting gets closed and replaced:
     - '/io-checkpoint -- Remediation for CP-08. Source BL: BL-045. Scope: implement validate(). Write targets: src/component_d/config.py. Gate: inherited from CP-08.'
 ```
 
-See `.claude/templates/backlog-entry.md` for the canonical field format and parser contract.
+See `.claude/templates/backlog-entry.yaml` for the canonical field format and parser contract.

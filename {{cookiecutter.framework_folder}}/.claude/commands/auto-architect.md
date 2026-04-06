@@ -119,7 +119,7 @@ The agent explores code at the referenced files, reads current state, and return
 - Atomic CRC card changes (which responsibility lines to add/modify/remove)
 - Protocol signature changes if DESIGN (which methods/docstrings to update)
 - Component-contracts.toml changes if collaborators changed
-- Seams.md changes if failure modes or DI receivers changed
+- seams.yaml changes if failure modes or DI receivers changed (via seam_parser)
 - file:line citations for all claims about existing code
 
 ### D.3: Incorporate results
@@ -184,9 +184,9 @@ Write to `interfaces/*.pyi` -- DESIGN items only.
 
 If collaborators changed.
 
-### F.5: Update seams.md
+### F.5: Update seams.yaml
 
-If failure modes or DI receivers changed.
+If failure modes or DI receivers changed. Use `seam_parser.update_component()` and `save_seams()`.
 
 ### F.6: VALIDATE-SPEC GATE (Sonnet agent)
 
@@ -222,7 +222,7 @@ For each resolved item:
 
 ### G.1: Mark resolved in backlog
 
-Mark the BL item `[x]` in plans/backlog.md and add annotation:
+Mark the BL item `[x]` in plans/backlog.yaml and add annotation:
 ```
   - Resolved: auto-architect (YYYY-MM-DD)
 ```

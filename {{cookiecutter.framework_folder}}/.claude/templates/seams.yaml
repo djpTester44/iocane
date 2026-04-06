@@ -1,0 +1,15 @@
+# Integration Seams
+# Validated by: .claude/scripts/seam_parser.py (SeamsFile schema)
+# Hook: .claude/hooks/validate-yaml.sh routes plans/seams.yaml
+
+# Layer 1 -- Foundation
+# Layer 2 -- Utility
+# Layer 3 -- Domain (no external terminals; receives Layer 2 clients via DI)
+
+components: []
+
+# Uncomment when CT coverage gaps are identified:
+# missing_ct_seams:
+# - ct_id: CT-001
+#   seam: ComponentName
+#   status: pending

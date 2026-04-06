@@ -4,17 +4,17 @@
 # Archives completed checkpoint artifacts out of the active working tree.
 # Called by /io-review Step J after human approval.
 #
-# For remediation checkpoints (CP-NNR, identified by **Remediates:** in plan.md),
-# also marks corresponding backlog items as [x] with a Remediated annotation.
+# For remediation checkpoints (CP-NNR, identified by remediates field in plan.yaml),
+# also marks corresponding backlog items as resolved with a Remediated annotation.
 #
-# Moved to archive:  plans/tasks/CP-XX.{log,exit,status,md}
+# Moved to archive:  plans/tasks/CP-XX.{log,exit,status,yaml}
 #                    plans/tasks/CP-XX.{result,eval,eval-result}.json
 #                    plans/tasks/CP-XX.task.validation
 #                    .iocane/CP-XX.attempts
 # Archive location:  plans/archive/CP-XX/
-# Also updates:      plans/backlog.md (remediation checkpoints only)
+# Also updates:      plans/backlog.yaml (remediation checkpoints only)
 #
-# Note: plan.md completion status is set by dispatch-agents.sh at merge time.
+# Note: plan.yaml completion status is set by dispatch-agents.sh at merge time.
 # This script handles post-review artifact cleanup only.
 #
 # Usage:
@@ -64,7 +64,7 @@ for CP_ID in "${TARGETS[@]}"; do
     CHECKPOINT_ERRORS=0
 
     # Move each artifact if it exists
-    for ext in log exit status md; do
+    for ext in log exit status yaml; do
         SRC="$TASKS_DIR/$CP_ID.$ext"
         if [ -f "$SRC" ]; then
             mv "$SRC" "$DEST/$CP_ID.$ext"
@@ -89,79 +89,69 @@ for CP_ID in "${TARGETS[@]}"; do
     fi
 
     # For remediation checkpoints: mark corresponding backlog items as remediated
-    PLAN_FILE="$REPO_ROOT/plans/plan.md"
-    BACKLOG_FILE="$REPO_ROOT/plans/backlog.md"
+    PLAN_FILE="$REPO_ROOT/plans/plan.yaml"
+    BACKLOG_FILE="$REPO_ROOT/plans/backlog.yaml"
     if [ -f "$PLAN_FILE" ] && [ -f "$BACKLOG_FILE" ]; then
         IS_REMEDIATION=$(uv run python -c "
 import sys
 sys.path.insert(0, '${REPO_ROOT}/.claude/scripts')
-from backlog_parser import extract_cp_section
-path = sys.argv[1]
-cp_id = sys.argv[2]
-with open(path, 'r', encoding='utf-8') as f:
-    text = f.read()
-section = extract_cp_section(text, cp_id)
-print('yes' if section and '**Remediates:**' in section else 'no')
+from plan_parser import load_plan, find_checkpoint
+plan = load_plan(sys.argv[1])
+cp = find_checkpoint(plan, sys.argv[2])
+print('yes' if cp and cp.remediates is not None else 'no')
 " "$PLAN_FILE" "$CP_ID" 2>/dev/null || echo "no")
 
         if [ "$IS_REMEDIATION" = "yes" ]; then
             if uv run python -c "
-import re, sys
+import sys
 sys.path.insert(0, '${REPO_ROOT}/.claude/scripts')
+from plan_parser import load_plan, find_checkpoint
 from backlog_parser import (
-    read_lines, write_lines, extract_cp_section, extract_bl_ids_from_text,
-    build_bl_index, find_summary_line, walk_subfields, insert_subfield, shift_bl_index,
+    load_backlog, save_backlog, find_item, mark_resolved, add_annotation,
 )
+from schemas import Annotation
 
 backlog_path = sys.argv[1]
 plan_path = sys.argv[2]
 cp_id = sys.argv[3]
 today = sys.argv[4]
 
-# Step 1: Read CP section from plan.md, extract Source BL field
-with open(plan_path, 'r', encoding='utf-8') as f:
-    plan_text = f.read()
-section = extract_cp_section(plan_text, cp_id)
-if not section:
-    print(f'ERROR: {cp_id} section not found in plan.md', file=sys.stderr)
+# Step 1: Read CP from plan.yaml, extract source_bl
+plan = load_plan(plan_path)
+cp = find_checkpoint(plan, cp_id)
+if not cp:
+    print(f'ERROR: {cp_id} not found in plan.yaml', file=sys.stderr)
     sys.exit(1)
-source_bl_line = section.split('**Source BL:**')[-1].split('\n')[0] if '**Source BL:**' in section else ''
-bl_ids = extract_bl_ids_from_text(source_bl_line)
+bl_ids = cp.source_bl or []
 if not bl_ids:
-    print(f'ERROR: No **Source BL:** field in {cp_id} section', file=sys.stderr)
+    print(f'ERROR: No source_bl field in {cp_id}', file=sys.stderr)
     sys.exit(1)
 
-# Step 2: Build BL-ID index from backlog
-lines = read_lines(backlog_path)
-bl_index = build_bl_index(lines)
-
+# Step 2: Load backlog and mark items
+backlog = load_backlog(backlog_path)
 marked = 0
 for bl_id in bl_ids:
-    if bl_id not in bl_index:
-        print(f'  WARN: {bl_id} not found in backlog.md, skipping.', file=sys.stderr)
+    item = find_item(backlog, bl_id)
+    if item is None:
+        print(f'  WARN: {bl_id} not found in backlog.yaml, skipping.', file=sys.stderr)
         continue
-
-    anchor = bl_index[bl_id]
-    summary_idx = find_summary_line(lines, anchor)
-    if summary_idx is None or not re.match(r'^- \[ \]', lines[summary_idx]):
-        print(f'  SKIP: {bl_id} is not an open item (already resolved or malformed).', file=sys.stderr)
+    if item.status.value != 'open':
+        print(f'  SKIP: {bl_id} is not an open item (already resolved or deferred).', file=sys.stderr)
         continue
-    lines[summary_idx] = '- [x]' + lines[summary_idx][5:]
-
-    insert_after = walk_subfields(lines, summary_idx)
-    insert_subfield(lines, insert_after, f'  - Remediated: {cp_id} ({today})\n')
-    shift_bl_index(bl_index, insert_after)
+    ann = Annotation(type='Remediated', value=cp_id, date=today)
+    backlog = add_annotation(backlog, bl_id, ann)
+    backlog = mark_resolved(backlog, bl_id)
     marked += 1
     print(f'  Marked {bl_id} as remediated via {cp_id}.')
 
 if marked == 0:
     print(f'ERROR: No BL items could be marked for {cp_id}', file=sys.stderr)
     sys.exit(1)
-write_lines(backlog_path, lines)
+save_backlog(backlog_path, backlog)
 " "$BACKLOG_FILE" "$PLAN_FILE" "$CP_ID" "$TODAY" 2>/dev/null; then
-                echo "  [ok] backlog.md items marked remediated"
+                echo "  [ok] backlog.yaml items marked remediated"
             else
-                echo "  WARN: Could not resolve Source BL for $CP_ID in backlog.md." >&2
+                echo "  WARN: Could not resolve Source BL for $CP_ID in backlog.yaml." >&2
             fi
         fi
     fi

@@ -11,7 +11,7 @@ Paragraph describing the problem this tool solves and the core methodology.
 This project follows a strict Macro/Meso/Micro Hierarchy (Design > Contracts > Code).
 
 * **Design Anchors:** See [`plans/project-spec.md`](./plans/project-spec.md) for CRC cards and Protocol definitions.
-* **Roadmap & Status:** See [`plans/PLAN.md`](./plans/PLAN.md) for current progress and active checkpoints.
+* **Roadmap & Status:** See [`plans/plan.yaml`](./plans/plan.yaml) for current progress and active checkpoints.
 * **Meso-State:** See [`plans/execution-handoff-bundle.md`](./plans/execution-handoff-bundle.md) for current meso-state.
 
 ## Prerequisites
@@ -45,5 +45,5 @@ uv run python -m src.main
 * `plans/` - Documentation and Agent context
   * `project-spec.md` - Technical specs
   * `progress.md` - Work log
-  * `PLAN.md` - Roadmap & Status
+  * `plan.yaml` - Roadmap & Status
   * `execution-handoff-bundle.md` - Meso-state
