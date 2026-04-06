@@ -5,7 +5,10 @@
       "Bash(grep:*)",
       "Bash(ls:*)",
       "Bash(bash:*)",
-      "Bash(git diff:*)"
+      "Bash(git diff:*)",
+      "Bash(rtk git:*)",
+      "Bash(rtk ls:*)",
+      "Bash(rtk grep:*)"
     ]
   }
 }
