@@ -205,11 +205,11 @@ Completion is already registered in `plan.yaml` by `dispatch-agents.sh` at merge
 REVIEW COMPLETE: [CP-ID]
 
 Findings: [N HIGH], [N MEDIUM], [N LOW]
+Staged: [N findings routed to staging by Step I -- drains via /io-backlog-triage]
 
 Options:
-1. No actionable findings — archive task artifacts and proceed
-2. Route findings to backlog for remediation
-3. Escalate to /io-architect — finding reveals a design gap
+1. Archive task artifacts and proceed
+2. Escalate to /io-architect -- finding reveals a design gap
 ```
 
 **Batch (multiple CPs from completed wave) — present to the human:**
@@ -217,20 +217,24 @@ Options:
 ```
 REVIEW COMPLETE: Wave [N]
 
-| CP    | HIGH | MEDIUM | LOW | Routing                      |
-|-------|------|--------|-----|------------------------------|
-| CP-XX | 0    | 2      | 1   | Route 2 MEDIUM to backlog    |
-| CP-YY | 0    | 0      | 1   | No actionable findings       |
-| CP-ZZ | 0    | 0      | 0   | No actionable findings       |
+| CP    | HIGH | MEDIUM | LOW | Staged |
+|-------|------|--------|-----|--------|
+| CP-XX | 0    | 2      | 1   | 2      |
+| CP-YY | 0    | 0      | 1   | 0      |
+| CP-ZZ | 0    | 0      | 0   | 0      |
+
+Staged findings drain via /io-backlog-triage.
 
 Recommended:
-- Route findings for [CPs with actionable findings] via /review-capture
 - Archive task artifacts: bash .claude/scripts/archive-approved.sh [all CP-IDs]
+- Escalate [CPs with design gaps] to /io-architect
 ```
 
 - **Human decides.** Do not auto-approve.
-- **If option 1 selected (or batch archive recommended):** Run `bash .claude/scripts/archive-approved.sh [CP-ID ...]` — this moves task artifacts to `plans/archive/[CP-ID]/`, and for remediation checkpoints automatically marks all corresponding backlog items as `[x]` with a `Remediated:` annotation.
-- **If option 2 selected:** Run `/review-capture` to route findings to `plans/backlog.yaml`. Findings become new work items (remediation checkpoints), not re-execution of the original CP.
+- **If option 1 selected (or batch archive recommended):** Run `bash .claude/scripts/archive-approved.sh [CP-ID ...]` -- this moves task artifacts to `plans/archive/[CP-ID]/`, and for remediation checkpoints automatically marks all corresponding backlog items as `[x]` with a `Remediated:` annotation.
+- **If option 2 selected:** Escalate to `/io-architect` for design-level resolution.
+
+Archiving and backlog triage are independent operations. `archive-approved.sh` moves task artifacts; `/io-backlog-triage` drains staged findings to `plans/backlog.yaml`. Neither blocks the other. The "is this worth tracking?" judgment belongs to `/io-backlog-triage`, not this step.
 
 ---
 
