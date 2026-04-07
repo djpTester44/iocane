@@ -29,9 +29,9 @@ checkpoints to `plans/plan.yaml`.
 Load:
 - `.claude/scripts/auto_checkpoint.py` must exist (the backing script)
 - `plans/backlog.yaml` must contain triage-approved items with routing annotations
-- `plans/plan.yaml` must exist and contain a `## Connectivity Tests` section (insertion anchor)
+- `plans/plan.yaml` must exist with at least one checkpoint (parent CPs for remediation)
 
-Pre-check: If `plans/plan.yaml` does not exist or lacks the `## Connectivity Tests` marker, **HALT** -- the plan has not been through `/io-checkpoint` yet.
+Pre-check: If `plans/plan.yaml` does not exist, **HALT**.
 
 ---
 
@@ -61,7 +61,7 @@ uv run python .claude/scripts/auto_checkpoint.py [--repo-root PATH]
 |------|-----------|--------|
 | 0 | Checkpoints generated | Proceed to Step B |
 | 0 | Zero eligible items | Inform user (all items already have CPs, are blocked, or ineligible). **HALT.** |
-| 1 | Missing file or `## Connectivity Tests` anchor | Report error output. **HALT.** |
+| 1 | Missing file (plan or backlog) | Report error output. **HALT.** |
 | 1 | Unresolvable field (feature, gate, write targets) | Report which CP failed and why. **HALT.** |
 
 ---

@@ -70,21 +70,10 @@ roadmap features), generate a remediation checkpoint (`CP-NNR`) for each item:
   write dependency.
 - Inherit gate command from the parent CP
 - Do not make parallelizability claims — leave for `/io-plan-batch`
-- Insert into the `## Remediation Checkpoints` section of `plans/plan.yaml`,
-  ordered by severity (HIGH first, then MEDIUM, then LOW). If the section does
-  not exist, create it immediately after the last `---` separator in the
-  `## Checkpoints` section and before `## Connectivity Tests`, with this header:
-
-  ```
-  ## Remediation Checkpoints
-
-  Checkpoints that fix defects found during code review. Ordered by severity —
-  HIGH items first. These items MUST be cleared before continuing onto roadmap
-  checkpoints.
-
-  ---
-  ```
-
+- Append remediation checkpoints to the `checkpoints` list in `plans/plan.yaml`,
+  ordered by severity (HIGH first, then MEDIUM, then LOW) within the remediation
+  group. Use `add_checkpoint()` from `plan_parser` or append directly to the YAML
+  list. The `remediates:` field distinguishes remediation CPs from roadmap CPs.
 - After writing the checkpoint to `plans/plan.yaml`, run:
   `bash .claude/scripts/route_backlog_item.py BL-NNN CP-NNR`
   where `BL-NNN` is the backlog item's ID from the `**Source BL:**` field.
