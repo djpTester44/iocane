@@ -110,6 +110,8 @@ For each feature in `roadmap.md`:
 - **Identify** the function-level units of work implied by the CRC responsibilities.
 - **Group** related functions into the smallest independently-testable unit.
 
+**Acceptance criteria:** Each checkpoint must include 2-4 observable, testable assertions as `acceptance_criteria`. These are design-time decisions -- they flow directly into the task file and must not be synthesized at batching time. The `contract` field is the primary `.pyi` file from the checkpoint's scope.
+
 **Decomposition rules:**
 
 - One checkpoint = one component's core behavior, OR one well-defined integration seam
@@ -197,6 +199,10 @@ checkpoints:
     gate_command: "pytest tests/[path]/test_[module].py"
     depends_on: []
     parallelizable_with: []
+    acceptance_criteria:
+      - "[Criterion 1 -- observable, testable assertion]"
+      - "[Criterion 2]"
+    contract: "interfaces/[protocol].pyi"
   - id: CP-02
     title: "[Checkpoint Name]"
     # ... same structure

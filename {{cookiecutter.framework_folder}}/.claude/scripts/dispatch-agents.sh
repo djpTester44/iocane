@@ -20,7 +20,7 @@
 # This is intentional -- intermediate commits have forensic value.
 #
 # Usage:
-#   bash .claude/scripts/dispatch-agents.sh
+#   bash .claude/scripts/dispatch-agents.sh [--resume CP-XX]
 #
 # Environment (all optional, override config when config is absent):
 #   IOCANE_PARALLEL_LIMIT  -- max concurrent agents (fallback when config unreadable)
@@ -36,6 +36,26 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# --- Argument parsing ---
+RESUME_CP=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --resume)
+            if [ -z "${2:-}" ]; then
+                echo "ERROR: --resume requires a checkpoint ID (e.g., --resume CP-01)" >&2
+                exit 1
+            fi
+            RESUME_CP="$2"
+            shift 2
+            ;;
+        *)
+            echo "ERROR: Unknown argument: $1" >&2
+            echo "Usage: bash .claude/scripts/dispatch-agents.sh [--resume CP-XX]" >&2
+            exit 1
+            ;;
+    esac
+done
 
 # --- Configuration ---
 REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null)}"
@@ -109,24 +129,26 @@ if [ -z "$REPO_ROOT" ]; then
     exit 1
 fi
 
-# --- Escalation flag gate ---
-# A previous batch had sub-agent failures. Resolve before dispatching again.
-ESCALATION_FLAG="$REPO_ROOT/.iocane/escalation.flag"
-if [ -f "$ESCALATION_FLAG" ]; then
-    echo "ERROR: Escalation flag is set. One or more sub-agents failed in the previous batch." >&2
-    echo "       Review $REPO_ROOT/.iocane/escalation.log and clear $ESCALATION_FLAG after resolution." >&2
-    exit 1
-fi
+# --- Escalation flag gate (skipped in resume mode) ---
+if [ -z "$RESUME_CP" ]; then
+    # A previous batch had sub-agent failures. Resolve before dispatching again.
+    ESCALATION_FLAG="$REPO_ROOT/.iocane/escalation.flag"
+    if [ -f "$ESCALATION_FLAG" ]; then
+        echo "ERROR: Escalation flag is set. One or more sub-agents failed in the previous batch." >&2
+        echo "       Review $REPO_ROOT/.iocane/escalation.log and clear $ESCALATION_FLAG after resolution." >&2
+        exit 1
+    fi
 
-# --- Clean-tree gate ---
-# Worktrees branch from HEAD; uncommitted changes won't propagate to sub-agents.
-if ! git -C "$REPO_ROOT" diff --quiet HEAD 2>/dev/null || \
-   ! git -C "$REPO_ROOT" diff --cached --quiet HEAD 2>/dev/null || \
-   [ -n "$(git -C "$REPO_ROOT" ls-files --others --exclude-standard 2>/dev/null)" ]; then
-    echo "ERROR: Working tree is not clean. Commit or stash changes before dispatching." >&2
-    echo "       Worktrees branch from HEAD — uncommitted changes will not reach sub-agents." >&2
-    git -C "$REPO_ROOT" status --short >&2
-    exit 1
+    # --- Clean-tree gate ---
+    # Worktrees branch from HEAD; uncommitted changes won't propagate to sub-agents.
+    if ! git -C "$REPO_ROOT" diff --quiet HEAD 2>/dev/null || \
+       ! git -C "$REPO_ROOT" diff --cached --quiet HEAD 2>/dev/null || \
+       [ -n "$(git -C "$REPO_ROOT" ls-files --others --exclude-standard 2>/dev/null)" ]; then
+        echo "ERROR: Working tree is not clean. Commit or stash changes before dispatching." >&2
+        echo "       Worktrees branch from HEAD — uncommitted changes will not reach sub-agents." >&2
+        git -C "$REPO_ROOT" status --short >&2
+        exit 1
+    fi
 fi
 
 # --- Dependency gate: pytest-timeout ---
@@ -138,61 +160,88 @@ if ! uv run python -c "import pytest_timeout" 2>/dev/null; then
     exit 1
 fi
 
+# --- Resume validation ---
+if [ -n "$RESUME_CP" ]; then
+    RESUME_WT="$REPO_ROOT/.worktrees/$RESUME_CP"
+    if [ ! -d "$RESUME_WT" ]; then
+        echo "ERROR: Worktree not found at $RESUME_WT" >&2
+        exit 1
+    fi
+    RESUME_BRANCH=$(git -C "$RESUME_WT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+    if [ "$RESUME_BRANCH" != "iocane/$RESUME_CP" ]; then
+        echo "ERROR: Worktree at $RESUME_WT is on branch '$RESUME_BRANCH', expected 'iocane/$RESUME_CP'" >&2
+        exit 1
+    fi
+    if [ ! -f "$RESUME_WT/plans/tasks/$RESUME_CP.yaml" ]; then
+        echo "ERROR: Task file not found at $RESUME_WT/plans/tasks/$RESUME_CP.yaml" >&2
+        exit 1
+    fi
+    # Clear stale status/exit files so post-pipeline collection works
+    rm -f "$TASKS_DIR/$RESUME_CP.status" "$TASKS_DIR/$RESUME_CP.exit"
+    # Insert resume marker into log
+    echo "--- RESUME at $(date -u '+%Y-%m-%dT%H:%M:%SZ') ---" >> "$TASKS_DIR/$RESUME_CP.log"
+    # Sync dependencies in case they drifted
+    (cd "$RESUME_WT" && uv sync --quiet 2>/dev/null) || true
+fi
+
 # Capture the branch that was checked out when the user ran this script.
 # Completed checkpoint branches are merged back here on PASS.
 PARENT_BRANCH=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD)
 
-# --- Collect pending task files ---
-# A task file is pending if CP-XX.yaml exists but CP-XX.status does not.
-PENDING=()
+if [ -z "$RESUME_CP" ]; then
+    # --- Collect pending task files ---
+    # A task file is pending if CP-XX.yaml exists but CP-XX.status does not.
+    PENDING=()
 
-for task_file in "$TASKS_DIR"/CP-*.yaml; do
-    [ -f "$task_file" ] || continue
-    CP_ID=$(basename "$task_file" .yaml)
-    STATUS_FILE="$TASKS_DIR/$CP_ID.status"
-    if [ ! -f "$STATUS_FILE" ]; then
-        if [ ! -f "$TASKS_DIR/$CP_ID.task.validation" ]; then
-            echo "SKIPPED: $CP_ID -- not validated. Run /validate-tasks first." >&2
-            continue
+    for task_file in "$TASKS_DIR"/CP-*.yaml; do
+        [ -f "$task_file" ] || continue
+        CP_ID=$(basename "$task_file" .yaml)
+        STATUS_FILE="$TASKS_DIR/$CP_ID.status"
+        if [ ! -f "$STATUS_FILE" ]; then
+            if [ ! -f "$TASKS_DIR/$CP_ID.task.validation" ]; then
+                echo "SKIPPED: $CP_ID -- not validated. Run /validate-tasks first." >&2
+                continue
+            fi
+            PENDING+=("$CP_ID")
         fi
-        PENDING+=("$CP_ID")
+    done
+
+    if [ ${#PENDING[@]} -eq 0 ]; then
+        echo "No pending task files found in $TASKS_DIR."
+        echo "Run the task generation workflow to create task files before dispatching."
+        exit 0
     fi
-done
 
-if [ ${#PENDING[@]} -eq 0 ]; then
-    echo "No pending task files found in $TASKS_DIR."
-    echo "Run the task generation workflow to create task files before dispatching."
-    exit 0
+    # --- Audit commit: validation state before dispatch ---
+    git -C "$REPO_ROOT" add plans/validation-reports/task-validation-report.yaml 2>/dev/null || true
+    git -C "$REPO_ROOT" commit -m "validate-tasks: batch validated before dispatch" --allow-empty 2>/dev/null || true
+
+    echo "Pending checkpoints: ${PENDING[*]}"
+    echo "Parallel limit: $PARALLEL_LIMIT (source: $PARALLEL_SOURCE)"
+
+    # --- Enforce parallel limit ---
+    BATCH=("${PENDING[@]:0:$PARALLEL_LIMIT}")
+
+    if [ ${#PENDING[@]} -gt "$PARALLEL_LIMIT" ]; then
+        echo "NOTE: ${#PENDING[@]} pending checkpoints found, dispatching first $PARALLEL_LIMIT per parallel.limit in .claude/iocane.config.yaml."
+        echo "Remaining: ${PENDING[@]:$PARALLEL_LIMIT}"
+    fi
+
+    # --- CI Sidecar: pre-wave baseline ---
+    if [ -f "$SCRIPT_DIR/ci-sidecar.sh" ]; then
+        echo "[CI-SIDECAR] Capturing pre-wave test baseline..."
+        bash "$SCRIPT_DIR/ci-sidecar.sh" pre-wave || \
+            echo "[CI-COLLECTION-ERROR] Pre-wave sidecar failed (exit $?). Continuing dispatch." >&2
+    fi
+
+    echo ""
+    echo "Dispatching ${#BATCH[@]} sub-agents..."
 fi
-
-# --- Audit commit: validation state before dispatch ---
-git -C "$REPO_ROOT" add plans/validation-reports/task-validation-report.yaml 2>/dev/null || true
-git -C "$REPO_ROOT" commit -m "validate-tasks: batch validated before dispatch" --allow-empty 2>/dev/null || true
-
-echo "Pending checkpoints: ${PENDING[*]}"
-echo "Parallel limit: $PARALLEL_LIMIT (source: $PARALLEL_SOURCE)"
-
-# --- Enforce parallel limit ---
-BATCH=("${PENDING[@]:0:$PARALLEL_LIMIT}")
-
-if [ ${#PENDING[@]} -gt "$PARALLEL_LIMIT" ]; then
-    echo "NOTE: ${#PENDING[@]} pending checkpoints found, dispatching first $PARALLEL_LIMIT per parallel.limit in .claude/iocane.config.yaml."
-    echo "Remaining: ${PENDING[@]:$PARALLEL_LIMIT}"
-fi
-
-# --- CI Sidecar: pre-wave baseline ---
-if [ -f "$SCRIPT_DIR/ci-sidecar.sh" ]; then
-    echo "[CI-SIDECAR] Capturing pre-wave test baseline..."
-    bash "$SCRIPT_DIR/ci-sidecar.sh" pre-wave || \
-        echo "[CI-COLLECTION-ERROR] Pre-wave sidecar failed (exit $?). Continuing dispatch." >&2
-fi
-
-echo ""
-echo "Dispatching ${#BATCH[@]} sub-agents..."
 
 # --- Pipeline function: generate-evaluate-regen per checkpoint ---
 run_checkpoint_pipeline() {
     local CP_ID="$1"
+    local IS_RESUME="${2:-}"
     local WORKTREE_PATH="$REPO_ROOT/.worktrees/$CP_ID"
     local RESULT_FILE="$TASKS_DIR/$CP_ID.result.json"
     local EVAL_FILE="$TASKS_DIR/$CP_ID.eval.json"
@@ -200,37 +249,42 @@ run_checkpoint_pipeline() {
     local EXIT_FILE="$TASKS_DIR/$CP_ID.exit"
     local STATUS_FILE="$TASKS_DIR/$CP_ID.status"
 
-    # --- Phase 1: Worktree Setup ---
-    bash "$SCRIPT_DIR/setup-worktree.sh" --cp "$CP_ID"
-
-    # --- Phase 2: Preflight (scoped to checkpoint CTs) ---
-    # Only verify this checkpoint's connectivity tests are not already passing.
-    # Full suite regression detection is the CI sidecar's job (BL-001).
+    # cd into worktree for both fresh and resume paths
     cd "$WORKTREE_PATH"
 
-    # Extract CT file paths from the task file via task_parser
-    CT_FILES=()
-    while IFS= read -r ct_path; do
-        [[ -n "$ct_path" ]] && CT_FILES+=("$ct_path")
-    done < <(uv run python -c "
+    if [ -z "$IS_RESUME" ]; then
+        # --- Phase 1: Worktree Setup ---
+        bash "$SCRIPT_DIR/setup-worktree.sh" --cp "$CP_ID"
+
+        # --- Phase 2: Preflight (scoped to checkpoint CTs) ---
+        # Only verify this checkpoint's connectivity tests are not already passing.
+        # Full suite regression detection is the CI sidecar's job (BL-001).
+        cd "$WORKTREE_PATH"
+
+        # Extract CT file paths from the task file via task_parser
+        CT_FILES=()
+        while IFS= read -r ct_path; do
+            [[ -n "$ct_path" ]] && CT_FILES+=("$ct_path")
+        done < <(uv run python -c "
 import sys; sys.path.insert(0, '.claude/scripts')
 from task_parser import load_task, extract_ct_files
 for f in extract_ct_files(load_task('$TASKS_DIR/$CP_ID.yaml')):
     print(f)
 " 2>/dev/null)
 
-    for ct_file in "${CT_FILES[@]}"; do
-        if [ -f "$ct_file" ]; then
-            if uv run rtk pytest -x --timeout=60 "$ct_file" >> "$LOG_FILE" 2>&1; then
-                bash "$REPO_ROOT/.claude/scripts/write-status.sh" "$CP_ID" \
-                    "PREFLIGHT_FAIL: CT $ct_file already passes before generation"
-                echo "1" > "$EXIT_FILE"
-                return 1
+        for ct_file in "${CT_FILES[@]}"; do
+            if [ -f "$ct_file" ]; then
+                if uv run rtk pytest -x --timeout=60 "$ct_file" >> "$LOG_FILE" 2>&1; then
+                    bash "$REPO_ROOT/.claude/scripts/write-status.sh" "$CP_ID" \
+                        "PREFLIGHT_FAIL: CT $ct_file already passes before generation"
+                    echo "1" > "$EXIT_FILE"
+                    return 1
+                fi
+                # CT exists and fails -- expected (red before green), proceed
             fi
-            # CT exists and fails -- expected (red before green), proceed
-        fi
-        # CT file doesn't exist -- expected (agent will create it), proceed
-    done
+            # CT file doesn't exist -- expected (agent will create it), proceed
+        done
+    fi
 
     # --- Phase 3: Generate-Evaluate-Regen Loop ---
     local ATTEMPT=0
@@ -371,19 +425,26 @@ except: print('PARSE_ERROR')
     done
 }
 
-# --- Dispatch batch concurrently ---
-declare -A PIDS
+if [ -n "$RESUME_CP" ]; then
+    # --- Resume single checkpoint ---
+    echo "Resuming checkpoint $RESUME_CP..."
+    BATCH=("$RESUME_CP")
+    run_checkpoint_pipeline "$RESUME_CP" "resume"
+else
+    # --- Dispatch batch concurrently ---
+    declare -A PIDS
 
-for CP_ID in "${BATCH[@]}"; do
-    run_checkpoint_pipeline "$CP_ID" &
-    PIDS[$CP_ID]=$!
-done
+    for CP_ID in "${BATCH[@]}"; do
+        run_checkpoint_pipeline "$CP_ID" &
+        PIDS[$CP_ID]=$!
+    done
 
-# --- Wait for all checkpoint pipelines ---
-echo "Waiting for checkpoint pipelines..."
-for CP_ID in "${BATCH[@]}"; do
-    wait "${PIDS[$CP_ID]}" || true
-done
+    # --- Wait for all checkpoint pipelines ---
+    echo "Waiting for checkpoint pipelines..."
+    for CP_ID in "${BATCH[@]}"; do
+        wait "${PIDS[$CP_ID]}" || true
+    done
+fi
 
 # --- Collect results, log, and clean up ---
 echo ""
@@ -394,7 +455,7 @@ for CP_ID in "${BATCH[@]}"; do
     EXIT_CODE=$(cat "$TASKS_DIR/$CP_ID.exit" 2>/dev/null || echo "1")
     STATUS=$(cat "$TASKS_DIR/$CP_ID.status" 2>/dev/null || echo "MISSING")
 
-    if [ "$EXIT_CODE" -eq 0 ] && ( [ "$STATUS" = "PASS" ] || [ "$STATUS" = "MISSING" ] ); then
+    if [ "$EXIT_CODE" -eq 0 ] && [ "$STATUS" = "PASS" ]; then
         echo "$CP_ID: PASS"
 
         # --- Compensating control: flag EVAL_SKIPPED merges in backlog ---
@@ -477,14 +538,22 @@ print(f'{cp_id}: plan.yaml -> complete')
         echo "$CP_ID: Worktree preserved at $REPO_ROOT/.worktrees/$CP_ID for inspection."
 
     else
-        echo "$CP_ID: $STATUS (exit $EXIT_CODE) -- see $TASKS_DIR/$CP_ID.log"
+        if [ "$STATUS" = "MISSING" ]; then
+            echo "$CP_ID: No status written (likely max-turns exhaustion, exit $EXIT_CODE) -- see $TASKS_DIR/$CP_ID.log"
+            echo "       To resume: bash .claude/scripts/dispatch-agents.sh --resume $CP_ID"
+            # Signal escalation so new sessions surface the unfinished checkpoint
+            mkdir -p "$REPO_ROOT/.iocane"
+            echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" > "$REPO_ROOT/.iocane/escalation.flag"
+        else
+            echo "$CP_ID: $STATUS (exit $EXIT_CODE) -- see $TASKS_DIR/$CP_ID.log"
+        fi
         FAILED=$((FAILED + 1))
         echo "$CP_ID: Worktree preserved at $REPO_ROOT/.worktrees/$CP_ID for inspection."
     fi
 done
 
-# --- CI Sidecar: post-wave regression diff ---
-if [ -f "$SCRIPT_DIR/ci-sidecar.sh" ]; then
+# --- CI Sidecar: post-wave regression diff (skipped in resume mode) ---
+if [ -z "$RESUME_CP" ] && [ -f "$SCRIPT_DIR/ci-sidecar.sh" ]; then
     echo ""
     echo "[CI-SIDECAR] Running post-wave regression diff..."
     bash "$SCRIPT_DIR/ci-sidecar.sh" post-wave || \
@@ -499,6 +568,22 @@ echo ""
 if [ "$FAILED" -gt 0 ]; then
     echo "Failures detected. Check plans/tasks/*.log and .iocane/escalation.log"
     exit 1
+fi
+
+# --- Clear escalation state on clean batch ---
+if [ -f "$REPO_ROOT/.iocane/escalation.flag" ]; then
+    rm "$REPO_ROOT/.iocane/escalation.flag"
+    rm -f "$REPO_ROOT/.iocane/escalation.log"
+    # Reset workflow-state.json escalation field
+    STATE_FILE="$REPO_ROOT/.iocane/workflow-state.json"
+    if [ -f "$STATE_FILE" ]; then
+        _NEXT=$(grep -o '"next":"[^"]*"' "$STATE_FILE" | cut -d'"' -f4)
+        _TRIGGER=$(grep -o '"trigger":"[^"]*"' "$STATE_FILE" | cut -d'"' -f4)
+        printf '{"next":"%s","trigger":"%s","escalation":false,"timestamp":"%s"}\n' \
+            "${_NEXT:-unknown}" "${_TRIGGER:-batch-passed}" \
+            "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" > "$STATE_FILE"
+    fi
+    echo "Escalation state cleared (all checkpoints passed)."
 fi
 
 echo "All checkpoints passed. Run /io-review to verify outputs."

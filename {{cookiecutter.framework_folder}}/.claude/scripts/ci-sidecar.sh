@@ -33,11 +33,14 @@ _cfg_read() {
 }
 
 # --- Phase gate: CI-REGRESSION tag infrastructure ---
-HOOK_FILE="$REPO_ROOT/.claude/hooks/backlog-tag-validate.sh"
-if ! grep -q "CI-REGRESSION" "$HOOK_FILE" 2>/dev/null; then
-    echo "ERROR: [CI-REGRESSION] tag not registered in $HOOK_FILE"
-    echo "  Complete Phase 2 (tag infrastructure) before running the CI sidecar."
-    echo "  Add CI-REGRESSION (and CI-COLLECTION-ERROR) to the valid tags list in backlog-tag-validate.sh."
+# Validate against the Pydantic BacklogTag enum (source of truth), not the hook file.
+if ! uv run python -c "
+import sys; sys.path.insert(0, '$REPO_ROOT/.claude/scripts')
+from schemas import BacklogTag
+assert 'CI-REGRESSION' in [t.value for t in BacklogTag]
+" 2>/dev/null; then
+    echo "ERROR: CI-REGRESSION tag not found in BacklogTag enum (.claude/scripts/schemas.py)"
+    echo "  Add CI_REGRESSION to the BacklogTag enum before running the CI sidecar."
     exit 0
 fi
 

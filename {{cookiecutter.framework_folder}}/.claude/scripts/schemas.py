@@ -141,6 +141,10 @@ class Checkpoint(BaseModel, frozen=True):
     depends_on: list[str] = []
     parallelizable_with: list[str] = []
 
+    # Task-file bridging fields (populated by /io-checkpoint)
+    acceptance_criteria: list[str] = []
+    contract: str | None = None
+
     # Remediation-only fields (optional, co-occurrence enforced)
     remediates: str | None = None
     source: str | None = None

@@ -270,6 +270,7 @@ def build_remediation_checkpoint(
     context_files: list[str],
     gate_command: str,
     today: str,
+    acceptance_criteria: list[str] | None = None,
 ) -> Checkpoint:
     """Build a remediation Checkpoint instance from routing prompt fields."""
     scope = [ScopeEntry(component=component_name, protocol=protocol_file)]
@@ -288,6 +289,8 @@ def build_remediation_checkpoint(
         source=f"plans/backlog.yaml (From {parent_cp} -- {today})",
         source_bl=source_bl_ids,
         severity=Severity(severity),
+        acceptance_criteria=acceptance_criteria or [],
+        contract=protocol_file,
     )
 
 

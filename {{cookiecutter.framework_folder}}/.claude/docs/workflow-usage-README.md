@@ -29,13 +29,23 @@ After `/io-plan-batch` accepts a batch and writes task files, run `/validate-tas
 bash .claude/scripts/dispatch-agents.sh
 ```
 
+### Resuming a Failed Checkpoint
+
+When a sub-agent hits the max-turns ceiling mid-pipeline, its worktree is preserved. To re-enter the pipeline at Phase 3 (generate-evaluate loop) for that checkpoint:
+
+```bash
+bash .claude/scripts/dispatch-agents.sh --resume CP-XX
+```
+
+Resume mode skips the escalation flag gate, clean-tree gate, batch collection, and CI sidecar pre/post-wave. It validates the worktree exists, the correct branch is checked out, and the task file is present, then enters the generate-evaluate-regen loop directly.
+
 ---
 
 ## Standalone Scripts (Run Explicitly)
 
 These are operator-facing scripts. Run them directly when you need the behavior.
 
-- `bash .claude/scripts/dispatch-agents.sh`: dispatches pending checkpoint tasks.
+- `bash .claude/scripts/dispatch-agents.sh [--resume CP-XX]`: dispatches pending checkpoint tasks. With `--resume`, re-enters the pipeline for a single preserved worktree.
 - `bash .claude/scripts/ci-sidecar.sh`: full suite regression detection (advisory). Subcommands: `pre-wave`, `post-wave`, `diff`. Config: `ci.timeout` (default 5m), `ci.enabled` (default true). Env overrides: `CI_TIMEOUT`, `CI_ENABLED`. Called automatically by dispatch-agents.sh; can also be run standalone.
 - `bash .claude/scripts/reset-failed-checkpoints.sh`: resets failed checkpoints for re-queue.
 - `bash .claude/scripts/archive-approved.sh`: archives approved checkpoint artifacts from `plans/tasks/` into `plans/archive/` and updates `plans/plan.yaml` status from `[ ] pending` to `[x] complete`. For remediation CPs, resolves the source backlog item via `Source BL:` lookup.
@@ -174,7 +184,7 @@ The sentinel is automatically cleared on session start. If it is unexpectedly pr
 | `/io-plan-batch` | Compose dispatch batch, score confidence, get human approval | `plans/tasks/CP-XX.yaml` (on acceptance) |
 | `/validate-tasks` | Validate task files against plan.yaml and component-contracts.toml | `plans/tasks/CP-XX.task.validation`, `plans/validation-reports/task-validation-report.yaml` |
 | `/task-recovery` | Regenerate task files for CPs with MECHANICAL findings | `plans/tasks/CP-XX.yaml` (regenerated) |
-| `dispatch-agents.sh` | Dispatch agents (run directly via `bash .claude/scripts/dispatch-agents.sh`) | none |
+| `dispatch-agents.sh` | Dispatch agents (run directly via `bash .claude/scripts/dispatch-agents.sh [--resume CP-XX]`) | none |
 | `/io-execute` | Tier 3 sub-agent workflow that executes one checkpoint task file | `plans/tasks/CP-XX.status`, checkpoint write targets |
 | `/validate-spec` | Detect CRC-Protocol drift and re-earn `**Approved:** True` (recovery path) | `plans/project-spec.md` (stamp only) |
 | `/doc-sync` | Reconcile docs with codebase after feature completion | `plans/project-spec.md`, `plans/roadmap.md`, `plans/seams.yaml`, `README.md` |

@@ -53,7 +53,7 @@ The human is required at these moments and only these:
 | Validate task files | post `/io-plan-batch` | Run `/validate-tasks`; approve or route DESIGN findings |
 | Run sub-agents | post `/validate-tasks` | `bash .claude/scripts/dispatch-agents.sh` |
 | Checkpoint review | `/io-review` | Approve or route findings to backlog |
-| Escalation | session start | Review `.iocane/escalation.log`, clear flag |
+| Escalation | session start | Review `.iocane/escalation.log`, clear flag or `--resume CP-XX` |
 | Replanning | `/io-replan` | Approve PRD delta propagation |
 
 ---
@@ -99,7 +99,7 @@ Sub-agents do not attempt autonomous remediation for these conditions -- they wr
 - `# noqa: DI` required with no backlog entry
 - Layer violation detected
 
-The `PostToolUse` hook (`escalation-gate.sh`) captures failures to `.iocane/escalation.log` and sets `escalation: true` in `.iocane/workflow-state.json`. The `PreToolUse` hook (`workflow-state-gate.sh`) blocks all writes to `src/`, `tests/`, and `interfaces/*.py` while escalation is active. Session start surfaces the flag and bootstraps the escalation state. Non-numeric exit codes that indicate infrastructure problems (`PARSE_ERROR`, `EXEC_ERROR`) are logged to `.iocane/hook-debug.log`. Commands with no `exit_code` in the payload (normal for successful runs) are silently skipped.
+The `PostToolUse` hook (`escalation-gate.sh`) captures failures to `.iocane/escalation.log` and sets `escalation: true` in `.iocane/workflow-state.json`. The `PreToolUse` hook (`workflow-state-gate.sh`) blocks all writes to `src/`, `tests/`, and `interfaces/*.py` while escalation is active. Session start surfaces the flag and bootstraps the escalation state. Non-numeric exit codes that indicate infrastructure problems (`PARSE_ERROR`, `EXEC_ERROR`) are logged to `.iocane/hook-debug.log`. Commands with no `exit_code` in the payload (normal for successful runs) are silently skipped. Max-turns exhaustion (no status file written) also sets the escalation flag at batch completion, closing the detection gap for silent agent termination. Commands with benign exit-code-1 semantics (grep, test, diff) are allowlisted and do not trigger escalation.
 
 ---
 
@@ -135,9 +135,29 @@ bash .claude/scripts/reset-failed-checkpoints.sh          # reset all FAIL check
 bash .claude/scripts/reset-failed-checkpoints.sh CP-XX    # reset a specific checkpoint
 ```
 
-This removes the worktree, deletes the `iocane/CP-XX` branch, clears the `.status` and `.exit` files, and resets the attempt counter. Log files are preserved for post-mortem. After reset, run `/io-plan-batch` to generate a fresh task file, then re-dispatch.
+This removes the worktree, deletes the `iocane/CP-XX` branch, clears the `.status` and `.exit` files, and resets the attempt counter. Log files are preserved for post-mortem. After reset, run `/io-plan-batch` to generate a fresh task file, then re-dispatch. The script also clears the global escalation flag, escalation log, and resets `escalation: true` in `workflow-state.json`. Manual `rm .iocane/escalation.flag` remains valid for clearing escalation without resetting any checkpoints.
 
-**Turn budget exhaustion:** If an agent hits `agents.max_turns` mid-run without writing a status file, no `.status` file is created -- the checkpoint appears pending and will be picked up on the next dispatch. If the existing worktree is still intact and Step Progress shows partial completion, re-dispatch reuses the worktree and resumes from the last unchecked step. If resumption is not viable, run `reset-failed-checkpoints.sh` first. Adjust `agents.max_turns` in `.claude/iocane.config.yaml` if turn exhaustion recurs on complex checkpoints.
+**Turn budget exhaustion:** If an agent hits `agents.max_turns` mid-run without writing a status file, the orchestrator sets `.iocane/escalation.flag` at batch completion and prints a `--resume` hint. Two recovery paths:
+
+1. **Resume (preferred when worktree has partial progress):** Re-enter the pipeline at Phase 3 (generate-evaluate loop) using the preserved worktree:
+
+   ```bash
+   bash .claude/scripts/dispatch-agents.sh --resume CP-XX
+   ```
+
+   This skips worktree setup, preflight, batch collection, and CI sidecar pre/post-wave. The generator reads Step Progress and resumes from the first unchecked step. The evaluator runs normally after generation.
+
+2. **Full reset:** If the worktree is corrupted or resumption is not viable, reset and re-dispatch from scratch:
+
+   ```bash
+   bash .claude/scripts/reset-failed-checkpoints.sh CP-XX
+   ```
+
+   Then run `/io-plan-batch` to generate a fresh task file and re-dispatch.
+
+A successful batch (all checkpoints PASS, including resumed ones) automatically clears the escalation flag, log, and workflow-state escalation field. No manual cleanup is needed after successful recovery.
+
+Adjust `agents.max_turns` in `.claude/iocane.config.yaml` if turn exhaustion recurs on complex checkpoints.
 
 ---
 

@@ -91,6 +91,18 @@ if ! printf '%s' "$EXIT_CODE" | grep -qE '^[1-9][0-9]*$'; then
     exit 0
 fi
 
+# --- Allowlist: benign exit-code-1 commands ---
+# grep/rg return 1 for "no match", test/[ return 1 for "false",
+# diff returns 1 for "files differ". rtk variants included because
+# rtk-enforce.sh requires the prefix in sub-agent contexts.
+if [ "$EXIT_CODE" -eq 1 ]; then
+    case "$COMMAND" in
+        grep\ *|egrep\ *|fgrep\ *|rg\ *|rtk\ grep\ *|test\ *|\[\ *|diff\ *|git\ diff*|rtk\ git\ diff*)
+            exit 0
+            ;;
+    esac
+fi
+
 # --- Append structured failure record (append-only, never truncated) ---
 cat >> "$LOG_FILE" << EOF
 ---

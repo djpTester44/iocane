@@ -56,8 +56,35 @@ else
     done
 fi
 
+# --- Global escalation state cleanup (runs regardless of CP targets) ---
+# Manual `rm .iocane/escalation.flag` remains valid for clearing without this script.
+ESCALATION_CLEARED=""
+if [ -f "$IOCANE_DIR/escalation.flag" ]; then
+    rm "$IOCANE_DIR/escalation.flag"
+    echo "[ok] escalation flag cleared"
+    ESCALATION_CLEARED="yes"
+fi
+if [ -f "$IOCANE_DIR/escalation.log" ]; then
+    rm "$IOCANE_DIR/escalation.log"
+    echo "[ok] escalation log cleared (per-CP logs preserved in plans/tasks/)"
+fi
+STATE_FILE="$IOCANE_DIR/workflow-state.json"
+if [ -f "$STATE_FILE" ]; then
+    EXISTING_NEXT=$(grep -o '"next":"[^"]*"' "$STATE_FILE" | cut -d'"' -f4)
+    EXISTING_TRIGGER=$(grep -o '"trigger":"[^"]*"' "$STATE_FILE" | cut -d'"' -f4)
+    printf '{"next":"%s","trigger":"%s","escalation":false,"timestamp":"%s"}\n' \
+        "${EXISTING_NEXT:-unknown}" "${EXISTING_TRIGGER:-reset-failed-checkpoints}" \
+        "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" > "$STATE_FILE"
+    echo "[ok] workflow-state.json: escalation -> false"
+fi
+[ -n "$ESCALATION_CLEARED" ] && echo ""
+
 if [ ${#TARGETS[@]} -eq 0 ]; then
-    echo "No failed checkpoints found. Nothing to reset."
+    if [ -n "$ESCALATION_CLEARED" ]; then
+        echo "No failed checkpoints to reset. Escalation state cleared."
+    else
+        echo "No failed checkpoints found. Nothing to reset."
+    fi
     exit 0
 fi
 
@@ -156,6 +183,7 @@ done
 echo "Reset complete: $RESET checkpoint(s) reset cleanly, $ERRORS with warnings."
 echo ""
 echo "Note: .log files are preserved at $TASKS_DIR/CP-XX.log for post-mortem."
+echo "Note: Escalation state (flag, log, workflow-state.json) was cleared at script start."
 echo ""
 echo "Next steps:"
 echo "  1. Run /io-plan-batch to generate fresh task files for the reset checkpoints."

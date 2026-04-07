@@ -50,6 +50,7 @@ def save_plan(path: str, plan: Plan) -> None:
             "context_files",
             "depends_on",
             "parallelizable_with",
+            "acceptance_criteria",
         ):
             if key in cp and not cp[key]:
                 del cp[key]
@@ -66,6 +67,25 @@ def save_plan(path: str, plan: Plan) -> None:
         data, default_flow_style=False, sort_keys=False, allow_unicode=True
     )
     Path(path).write_text(output, encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Task-file bridging helpers
+# ---------------------------------------------------------------------------
+
+
+def resolved_contract(cp: Checkpoint) -> str | None:
+    """Return the checkpoint's contract, falling back to scope[0].protocol."""
+    if cp.contract:
+        return cp.contract
+    if cp.scope:
+        return cp.scope[0].protocol
+    return None
+
+
+def resolved_criteria(cp: Checkpoint) -> list[str]:
+    """Return acceptance criteria. Empty list signals caller to synthesize."""
+    return cp.acceptance_criteria
 
 
 # ---------------------------------------------------------------------------
