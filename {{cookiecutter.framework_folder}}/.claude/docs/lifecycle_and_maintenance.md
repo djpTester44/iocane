@@ -99,7 +99,7 @@ Sub-agents do not attempt autonomous remediation for these conditions -- they wr
 - `# noqa: DI` required with no backlog entry
 - Layer violation detected
 
-The `PostToolUse` hook (`escalation-gate.sh`) captures failures to `.iocane/escalation.log`. Session start surfaces the flag. Non-numeric exit codes that indicate infrastructure problems (`PARSE_ERROR`, `EXEC_ERROR`) are logged to `.iocane/hook-debug.log`. Commands with no `exit_code` in the payload (normal for successful runs) are silently skipped.
+The `PostToolUse` hook (`escalation-gate.sh`) captures failures to `.iocane/escalation.log` and sets `escalation: true` in `.iocane/workflow-state.json`. The `PreToolUse` hook (`workflow-state-gate.sh`) blocks all writes to `src/`, `tests/`, and `interfaces/*.py` while escalation is active. Session start surfaces the flag and bootstraps the escalation state. Non-numeric exit codes that indicate infrastructure problems (`PARSE_ERROR`, `EXEC_ERROR`) are logged to `.iocane/hook-debug.log`. Commands with no `exit_code` in the payload (normal for successful runs) are silently skipped.
 
 ---
 
@@ -188,7 +188,7 @@ To reference a specific item: `grep 'BL-005' plans/backlog.yaml` -- read downwar
 
 | Operation | Mechanism |
 |-----------|-----------|
-| Assign BL-IDs to new entries | `backlog-id-assign.sh` PostToolUse hook (auto) |
+| Assign BL-IDs to new entries | `backlog-id-assign.sh` -> `assign_backlog_ids.py` PostToolUse hook (auto) |
 | Route backlog item to remediation CP | `bash .claude/scripts/route_backlog_item.py BL-NNN CP-NNR` |
 | Mark item remediated + flip checkbox | `bash .claude/scripts/archive-approved.sh CP-NNR` (reads `Source BL:` from plan.yaml) |
 

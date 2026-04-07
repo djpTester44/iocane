@@ -29,6 +29,38 @@ print('yes' if p.endswith('plans/backlog.yaml') else 'no')
 
 if [ "$MATCH" = "yes" ] && [ -f "plans/backlog.yaml" ]; then
     uv run python .claude/scripts/assign_backlog_ids.py
+
+    # --- State derivation: route based on open backlog items ---
+    NEXT=$(uv run python -c "
+import sys
+sys.path.insert(0, '.claude/scripts')
+from backlog_parser import load_backlog, open_items
+
+backlog = load_backlog('plans/backlog.yaml')
+opened = open_items(backlog)
+
+has_design = any(i.tag.value in ('DESIGN', 'REFACTOR') for i in opened)
+has_ct_gap = any(
+    i.tag.value == 'TEST' and 'CT gap' in (i.title or '') for i in opened
+)
+has_cleanup = any(i.tag.value in ('CLEANUP', 'TEST') for i in opened)
+
+if has_design:
+    print('auto-architect')
+elif has_ct_gap:
+    print('io-ct-remediate')
+elif has_cleanup:
+    print('auto-checkpoint')
+else:
+    print('')
+" 2>/dev/null) || NEXT=""
+
+    if [ -n "$NEXT" ]; then
+        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
+        mkdir -p .iocane
+        printf '{"next":"%s","trigger":"backlog.yaml (open items routed)","timestamp":"%s"}\n' \
+            "$NEXT" "$TIMESTAMP" > .iocane/workflow-state.json
+    fi
 fi
 
 exit 0

@@ -145,13 +145,10 @@ Do not create `plans/plan.yaml`. Checkpoint planning is handled by `/io-checkpoi
 
 - **Action:** If `plans/backlog.yaml` does not exist, create it with the standard header:
 
-```markdown
-# Backlog
-
-Findings from /io-review and /gap-analysis. Append-only — never delete entries.
-Items marked [x] are resolved. Items marked [ ] are active.
-
----
+```yaml
+# Findings from /io-review and /gap-analysis. Append-only -- never delete entries.
+# Status values: open (active), resolved (closed), deferred (accepted debt).
+items: []
 ```
 
 - **Rule:** If `plans/backlog.yaml` already exists (e.g., brownfield adoption), do not overwrite it.

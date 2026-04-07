@@ -159,6 +159,75 @@ Run /io-review or inspect plans/backlog.yaml for details.
     fi
 fi
 
+# --- Bootstrap workflow-state.json from current artifacts ---
+# Derives initial state so the write gate is active from session start.
+# Subsequent PostToolUse hooks will update state as artifacts change.
+derive_workflow_state() {
+    local STATE_FILE=".iocane/workflow-state.json"
+    local TIMESTAMP
+    TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
+
+    # Escalation flag takes priority
+    if [ -f "$ESCALATION_FLAG" ]; then
+        # Read existing next state if available, preserve it under escalation
+        local EXISTING_NEXT=""
+        if [ -f "$STATE_FILE" ]; then
+            EXISTING_NEXT=$(grep -o '"next":"[^"]*"' "$STATE_FILE" | cut -d'"' -f4)
+        fi
+        printf '{"next":"%s","trigger":"escalation.flag exists at session boot","escalation":true,"timestamp":"%s"}\n' \
+            "${EXISTING_NEXT:-unknown}" "$TIMESTAMP" > "$STATE_FILE"
+        return
+    fi
+
+    # No plan.yaml -> early workflow stages
+    if [ ! -f "$PLAN_FILE" ]; then
+        if [ -f "plans/project-spec.md" ]; then
+            if grep -q '\*\*Approved:\*\* True' "plans/project-spec.md" 2>/dev/null; then
+                printf '{"next":"io-checkpoint","trigger":"session-start (project-spec approved, no plan)","timestamp":"%s"}\n' \
+                    "$TIMESTAMP" > "$STATE_FILE"
+            else
+                printf '{"next":"io-architect","trigger":"session-start (project-spec not approved)","timestamp":"%s"}\n' \
+                    "$TIMESTAMP" > "$STATE_FILE"
+            fi
+        fi
+        # No project-spec = too early for state enforcement
+        return
+    fi
+
+    # plan.yaml exists -> derive from its content
+    local VALIDATED
+    VALIDATED=$(grep -o 'validated: *true' "$PLAN_FILE" 2>/dev/null)
+    local HAS_COMPLETE
+    HAS_COMPLETE=$(grep -o 'status: *complete' "$PLAN_FILE" 2>/dev/null)
+
+    # Check for pending task files (ready for validate-tasks or dispatch)
+    local HAS_TASK_FILES=""
+    local HAS_VALIDATION_SENTINELS=""
+    if [ -d "$TASKS_DIR" ]; then
+        HAS_TASK_FILES=$(ls "$TASKS_DIR"/CP-*.yaml 2>/dev/null | head -1)
+        HAS_VALIDATION_SENTINELS=$(ls "$TASKS_DIR"/*.task.validation 2>/dev/null | head -1)
+    fi
+
+    if [ -n "$HAS_VALIDATION_SENTINELS" ]; then
+        printf '{"next":"dispatch","trigger":"session-start (validated task files present)","timestamp":"%s"}\n' \
+            "$TIMESTAMP" > "$STATE_FILE"
+    elif [ -n "$HAS_TASK_FILES" ]; then
+        printf '{"next":"validate-tasks","trigger":"session-start (task files present, not validated)","timestamp":"%s"}\n' \
+            "$TIMESTAMP" > "$STATE_FILE"
+    elif [ -n "$HAS_COMPLETE" ]; then
+        printf '{"next":"io-review","trigger":"session-start (completed CPs in plan)","timestamp":"%s"}\n' \
+            "$TIMESTAMP" > "$STATE_FILE"
+    elif [ -n "$VALIDATED" ]; then
+        printf '{"next":"io-plan-batch","trigger":"session-start (plan validated)","timestamp":"%s"}\n' \
+            "$TIMESTAMP" > "$STATE_FILE"
+    else
+        printf '{"next":"validate-plan","trigger":"session-start (plan not validated)","timestamp":"%s"}\n' \
+            "$TIMESTAMP" > "$STATE_FILE"
+    fi
+}
+
+derive_workflow_state
+
 # --- Determine next workflow suggestion ---
 suggest_next_workflow() {
     # Escalation blocks everything

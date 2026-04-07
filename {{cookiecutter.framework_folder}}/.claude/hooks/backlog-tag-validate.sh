@@ -28,16 +28,37 @@ if [ "$MATCH" != "yes" ] || [ ! -f "plans/backlog.yaml" ]; then
     exit 0
 fi
 
-# Validate via Pydantic schema -- load_backlog raises on invalid data
-uv run python -c "
+# Validate via Pydantic schema -- load_backlog raises on invalid data.
+# Pydantic ValidationError = blocking (exit 2). Other errors = advisory (exit 0).
+RESULT=$(uv run python -c "
 import sys
 sys.path.insert(0, '.claude/scripts')
 from backlog_parser import load_backlog
 try:
     backlog = load_backlog('plans/backlog.yaml')
-    print(f'backlog-tag-validate: {len(backlog.items)} item(s) validated OK.')
+    print(f'PASS:{len(backlog.items)}')
 except Exception as e:
-    print(f'WARNING: backlog.yaml schema validation failed: {e}')
-"
+    etype = type(e).__name__
+    if 'ValidationError' in etype:
+        print(f'SCHEMA_FAIL:{e}')
+    else:
+        print(f'WARN:{e}')
+" 2>/dev/null) || RESULT="WARN:backlog_parser unavailable"
 
-exit 0
+case "$RESULT" in
+    PASS:*)
+        COUNT="${RESULT#PASS:}"
+        echo "backlog-tag-validate: $COUNT item(s) validated OK."
+        exit 0
+        ;;
+    SCHEMA_FAIL:*)
+        DETAIL="${RESULT#SCHEMA_FAIL:}"
+        echo "BLOCKED: backlog.yaml schema validation failed: $DETAIL" >&2
+        exit 2
+        ;;
+    *)
+        DETAIL="${RESULT#WARN:}"
+        echo "WARNING: backlog.yaml validation: $DETAIL"
+        exit 0
+        ;;
+esac

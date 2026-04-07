@@ -29,6 +29,11 @@ except Exception:
 ")
     if echo "$NEW_CONTENT" | grep -qE "validated:\s*(true|True)"; then
         rm -f .iocane/validating
+        # State derivation: validated stamp just set -> ready for batch generation
+        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
+        mkdir -p .iocane
+        printf '{"next":"io-plan-batch","trigger":"plan.yaml (validated: true)","timestamp":"%s"}\n' \
+            "$TIMESTAMP" > .iocane/workflow-state.json
     fi
     exit 0
 fi
@@ -65,6 +70,29 @@ if data and data.get('validated') is True:
     with open(path, 'w', encoding='utf-8') as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
 "
+
+    # --- State derivation: determine next workflow step from plan content ---
+    VALIDATED=$(grep -o 'validated: *true' "plans/plan.yaml" 2>/dev/null)
+    HAS_COMPLETE=$(grep -o 'status: *complete' "plans/plan.yaml" 2>/dev/null)
+
+    if [ -n "$HAS_COMPLETE" ]; then
+        # dispatch-agents.sh just merged a CP and updated status
+        NEXT="io-review"
+        TRIGGER="plan.yaml (CP status: complete)"
+    elif [ -n "$VALIDATED" ]; then
+        # /validate-plan just stamped the plan (shouldn't reach here due to sentinel)
+        NEXT="io-plan-batch"
+        TRIGGER="plan.yaml (validated: true)"
+    else
+        # plan.yaml written or validation reset
+        NEXT="validate-plan"
+        TRIGGER="plan.yaml (validated: false)"
+    fi
+
+    TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
+    mkdir -p .iocane
+    printf '{"next":"%s","trigger":"%s","timestamp":"%s"}\n' \
+        "$NEXT" "$TRIGGER" "$TIMESTAMP" > .iocane/workflow-state.json
 fi
 
 exit 0

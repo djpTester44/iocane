@@ -108,4 +108,19 @@ EOF
 # --- Write sentinel flag only when escalation log received a real entry ---
 echo "$TIMESTAMP" > "$FLAG_FILE"
 
+# --- Set escalation in workflow state ---
+# The state gate reads this field and blocks implementation writes.
+STATE_FILE="$PARENT_ROOT/.iocane/workflow-state.json"
+if [ -f "$STATE_FILE" ]; then
+    # Merge escalation:true into existing state (preserve next/trigger)
+    EXISTING_NEXT=$(grep -o '"next":"[^"]*"' "$STATE_FILE" | cut -d'"' -f4)
+    EXISTING_TRIGGER=$(grep -o '"trigger":"[^"]*"' "$STATE_FILE" | cut -d'"' -f4)
+    printf '{"next":"%s","trigger":"%s","escalation":true,"timestamp":"%s"}\n' \
+        "${EXISTING_NEXT:-unknown}" "${EXISTING_TRIGGER:-escalation.flag written}" "$TIMESTAMP" \
+        > "$STATE_FILE"
+else
+    printf '{"next":"unknown","trigger":"escalation.flag written","escalation":true,"timestamp":"%s"}\n' \
+        "$TIMESTAMP" > "$STATE_FILE"
+fi
+
 exit 0

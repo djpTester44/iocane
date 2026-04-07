@@ -75,4 +75,27 @@ if [ ${#CORRECTED[@]} -gt 0 ]; then
     echo "{\"type\": \"systemPrompt\", \"content\": \"$MSG\"}"
 fi
 
+# --- State derivation: check if pending CPs remain after archive sync ---
+if [ -f "plans/plan.yaml" ]; then
+    PENDING_COUNT=$(uv run python -c "
+import sys
+sys.path.insert(0, '.claude/scripts')
+from plan_parser import load_plan, pending_checkpoints
+plan = load_plan('plans/plan.yaml')
+print(len(pending_checkpoints(plan)))
+" 2>/dev/null) || PENDING_COUNT=""
+
+    if [ -n "$PENDING_COUNT" ]; then
+        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
+        mkdir -p .iocane
+        if [ "$PENDING_COUNT" -gt 0 ] 2>/dev/null; then
+            printf '{"next":"io-plan-batch","trigger":"archive-sync (pending CPs: %s)","timestamp":"%s"}\n' \
+                "$PENDING_COUNT" "$TIMESTAMP" > .iocane/workflow-state.json
+        else
+            printf '{"next":"closeout","trigger":"archive-sync (all CPs complete)","timestamp":"%s"}\n' \
+                "$TIMESTAMP" > .iocane/workflow-state.json
+        fi
+    fi
+fi
+
 exit 0

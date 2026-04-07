@@ -26,6 +26,11 @@ except Exception:
 ")
     if echo "$NEW_CONTENT" | grep -q "\*\*Approved:\*\* True"; then
         rm -f .iocane/validating
+        # State derivation: Approved stamp just set -> ready for checkpoint planning
+        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
+        mkdir -p .iocane
+        printf '{"next":"io-checkpoint","trigger":"project-spec.md (Approved: True)","timestamp":"%s"}\n' \
+            "$TIMESTAMP" > .iocane/workflow-state.json
     fi
     exit 0
 fi
@@ -51,6 +56,12 @@ print('yes' if p.endswith('plans/project-spec.md') else 'no')
 
 if [ "$MATCH" = "yes" ] && [ -f "plans/project-spec.md" ]; then
     sed -i 's/\*\*Approved:\*\* True/\*\*Approved:\*\* False/g' "plans/project-spec.md"
+
+    # --- State derivation: Approved reset -> needs architect review ---
+    TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
+    mkdir -p .iocane
+    printf '{"next":"io-architect","trigger":"project-spec.md (Approved: False)","timestamp":"%s"}\n' \
+        "$TIMESTAMP" > .iocane/workflow-state.json
 fi
 
 exit 0

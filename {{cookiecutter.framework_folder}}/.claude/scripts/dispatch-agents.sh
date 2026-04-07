@@ -397,6 +397,47 @@ for CP_ID in "${BATCH[@]}"; do
     if [ "$EXIT_CODE" -eq 0 ] && ( [ "$STATUS" = "PASS" ] || [ "$STATUS" = "MISSING" ] ); then
         echo "$CP_ID: PASS"
 
+        # --- Compensating control: flag EVAL_SKIPPED merges in backlog ---
+        EVAL_VERDICT=$(uv run python -c "
+import json, sys
+try:
+    d = json.load(open('$TASKS_DIR/$CP_ID.eval.json'))
+    print(d.get('verdict', ''))
+except: print('')
+" 2>/dev/null) || true
+
+        if [ "$EVAL_VERDICT" = "EVAL_SKIPPED" ]; then
+            echo "$CP_ID: WARNING -- merged with EVAL_SKIPPED. Adding backlog entry for audit."
+            uv run python -c "
+import sys, yaml
+from datetime import datetime, timezone
+
+sys.path.insert(0, '${REPO_ROOT}/.claude/scripts')
+
+path = '${REPO_ROOT}/plans/backlog.yaml'
+try:
+    with open(path, 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f) or {}
+except FileNotFoundError:
+    data = {'items': []}
+
+items = data.get('items', [])
+items.append({
+    'id': '',
+    'tag': '[TEST]',
+    'severity': 'HIGH',
+    'title': '$CP_ID merged with EVAL_SKIPPED -- requires manual review',
+    'description': 'Evaluator timed out or crashed. Generator PASS was honored. Code merged without quality grading.',
+    'routed': '',
+})
+data['items'] = items
+
+with open(path, 'w', encoding='utf-8') as f:
+    yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+print('$CP_ID: backlog entry written for EVAL_SKIPPED')
+" 2>/dev/null || echo "$CP_ID: WARNING -- failed to write EVAL_SKIPPED backlog entry" >&2
+        fi
+
         # Check whether the branch has any new commits to merge.
         AHEAD=$(git -C "$REPO_ROOT" rev-list --count "$PARENT_BRANCH..iocane/$CP_ID" 2>/dev/null || echo "0")
         if [ "$AHEAD" -eq 0 ]; then

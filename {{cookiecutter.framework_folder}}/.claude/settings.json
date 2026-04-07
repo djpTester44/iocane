@@ -44,7 +44,6 @@
             "type": "command"
           },
           {
-            "async": true,
             "command": "bash .claude/hooks/backlog-tag-validate.sh",
             "type": "command"
           },
@@ -55,6 +54,10 @@
           },
           {
             "command": "bash .claude/hooks/validate-yaml.sh",
+            "type": "command"
+          },
+          {
+            "command": "bash .claude/hooks/task-validation-report-write.sh",
             "type": "command"
           }
         ],
@@ -93,6 +96,10 @@
     "PreToolUse": [
       {
         "hooks": [
+          {
+            "command": "bash .claude/hooks/workflow-state-gate.sh",
+            "type": "command"
+          },
           {
             "command": "bash .claude/hooks/write-gate.sh",
             "type": "command"

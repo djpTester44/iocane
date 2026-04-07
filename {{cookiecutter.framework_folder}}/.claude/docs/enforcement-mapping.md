@@ -13,6 +13,7 @@ Maps every harness constraint to its enforcement mechanism.
 | No cd .. traversal in sub-agent context | `forbidden-tools.sh` | PreToolUse Bash | |
 | RTK prefix required for CLI tools | `rtk-enforce.sh` | PreToolUse Bash | |
 | No .py writes during /io-architect phase | `architect-boundary.sh` | PreToolUse Edit/Write | |
+| Implementation writes gated by workflow state | `workflow-state-gate.sh` | PreToolUse Edit/Write | |
 | Write targets scoped to checkpoint | `write-gate.sh` | PreToolUse Edit/Write | |
 | No secrets in written files | `secret-scan.sh` | PreToolUse Edit/Write | |
 | No backslash paths in written files | `backslash-path.sh` | PreToolUse Edit/Write | |
@@ -25,10 +26,11 @@ Maps every harness constraint to its enforcement mechanism.
 | Validation stamp reset on project-spec write | `reset-on-project-spec-write.sh` | PostToolUse Edit/Write | |
 | Validation stamp reset on plan.yaml write | `reset-on-plan-write.sh` | PostToolUse Edit/Write | |
 | Validation stamp reset on .pyi write | `reset-on-pyi-write.sh` | PostToolUse Edit/Write | |
-| BL-NNN assignment on backlog write | `backlog-id-assign.sh` | PostToolUse Edit/Write | |
-| Backlog tag validation | `backlog-tag-validate.sh` | PostToolUse Edit/Write | yes |
+| BL-NNN assignment on backlog write | `backlog-id-assign.sh` -> `assign_backlog_ids.py` | PostToolUse Edit/Write | |
+| Backlog tag validation (blocking on schema failure) | `backlog-tag-validate.sh` -> `backlog_parser.load_backlog()` | PostToolUse Edit/Write | |
 | YAML schema validation (task, plan, backlog, seams) | `validate-yaml.sh` | PostToolUse Edit/Write | |
 | Archive sync on checkpoint approval | `archive-sync.sh` | PostToolUse Edit/Write | yes |
+| Workflow state derivation from validation report | `task-validation-report-write.sh` | PostToolUse Edit/Write | |
 | Escalation capture on command failure | `escalation-gate.sh` | PostToolUse Bash | |
 | Tool failure logging and corrective feedback | `tool-failure.sh` | PostToolUseFailure | |
 | Block turn when escalation flag present | `stop-gate.sh` | Stop | |
