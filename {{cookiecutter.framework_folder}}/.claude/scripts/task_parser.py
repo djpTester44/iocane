@@ -84,7 +84,10 @@ def save_task(path: str, task: TaskFile) -> None:
 
 
 def extract_ct_files(task: TaskFile) -> list[str]:
-    """Return all connectivity test file paths."""
+    """Return all connectivity test file paths.
+
+    These are CT files owned by this checkpoint as target_cp.
+    """
     return [ct.file for ct in task.connectivity_tests]
 
 

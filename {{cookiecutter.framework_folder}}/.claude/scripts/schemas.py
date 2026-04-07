@@ -193,7 +193,11 @@ class Checkpoint(BaseModel, frozen=True):
 
 
 class ConnectivityTest(BaseModel, frozen=True):
-    """A connectivity test specification in plans/plan.yaml."""
+    """A connectivity test specification in plans/plan.yaml.
+
+    The CT file (``file`` field) is owned by ``target_cp``. Only the target
+    checkpoint writes the test file and lists it in ``write_targets``.
+    """
 
     test_id: str
     source_cps: list[str]
@@ -321,7 +325,11 @@ class SeamsFile(BaseModel, frozen=True):
 
 
 class TaskConnectivityTest(BaseModel, frozen=True):
-    """Task-level CT spec -- omits topology fields (source_cps/target_cp)."""
+    """Task-level CT spec -- omits topology fields (source_cps/target_cp).
+
+    Present only in task files for the ``target_cp`` checkpoint. Source CPs
+    do not receive CT entries in their task files.
+    """
 
     test_id: str
     function: str

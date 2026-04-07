@@ -158,13 +158,16 @@ assertion: [What must be true about the return value — type, shape, invariants
 gate: pytest tests/connectivity/test_[cp_a]_[cp_b].py::[function_name]
 ```
 
+**CT file ownership:** The CT file is owned by `target_cp` (the downstream checkpoint, CP-B in the `CP-A → CP-B` seam). `target_cp` is responsible for creating the test file during its execution phase. `source_cps` provide the dependency context — their output must exist for the test to pass — but they do not write the CT file and must NOT include it in their `write_targets` or `gate_command`.
+
 **Rules for connectivity test signatures:**
 
 - The assertion must be precise enough that `/io-execute` can build the test without ambiguity
 - The assertion describes the observable contract boundary — return type, key invariants, no ORM types leaking through domain layer, etc.
 - `fixture_deps` must name real fixtures or factories that will exist after CP-A is complete
 - Every dependency edge in the checkpoint graph must have at least one connectivity test
-- The downstream checkpoint's **gate command** MUST include the CT file path from the `file:` field. If the CT file does not exist at execution time, the gate will fail — this is intentional. Example: if CT-001 verifies the CP-01→CP-02 seam, CP-02's gate command must be `uv run rtk pytest tests/domain/test_dag_resolver.py tests/connectivity/test_cp01_cp02.py`, not just `uv run rtk pytest tests/domain/test_dag_resolver.py`.
+- The CT test file is a write target of `target_cp` only. Source checkpoints must NOT include the CT file in their `write_targets` or `gate_command`.
+- The downstream checkpoint's **gate command** MUST include the CT file path from the `file:` field (i.e., the `target_cp` checkpoint). If the CT file does not exist at execution time, the gate will fail — this is intentional. Example: if CT-001 verifies the CP-01→CP-02 seam, CP-02's gate command must be `uv run rtk pytest tests/domain/test_dag_resolver.py tests/connectivity/test_cp01_cp02.py`, not just `uv run rtk pytest tests/domain/test_dag_resolver.py`.
 
 **Present all connectivity test signatures. Do not write any file yet.**
 

@@ -54,10 +54,10 @@ Before proceeding, output:
 
 ### Step B: CONNECTIVITY TEST VERIFICATION
 
-- **Action:** For each connectivity test listed in `plans/plan.yaml` at this checkpoint's output seams:
+- **Action:** For each connectivity test in `plans/plan.yaml` where this checkpoint is the `target_cp`:
   1. Check whether the CT test file exists on disk at the `file:` path in the CT spec.
   2. If it exists: run the gate command and report PASS or FAIL.
-  3. If it does **not** exist: report as `MISSING`. A missing CT file is a HIGH-severity finding — the sub-agent failed to create it during `/io-execute` Step E. Record in the findings report and route to backlog.
+  3. If it does **not** exist: report as `MISSING`. A missing CT file is a HIGH-severity finding — the `target_cp` sub-agent failed to create it during `/io-execute` Step E. Record in the findings report and route to backlog.
 - **Rule:** Every connectivity test must be green (and present) before this checkpoint is considered approved.
 - **Output:** For each CT: `CT-[NNN]: [PASS/FAIL/MISSING] -- [test file::function]`
 

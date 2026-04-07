@@ -112,12 +112,26 @@ For the Connectivity Tests section of `plan.yaml`:
 
 ---
 
+### Step 9B: CHECK — CT Dependency Invariant [Phase 1]
+
+Run the CT dependency invariant check:
+
+```bash
+uv run rtk python .claude/scripts/check_ct_depends_on.py
+```
+
+For every connectivity test in `plan.yaml`, the `target_cp`'s `depends_on` list must include all CPs listed in `source_cps`. A missing dependency means the target checkpoint could be scheduled before its source completes.
+
+* **Flag:** `CT_DEPENDS_ON_GAP` — target checkpoint missing dependency on a source checkpoint referenced by a connectivity test. Severity: VIOLATION (non-auto-remediable). The dependency graph must be fixed in plan.yaml before proceeding.
+
+---
+
 ### [PHASE 1 HALT GATE]
 
-After running Steps 4, 7, 8, and 9:
+After running Steps 4, 7, 8, 9, and 9B:
 
 * If any Phase 1 check produced a **non-auto-remediable VIOLATION**: HALT immediately. Do not load Phase 2 context. Output findings and escalate to user.
-* If all Phase 1 violations are auto-remediable: apply auto-fixes, mark `[AUTO-AMENDED]`, and re-run Steps 4, 7, 8, 9 only (no Phase 2 reload per self-heal iteration). See Step 12 for loop procedure.
+* If all Phase 1 violations are auto-remediable: apply auto-fixes, mark `[AUTO-AMENDED]`, and re-run Steps 4, 7, 8, 9, 9B only (no Phase 2 reload per self-heal iteration). See Step 12 for loop procedure.
 * Only when Phase 1 is clean (zero Phase 1 VIOLATIONs): proceed to Phase 2.
 
 ---

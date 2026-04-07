@@ -48,7 +48,8 @@ Maps every harness constraint to its enforcement mechanism.
 
 | Constraint | Command | When |
 |------------|---------|------|
-| Write-target collision detection | `check_write_target_overlap.py` | io-plan-batch Step C [HARD GATE] |
+| Write-target collision detection | `check_write_target_overlap.py` (includes CT files owned by target_cp) | io-plan-batch Step C [HARD GATE] |
+| CT dependency invariant | `check_ct_depends_on.py` | validate-plan Step 9B [HARD GATE] |
 | Batch confidence threshold (85%) | inline scoring rubric | io-plan-batch Step E [HARD GATE] |
 | Batch human approval | user accept/modify/reject | io-plan-batch Step F [HUMAN GATE] |
 | Ruff lint compliance | `run-compliance.sh` → `uv run rtk ruff check` | io-review Step D, gap-analysis Step C |

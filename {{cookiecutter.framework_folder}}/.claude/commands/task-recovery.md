@@ -78,7 +78,7 @@ Apply each flag as follows:
 
 - **WRITE_TARGET_ADDITION:** Remove the extra path from `declared_write_targets`. Use `plan.yaml` as the authoritative source.
 - **WRITE_TARGET_OMISSION:** Add the missing path to `declared_write_targets` from `plan.yaml`.
-- **CT_PATH_UNLISTED:** Add the CT file path (from the CT spec's `file:` field in `plan.yaml`) to `declared_write_targets`.
+- **CT_PATH_UNLISTED:** Add the CT file path (from the CT spec's `file:` field in `plan.yaml` where this CP is the `target_cp`) to `declared_write_targets`. This flag only applies to target_cp task files — source CPs must not have CT file paths in their write targets.
 - **CONTEXT_FILE_IN_WRITE_TARGETS:** Move the file from `declared_write_targets` to the `context_files` list.
 - **GATE_COMMAND_STALE:** Replace the `gate_command` field with the exact gate command from `plan.yaml` for this CP.
 - **ACTUAL_STATE_ASSERTION (MECHANICAL):** Scope the `acceptance_criteria` to exclude the files listed in the finding's `exclusions` array. For each excluded file, add a note: "Note: [file] is owned by [owner] and is at ACTUAL state for this checkpoint. Do not assert TARGET state on it."

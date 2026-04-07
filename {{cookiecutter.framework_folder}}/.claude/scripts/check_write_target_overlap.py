@@ -1,9 +1,11 @@
 """Check write-target overlap across a set of checkpoints in plans/plan.yaml.
 
+Includes both direct write targets and connectivity test files owned by target_cp.
+
 Usage:
     uv run python .claude/scripts/check_write_target_overlap.py CP-01 CP-02 ...
 
-Exits 0 if no file path appears in more than one CP's write targets.
+Exits 0 if no file path appears in more than one CP's write targets or CT files.
 Exits 1 if any collision is found; each collision is reported to stderr.
 """
 
@@ -34,7 +36,13 @@ def main(cp_ids: list[str]) -> int:
             )
             return 2
 
-        for path in cp.write_targets:
+        # Collect write targets + CT files owned by this CP as target
+        paths: set[str] = set(cp.write_targets)
+        for ct in plan.connectivity_tests:
+            if ct.target_cp == cp_id:
+                paths.add(ct.file)
+
+        for path in paths:
             claims.setdefault(path, []).append(cp_id)
 
     collisions = {f: cps for f, cps in claims.items() if len(cps) > 1}

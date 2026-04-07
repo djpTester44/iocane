@@ -56,6 +56,8 @@ else: print('NOT_FOUND')
 "
 ```
 
+The CT file is owned by the `target_cp` checkpoint. This remediation creates the file that the `target_cp`'s sub-agent should have written during `/io-execute` Step E.
+
 Required fields:
 
 - `test_id`
@@ -105,6 +107,7 @@ Requirements:
 - Assertions match the `assertion:` field exactly.
 - No I/O performed in the test body — fixtures provide all dependencies inline.
 - Create `tests/connectivity/` directory if it does not exist.
+- The CT file is a write target of `target_cp` only — do not modify any source CP's task file or write targets.
 
 No worktree isolation — CTs are additive writes with no write-target conflicts.
 

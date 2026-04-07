@@ -82,7 +82,7 @@ Apply `parallel.limit` cap: take only the first N checkpoints that pass the disj
 
 For each checkpoint in the confirmed batch, construct the full `CP-XX.yaml` task file content following the `TaskFile` schema defined in `.claude/scripts/schemas.py`. Do **not** write to disk at this step. Checkpoint data was already loaded via plan_parser in Step B — do not re-read `plan.yaml`.
 
-For connectivity tests, use plan_parser to query CTs for each checkpoint:
+For connectivity tests, use plan_parser to query CTs for each checkpoint and filter to target-only:
 ```bash
 uv run rtk python -c "
 import sys, json
@@ -90,7 +90,8 @@ sys.path.insert(0, '.claude/scripts')
 from plan_parser import load_plan, connectivity_tests_for_cp, resolved_contract, resolved_criteria
 plan = load_plan('plans/plan.yaml')
 cts = connectivity_tests_for_cp(plan, 'CP-XX')
-for ct in cts:
+target_cts = [ct for ct in cts if ct.target_cp == 'CP-XX']
+for ct in target_cts:
     print(json.dumps(ct.model_dump(mode='json', exclude_none=True), indent=2))
 "
 ```
@@ -101,12 +102,12 @@ Each task file is a YAML document conforming to the `TaskFile` schema (`.claude/
 - `objective` — maps from checkpoint `description`
 - `acceptance_criteria` — use `resolved_criteria(cp)`. If empty, synthesize 2-3 from description/scope and log a warning ("CP-XX: acceptance_criteria empty, synthesizing from description")
 - `contract` — use `resolved_contract(cp)`. If returns `None` (no contract AND no scope), halt with error for this CP
-- `write_targets` — including CT test file paths (see connectivity_tests below)
+- `write_targets` — including CT test file paths only for CTs where this CP is the `target_cp` (see connectivity_tests below)
 - `context_files` — read-only files the sub-agent needs
 - `gate_command` — the pytest command to pass
 - `seam_context` -- for each component in this checkpoint's write targets, look up its seam entry from `plans/seams.yaml` via `find_by_component()`. If found, embed via `to_seam_entry()` (fields: `receives_di`, `key_failure_modes`, `external_terminal` only). Skip components with no seam entry -- foundation-layer components (e.g. pure data models, config loaders) typically have none. If no scoped components have seam entries, emit `seam_context: []`. Sub-agents must not read `plans/seams.yaml` directly; this field is their only seam reference.
 - For remediation checkpoints (identified by a `remediates` field): set `source` to `"plans/backlog.yaml BL-NNN"`, where `BL-NNN` is read from the checkpoint's `source_bl` list.
-- `connectivity_tests` — use `connectivity_tests_for_cp(plan, cp_id)` to find all CTs where this checkpoint appears as `target_cp` or in `source_cps`. For each matching CT, include a `TaskConnectivityTest` entry (test_id, function, file, fixture_deps, contract_under_test, assertion, gate). Omit `source_cps`/`target_cp` (those are plan-level topology fields). The CT test file path from the `file` field must also be added to `write_targets` so the sub-agent is authorized to create it. If no CTs target this checkpoint, set `connectivity_tests: []`.
+- `connectivity_tests` — CT ownership is scoped to target_cp only. Use `connectivity_tests_for_cp(plan, cp_id)` to retrieve all CTs involving this checkpoint, then filter to only those where `ct.target_cp == cp_id`. Only the target_cp receives `TaskConnectivityTest` entries in its task file. For each matching CT, include a `TaskConnectivityTest` entry (test_id, function, file, fixture_deps, contract_under_test, assertion, gate). Omit `source_cps`/`target_cp` (those are plan-level topology fields). The CT test file path from the `file` field must also be added to `write_targets` so the sub-agent is authorized to create it. Source CPs that appear only in `source_cps` do not receive CT entries and do not get CT file paths in their `write_targets` — they contribute dependency context only via `depends_on` and `context_files`. If this CP is not the `target_cp` of any CT, set `connectivity_tests: []`.
 - `refactor_commands` — ruff/mypy commands scoped to write targets
 - `execution_notes` — any checkpoint-specific guidance (null if none)
 - `execution_findings: []` — always present, initially empty

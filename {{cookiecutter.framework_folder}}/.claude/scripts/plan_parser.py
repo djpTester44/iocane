@@ -148,7 +148,12 @@ def write_targets_for_cps(
 def connectivity_tests_for_cp(
     plan: Plan, cp_id: str
 ) -> list[ConnectivityTest]:
-    """Return connectivity tests where cp_id appears in source_cps or as target_cp."""
+    """Return connectivity tests where cp_id appears in source_cps or as target_cp.
+
+    Note: CT file ownership belongs to target_cp only. Callers that need
+    target-only CTs (e.g., for task file injection) should filter the result
+    to ``ct.target_cp == cp_id``.
+    """
     return [
         ct
         for ct in plan.connectivity_tests

@@ -47,9 +47,9 @@ Load in a single phase — no re-reads during check execution:
 
 ---
 
-## Four Checks
+## Five Checks
 
-Run all four checks on every task file before classifying severity.
+Run all five checks on every task file before classifying severity.
 
 ### Check 1 — WRITE_TARGET_FIDELITY
 
@@ -58,10 +58,10 @@ The task file's `write_targets` field must exactly match the write targets decla
 - Compare task file write targets against `plan.yaml` one-for-one.
 - **WRITE_TARGET_ADDITION:** Task file lists a path not in `plan.yaml` (CT paths exempt — see below).
 - **WRITE_TARGET_OMISSION:** `plan.yaml` lists a path absent from the task file.
-- **CT_PATH_UNLISTED:** A connectivity test's `file:` path from `plan.yaml` is not in the task file's write targets (CT paths must be present per io-plan-batch Step D).
+- **CT_PATH_UNLISTED:** A connectivity test's `file:` path from `plan.yaml` where this CP is the `target_cp` is not in the task file's write targets. Only the `target_cp` of a CT is required to list the CT file path (per io-plan-batch Step D). Source CPs must NOT have CT file paths in their write targets.
 - **CONTEXT_FILE_IN_WRITE_TARGETS:** A file appears in both write targets and the task file's context/reference section (read-only files must not be declared as write targets).
 
-CT file paths derived from the CT spec's `file:` field in `plan.yaml` are exempt from WRITE_TARGET_ADDITION.
+CT file paths derived from the CT spec's `file:` field in `plan.yaml` where this CP is the `target_cp` are exempt from WRITE_TARGET_ADDITION. If a source-only CP's task file lists a CT file path, flag it as WRITE_TARGET_ADDITION (not exempt).
 
 ### Check 2 — GATE_COMMAND_VALIDITY
 
@@ -95,6 +95,18 @@ Every `src/` component in the checkpoint's write targets must have a seam entry 
 - **SEAM_ENTRY_STALE:** The task file's seam data diverges from `plans/seams.yaml` (field values differ). Use `seam_parser.find_by_component()` and `to_seam_entry()` for comparison. Log count, surface in summary. Not a blocking finding.
 - **SEAM_SOURCE_FABRICATED:** The task file contains a seam entry for a component that has no entry in `plans/seams.yaml`, or field values (`receives_di`, `key_failure_modes`, `external_terminal`) do not match. -> DESIGN.
 
+### Check 5 — WRITE_TARGET_OVERLAP
+
+Cross-task check: no file path may appear in more than one task file's `write_targets`.
+
+This check operates on the assembled task files (not `plan.yaml`), so it catches overlaps introduced by CT path injection. Since CT files are injected only into the `target_cp`'s write targets (per `/io-plan-batch` Step D), a CT file should appear in exactly one task file. A collision here indicates either a misassigned `target_cp` or a manual error.
+
+For each task file, collect its `write_targets`. Build a map of `file_path -> list[CP-ID]`. Any path claimed by two or more CPs is a collision.
+
+- **WRITE_TARGET_OVERLAP:** A file path appears in the `write_targets` of two or more task files. The `detail` field must name the file and all claiming CPs. Emit one finding per colliding file, with `task_file` set to the first CP-ID alphabetically.
+
+Severity is always DESIGN: the checkpoint decomposition has overlapping scope. Automated recovery cannot decide which CP should own the file -- that requires re-planning.
+
 ---
 
 ## Flag Taxonomy
@@ -103,7 +115,7 @@ Every `src/` component in the checkpoint's write targets must have a seam entry 
 |------|-------|----------|---------|
 | `WRITE_TARGET_ADDITION` | WRITE_TARGET_FIDELITY | MECHANICAL | /task-recovery |
 | `WRITE_TARGET_OMISSION` | WRITE_TARGET_FIDELITY | MECHANICAL | /task-recovery |
-| `CT_PATH_UNLISTED` | WRITE_TARGET_FIDELITY | MECHANICAL | /task-recovery |
+| `CT_PATH_UNLISTED` | WRITE_TARGET_FIDELITY | MECHANICAL | /task-recovery (target_cp only) |
 | `CONTEXT_FILE_IN_WRITE_TARGETS` | WRITE_TARGET_FIDELITY | MECHANICAL | /task-recovery |
 | `GATE_COMMAND_STALE` | GATE_COMMAND_VALIDITY | MECHANICAL | /task-recovery |
 | `GATE_REFERENCES_NONEXISTENT` | GATE_COMMAND_VALIDITY | DESIGN | Escalate |
@@ -115,6 +127,7 @@ Every `src/` component in the checkpoint's write targets must have a seam entry 
 | `SEAM_ENTRY_STALE` | SEAM_CONTEXT_COMPLETENESS | OBSERVATION | Log, surface count in summary |
 | `SEAM_SOURCE_FABRICATED` | SEAM_CONTEXT_COMPLETENESS | DESIGN | Escalate |
 | `ACCEPTANCE_CRITERION_UNTESTABLE` | ACTUAL_TARGET_SCOPE | OBSERVATION | Log, surface count in summary |
+| `WRITE_TARGET_OVERLAP` | WRITE_TARGET_OVERLAP | DESIGN | Escalate |
 
 ---
 
@@ -124,7 +137,7 @@ Every `src/` component in the checkpoint's write targets must have a seam entry 
 Step 0: [HARD GATE] bash .claude/scripts/pre-invoke-validate-tasks.sh
 Step 1: Load context (plan.yaml sections, component-contracts.toml, task files,
         archive status, seams.yaml)
-Step 2: Run all four checks on all task files
+Step 2: Run all five checks on all task files
 Step 3: Classify findings by severity using the flag taxonomy.
         For ACTUAL_STATE_ASSERTION: apply computability test
         (references/actual-target-heuristic.md) to determine MECHANICAL vs DESIGN.
@@ -146,7 +159,7 @@ Step 6: If only MECHANICAL findings remain:
           .claude/iocane.config.yaml (default: 3)
         - If cycles exhausted without PASS: escalate remaining findings to DESIGN
           and halt (Step 5 path)
-Step 7: If all task files pass all four checks:
+Step 7: If all task files pass all five checks:
         - Write a .task.validation sentinel per task file:
             plans/tasks/CP-XX.task.validation
           Content: PASS <YYYY-MM-DDTHH:MM:SS> pass-N

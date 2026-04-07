@@ -15,6 +15,8 @@ context_files:
   - "interfaces/[protocol].pyi"
   - "plans/project-spec.md (lines [N]-[N])"
 gate_command: "uv run rtk pytest tests/[path]/test_[module].py"
+# connectivity_tests: present only when this CP is the target_cp of a CT.
+# Source CPs have connectivity_tests: [].
 connectivity_tests:
   - test_id: "CT-[NNN]"
     function: "test_[function_name]"

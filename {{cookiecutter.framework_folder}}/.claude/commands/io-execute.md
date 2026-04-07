@@ -125,6 +125,7 @@ Before proceeding:
   3. Run the gate command from the `gate` field.
 - **Rule:** All CT gates must pass. Any failure is an escalation trigger. Do not attempt autonomous remediation. Escalate immediately (see Section 3).
 - **If `connectivity_tests` is empty:** skip this step entirely.
+- **Note:** Only the `target_cp` receives CT entries in its task file. If this checkpoint appears only as a source in a CT, its task file will have `connectivity_tests: []`.
 - **On completion:** Mark step E done via the same `mark_step_done` pattern (substitute `'E'`).
 
 ---
