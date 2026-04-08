@@ -36,6 +36,7 @@ The three-tier model ensures no generated code reaches the codebase without huma
 | Seam Parser | `.claude/scripts/seam_parser.py` | Harness | Load/save/query `plans/seams.yaml` |
 | Workflow State | `.iocane/workflow-state.json` | Hook | Deterministic workflow state derived from artifact writes; consumed by `workflow-state-gate.sh` |
 | Escalation Flag | `.iocane/escalation.flag` | Hook | Sentinel written by `escalation-gate.sh`; blocks dispatch and implementation writes |
+| Review Pending | `.iocane/review-pending.json` | Command (`/io-review`) | Sentinel marking "reviewed but not approved"; consumed by `session-start.sh`, cleaned by `archive-approved.sh` |
 | Escalation Log | `.iocane/escalation.log` | Hook | Sub-agent failure records |
 | Subagent Start Log | `.iocane/subagent-start.log` | Hook | Sub-agent context snapshot at start |
 | Subagent Stop Log | `.iocane/subagent-stop.log` | Hook | Sub-agent termination and result logging |

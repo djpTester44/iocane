@@ -249,18 +249,23 @@ run_checkpoint_pipeline() {
     local EXIT_FILE="$TASKS_DIR/$CP_ID.exit"
     local STATUS_FILE="$TASKS_DIR/$CP_ID.status"
 
-    # cd into worktree for both fresh and resume paths
-    cd "$WORKTREE_PATH"
-
+    # --- Phase 1: Worktree Setup (fresh only) ---
     if [ -z "$IS_RESUME" ]; then
-        # --- Phase 1: Worktree Setup ---
         bash "$SCRIPT_DIR/setup-worktree.sh" --cp "$CP_ID"
+    fi
 
-        # --- Phase 2: Preflight (scoped to checkpoint CTs) ---
-        # Only verify this checkpoint's connectivity tests are not already passing.
-        # Full suite regression detection is the CI sidecar's job (BL-001).
-        cd "$WORKTREE_PATH"
+    # --- Enter worktree (exists for both paths at this point) ---
+    cd "$WORKTREE_PATH" || {
+        echo "FATAL: Cannot enter worktree $WORKTREE_PATH" >&2
+        bash "$REPO_ROOT/.claude/scripts/write-status.sh" "$CP_ID" "WORKTREE_CD_FAIL"
+        echo "1" > "$EXIT_FILE"
+        return 1
+    }
 
+    # --- Phase 2: Preflight (fresh only, scoped to checkpoint CTs) ---
+    # Only verify this checkpoint's connectivity tests are not already passing.
+    # Full suite regression detection is the CI sidecar's job (BL-001).
+    if [ -z "$IS_RESUME" ]; then
         # Extract CT file paths from the task file via task_parser
         CT_FILES=()
         while IFS= read -r ct_path; do

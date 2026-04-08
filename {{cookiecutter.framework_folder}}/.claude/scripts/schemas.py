@@ -381,3 +381,34 @@ class TaskFile(BaseModel):
             msg = f"id must match CP-NN or CP-NNR{{n}} format, got '{v}'"
             raise ValueError(msg)
         return v
+
+
+# ---------------------------------------------------------------------------
+# Review staging schemas (plans/review-output.yaml)
+# ---------------------------------------------------------------------------
+
+
+class StagingItem(BaseModel, frozen=True):
+    """A single finding in the review staging file."""
+
+    tag: BacklogTag
+    severity: Severity
+    component: str
+    files: list[str] = []
+    issue: str
+    detail: str
+    contract_impact: str | None = None
+
+
+class StagingGroup(BaseModel, frozen=True):
+    """A group of findings from one review pass."""
+
+    source: str
+    date: str
+    items: list[StagingItem]
+
+
+class ReviewStaging(BaseModel):
+    """Top-level staging container for plans/review-output.yaml."""
+
+    groups: list[StagingGroup] = []

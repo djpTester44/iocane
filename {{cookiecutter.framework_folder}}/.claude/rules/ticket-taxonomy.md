@@ -13,7 +13,7 @@ Backlog items in `plans/backlog.yaml` carry one tag that governs routing.
 |-----|------------|
 | `[DESIGN]` | A change that requires generating or updating a CRC card AND modifying/creating a `.pyi` contract. |
 | `[REFACTOR]` | A behavioral change that requires a CRC update, but NO new `.pyi` interface (the contract signature remains exactly the same). |
-| `[CLEANUP]` | A pure internal code, style, or logic fix. No design or contract change needed. |
+| `[CLEANUP]` | A pure internal code, style, or logic fix. No design or contract change needed. Includes spec-conformance fixes where the CRC already documents the correct behavior and only the implementation is wrong. |
 | `[DEFERRED]` | Known technical debt implicitly accepted for the current phase. Ignored by execution gates. |
 | `[TEST]` | Missing test coverage. |
 | `[CI-REGRESSION]` | Test passing before dispatch wave, failing after. Identified by ci-sidecar pre/post diff. |

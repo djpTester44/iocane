@@ -189,10 +189,10 @@ The sentinel is automatically cleared on session start. If it is unexpectedly pr
 | `/io-execute` | Tier 3 sub-agent workflow that executes one checkpoint task file | `plans/tasks/CP-XX.status`, checkpoint write targets |
 | `/validate-spec` | Detect CRC-Protocol drift and re-earn `**Approved:** True` (recovery path) | `plans/project-spec.md` (stamp only) |
 | `/doc-sync` | Reconcile docs with codebase after feature completion | `plans/project-spec.md`, `plans/roadmap.md`, `plans/seams.yaml`, `README.md` |
-| `/io-review` | Post-implementation review | `plans/seams.yaml` (Step F), `plans/review-output.md` (via `/review-capture`) |
-| `/io-backlog-triage` | Drain staging + triage open backlog items with approved routing decisions | `plans/backlog.yaml` (reads `plans/review-output.md` staging) |
+| `/io-review` | Post-implementation review | `plans/seams.yaml` (Step F), `plans/review-output.yaml` (via `stage_review_findings.py`) |
+| `/io-backlog-triage` | Drain staging + triage open backlog items with approved routing decisions | `plans/backlog.yaml` (reads `plans/review-output.yaml` staging) |
 | `/io-ct-remediate` | Create missing connectivity test(s) from CT spec for archived checkpoints | CT file path from `plans/plan.yaml`, `plans/backlog.yaml` |
-| `/gap-analysis` | Identify gaps between implementation and spec | `plans/review-output.md` (via `/review-capture`) |
+| `/gap-analysis` | Identify gaps between implementation and spec | `plans/review-output.yaml` (via `stage_review_findings.py`) |
 
 ---
 
@@ -202,7 +202,7 @@ These workflows are part of the full lifecycle and are intentionally outside the
 
 - Brownfield adoption path: `/io-adopt` -> `/io-clarify` -> `/io-init` -> `/io-specify` -> `/io-architect`.
 - Execution internals: `dispatch-agents.sh` dispatches Tier 3 sub-agents that run `/io-execute` per checkpoint task file.
-- Post-review backlog routing: `/io-review` -> `/review-capture` (staging) -> `/io-backlog-triage` (drain to backlog) -> (`/auto-architect` | `/auto-checkpoint` | `/validate-plan` | `/io-ct-remediate`) based on tag/risk.
+- Post-review backlog routing: `/io-review` -> `stage_review_findings.py` (staging) -> `/io-backlog-triage` (drain to backlog) -> (`/auto-architect` | `/auto-checkpoint` | `/validate-plan` | `/io-ct-remediate`) based on tag/risk.
 - Archived checkpoint CT recovery: `/io-review` (detect missing CT) -> `/io-ct-remediate` -> backlog item resolved.
 - PRD-change replan path (non-linear): `/io-replan` when requirements change after initial planning.
 

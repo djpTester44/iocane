@@ -183,7 +183,7 @@ When removing redundant or dead code, prove unused status before deletion.
 
 ## 5. Backlog Lifecycle
 
-`plans/backlog.yaml` is the formal tracking record for all `/io-review`, `/gap-analysis`, and `ci-sidecar.sh` findings. Findings first land in `plans/review-output.md` (staging) via `/review-capture`, then drain to `backlog.yaml` via `/io-backlog-triage`. The backlog is append-only and survives across all sessions.
+`plans/backlog.yaml` is the formal tracking record for all `/io-review`, `/gap-analysis`, and `ci-sidecar.sh` findings. Findings first land in `plans/review-output.yaml` (staging) via `stage_review_findings.py`, then drain to `backlog.yaml` via `/io-backlog-triage`. The backlog is append-only and survives across all sessions.
 
 ### Item Identifiers
 
@@ -216,7 +216,7 @@ To reference a specific item: `grep 'BL-005' plans/backlog.yaml` -- read downwar
 
 ```
 /io-review or /gap-analysis  --> surfaces findings
-/review-capture              --> appends structured findings to plans/review-output.md (staging)
+stage_review_findings.py    --> appends validated findings to plans/review-output.yaml (staging)
 /io-backlog-triage           --> drains staging to plans/backlog.yaml with BL-NNN IDs,
                                  assesses open items, outputs prioritized routing summary
                                  with explicit prompts per item (Tier 1 -- plan mode)

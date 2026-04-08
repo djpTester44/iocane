@@ -23,10 +23,10 @@ This workflow can also be invoked independently of `/io-review` for periodic tri
 
 **Input sources (checked in order):**
 
-1. `plans/review-output.md` (staging file) — primary source for new findings from
+1. `plans/review-output.yaml` (staging file) — primary source for new findings from
    `/io-review` and `/gap-analysis`. If the staging file exists and contains
-   unprocessed `### From CP-XXX` sections, those findings are the default input.
-   The human may specify which sections to process; unprocessed sections remain
+   unprocessed groups (keyed by `source` field), those findings are the default input.
+   The human may specify which groups to process; unprocessed groups remain
    in the staging file for a future triage cycle.
 2. All open `[ ]` items from `plans/backlog.yaml` (each identified by its `**BL-NNN**`
    header) — used for periodic re-triage or when staging is empty.
@@ -341,14 +341,14 @@ Human triggers each downstream workflow in sequence.
 
 ### Step 7 — ARCHIVE STAGING FILE
 
-After all items from `plans/review-output.md` have been processed (or the human
+After all items from `plans/review-output.yaml` have been processed (or the human
 confirms partial processing is complete for now):
 
-1. If all `### From CP-XXX` sections in `plans/review-output.md` were processed:
-   move the file to `plans/archive/review-output-YYYY-MM-DD-HHMM.md`.
-2. If only some sections were processed: remove the processed sections from
-   `plans/review-output.md` and archive them to
-   `plans/archive/review-output-YYYY-MM-DD-HHMM.md`. Unprocessed sections
+1. If all groups in `plans/review-output.yaml` were processed:
+   move the file to `plans/archive/review-output-YYYY-MM-DD-HHMM.yaml`.
+2. If only some groups were processed: remove the processed groups from
+   the `groups` list in `plans/review-output.yaml` and write processed groups to
+   `plans/archive/review-output-YYYY-MM-DD-HHMM.yaml`. Unprocessed groups
    remain in the staging file.
 
 This step is skipped if the input source was `plans/backlog.yaml` directly
@@ -363,7 +363,7 @@ This step is skipped if the input source was `plans/backlog.yaml` directly
 - Writes to `plans/backlog.yaml` (Step 6: tagging deferred items, closing
   confirmed-resolved items, writing routing prompt annotations, atomic BL items
   from staging).
-- Archives processed staging sections from `plans/review-output.md` to
+- Archives processed staging groups from `plans/review-output.yaml` to
   `plans/archive/` (Step 7).
 - Does not execute implementation work, invoke downstream workflows, or run gate commands.
 - Relevance scan reads are targeted -- use line bounds or section reads, not full-file loads.

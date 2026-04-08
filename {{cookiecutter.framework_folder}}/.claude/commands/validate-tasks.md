@@ -94,6 +94,7 @@ Every `src/` component in the checkpoint's write targets must have a seam entry 
 - **SEAM_ENTRY_MISSING:** A component from write targets has no entry in the task file's `seam_context` field.
 - **SEAM_ENTRY_STALE:** The task file's seam data diverges from `plans/seams.yaml` (field values differ). Use `seam_parser.find_by_component()` and `to_seam_entry()` for comparison. Log count, surface in summary. Not a blocking finding.
 - **SEAM_SOURCE_FABRICATED:** The task file contains a seam entry for a component that has no entry in `plans/seams.yaml`, or field values (`receives_di`, `key_failure_modes`, `external_terminal`) do not match. -> DESIGN.
+- **FAILURE_MODE_UNCOVERED:** A `key_failure_modes` entry in the task file's `seam_context` has no corresponding entry in `acceptance_criteria`. The comparison is textual: the exception type and condition description from the failure mode must appear (in substance, not verbatim) in at least one acceptance criterion. If an acceptance criterion contains `[DEFERRED: justification]` for the failure mode, the check passes for that entry. -> MECHANICAL (the failure mode text provides sufficient information for `/task-recovery` to synthesize the missing criterion).
 
 ### Check 5 — WRITE_TARGET_OVERLAP
 
@@ -126,6 +127,7 @@ Severity is always DESIGN: the checkpoint decomposition has overlapping scope. A
 | `SEAM_ENTRY_MISSING` | SEAM_CONTEXT_COMPLETENESS | MECHANICAL | /task-recovery |
 | `SEAM_ENTRY_STALE` | SEAM_CONTEXT_COMPLETENESS | OBSERVATION | Log, surface count in summary |
 | `SEAM_SOURCE_FABRICATED` | SEAM_CONTEXT_COMPLETENESS | DESIGN | Escalate |
+| `FAILURE_MODE_UNCOVERED` | SEAM_CONTEXT_COMPLETENESS | MECHANICAL | /task-recovery |
 | `ACCEPTANCE_CRITERION_UNTESTABLE` | ACTUAL_TARGET_SCOPE | OBSERVATION | Log, surface count in summary |
 | `WRITE_TARGET_OVERLAP` | WRITE_TARGET_OVERLAP | DESIGN | Escalate |
 

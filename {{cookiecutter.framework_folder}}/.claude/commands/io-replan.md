@@ -85,7 +85,7 @@ Present proposed spec changes. Wait for human approval before write.
 
 If any MODIFIED or REMOVED item corresponds to already-implemented code:
 
-* Append a `[DESIGN]` or `[REFACTOR]` item to `plans/backlog.yaml` via `/review-capture`.
+* Append a `[DESIGN]` or `[REFACTOR]` item to `plans/backlog.yaml` via `stage_review_findings.py`.
 * This ensures the execution pipeline will safely update or remove the orphaned code.
 
 ---
@@ -123,4 +123,4 @@ Next steps:
 * Does not modify `plans/plan.yaml` directly — checkpoint replanning is a separate `/io-checkpoint` invocation
 * Does not delete any existing entries in `roadmap.md`, `project-spec.md`, or `backlog.yaml`
 * All writes require human approval via plan mode
-* `backlog.yaml` appends go via `/review-capture` — not written directly
+* `backlog.yaml` appends go via `stage_review_findings.py` — not written directly

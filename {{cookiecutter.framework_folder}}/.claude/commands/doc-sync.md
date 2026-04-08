@@ -120,7 +120,7 @@ Full-project reconciliation of `plans/seams.yaml` against actual source code usi
 
 - Use `seam_parser.update_component()` for drifted fields, `add_component()` for missing entries, `remove_component()` for orphaned entries. Call `save_seams()` after all mutations.
 - Remove entries only when the component is absent from both the current implementation and `plans/project-spec.md` (true orphaned seam entries).
-- Do **not** modify the `backlog_refs` field -- that is populated by `/review-capture` only.
+- Do **not** modify the `backlog_refs` field -- that is populated by `/io-backlog-triage` during drain.
 - Do **not** auto-remove planned CRC/Protocol-backed components.
 - Report a summary of changes in Step G output.
 
@@ -153,7 +153,7 @@ Broken links fixed: [N]
 - Does not touch `plans/plan.yaml` — plan.yaml is owned by `/io-checkpoint`
 - Does not touch `interfaces/*.pyi` — contracts are owned by `/io-architect`
 - Does not edit `plans/project-spec.md` — it may be read as reference, but ownership remains outside `/doc-sync`
-- Does not **add new findings** to `plans/backlog.yaml` — new findings go via `/review-capture`. Closing resolved items (`[ ]` → `[x]`) is permitted in Step D.
+- Does not **add new findings** to `plans/backlog.yaml` — new findings go via `stage_review_findings.py`. Closing resolved items (`[ ]` → `[x]`) is permitted in Step D.
 - `roadmap.md` status updates require human approval
 - Do not auto-remove planned CRC/Protocol-backed components from `plans/seams.yaml`
 - No implementation code written in this workflow

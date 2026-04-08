@@ -4,7 +4,7 @@ description: Full-system integration correctness analysis after all checkpoints 
 ---
 
 > **[NO PLAN MODE]**
-> Read-only analysis. No file writes except via /review-capture at the end.
+> Read-only analysis. No file writes except `plans/review-output.yaml` (via `stage_review_findings.py` at the end).
 
 > **[CRITICAL] CONTEXT LOADING**
 >
@@ -102,9 +102,18 @@ Verify cross-component wiring:
 
 ### Findings
 
-| Severity | Component | Issue | Recommendation |
-|----------|-----------|-------|----------------|
-| HIGH | [ComponentName] | [issue] | [fix] |
+**Tag assignment (from `.claude/rules/ticket-taxonomy.md`):**
+
+Each finding gets one tag. Decision gate:
+
+1. Does this require a new or updated `.pyi` contract? -> [DESIGN]
+2. Does this require a CRC update (but no `.pyi` change)? -> [REFACTOR]
+3. Is this a missing or inadequate test? -> [TEST]
+4. Otherwise (implementation fix, spec already correct) -> [CLEANUP]
+
+| Severity | Tag | Component | Issue | Recommendation |
+|----------|-----|-----------|-------|----------------|
+| HIGH | [TAG] | [ComponentName] | [issue] | [fix] |
 
 ### Contract Coverage
 - Interface Registry entries: [N]
@@ -121,8 +130,32 @@ Verify cross-component wiring:
 
 ### Step H: ROUTE FINDINGS
 
-- **Action:** Run `/review-capture` to classify and log all HIGH and MEDIUM findings to `plans/backlog.yaml`.
-- **Rule:** Findings not in `backlog.yaml` are invisible to subsequent planning. This step is mandatory if any findings exist.
+- **Action:** Write all HIGH and MEDIUM findings from Step G as structured YAML to a temp file, then invoke the staging script:
+
+  **Temp file schema** (write to `/tmp/review-findings-gap-analysis.yaml`):
+
+  ```yaml
+  source: "gap-analysis"
+  date: "[YYYY-MM-DD]"
+  items:
+    - tag: "[TAG from Step G]"
+      severity: "HIGH"
+      component: "[ComponentName]"
+      files:
+        - "[repo-relative path]"
+      issue: "[one-line description]"
+      detail: "[implementation guidance]"
+      contract_impact: null  # or description of CRC/Protocol change needed
+  ```
+
+  **Invoke:**
+
+  ```bash
+  uv run python .claude/scripts/stage_review_findings.py --input /tmp/review-findings-gap-analysis.yaml
+  ```
+
+- **Rule:** Findings not captured in staging are invisible to subsequent workflows. This step is mandatory if any findings exist. Findings flow from staging to `plans/backlog.yaml` via `/io-backlog-triage`.
+- **Rule:** The script validates tags against `BacklogTag` and exits non-zero on invalid input. If the script fails, fix the YAML and re-run before proceeding.
 
 ---
 
@@ -142,7 +175,7 @@ Next step: Run /doc-sync to reconcile project-spec.md and roadmap.md with curren
 
 ## 3. CONSTRAINTS
 
-- Read-only — no fixes, no file writes beyond `/review-capture`
+- Read-only — no fixes, no file writes beyond `plans/review-output.yaml` (via `stage_review_findings.py`)
 - Findings route to `plans/backlog.yaml` only — never to `plans/plan.yaml` or `plans/roadmap.md`
 - Do not modify `interfaces/*.pyi` — if a contract gap is found, it goes to backlog as a `[DESIGN]` item
 - No git operations

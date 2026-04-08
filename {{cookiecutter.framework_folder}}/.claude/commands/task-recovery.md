@@ -83,6 +83,7 @@ Apply each flag as follows:
 - **GATE_COMMAND_STALE:** Replace the `gate_command` field with the exact gate command from `plan.yaml` for this CP.
 - **ACTUAL_STATE_ASSERTION (MECHANICAL):** Scope the `acceptance_criteria` to exclude the files listed in the finding's `exclusions` array. For each excluded file, add a note: "Note: [file] is owned by [owner] and is at ACTUAL state for this checkpoint. Do not assert TARGET state on it."
 - **SEAM_ENTRY_MISSING:** Use `seam_parser.find_by_component()` to read the component's seam entry from `plans/seams.yaml`, then project via `to_seam_entry()` and embed it in `seam_context` (fields: `receives_di`, `key_failure_modes`, `external_terminal` only).
+- **FAILURE_MODE_UNCOVERED:** Extract the uncovered `key_failure_modes` entry text from the task file's `seam_context`. Synthesize an acceptance criterion from the failure mode description: "[ExceptionType] is raised when [condition]" (derived directly from the failure mode text, e.g., "RuntimeError when solver finds no feasible solution" becomes "RuntimeError is raised when the solver finds no feasible solution"). Insert into the task file's `acceptance_criteria` list.
 
 Do NOT write to disk at this step. Hold regenerated content in memory.
 

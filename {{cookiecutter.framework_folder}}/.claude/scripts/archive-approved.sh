@@ -172,6 +172,9 @@ echo "Archive complete: $ARCHIVED checkpoint(s) archived cleanly, $ERRORS with e
 echo ""
 echo "Archived files are at plans/archive/ and remain in git history."
 
+# Clean up review-pending sentinel -- invocation constitutes approval
+rm -f "$IOCANE_DIR/review-pending.json"
+
 if [ "$ERRORS" -gt 0 ]; then
     exit 1
 fi

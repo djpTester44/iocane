@@ -66,6 +66,18 @@ Clear $ESCALATION_FLAG after review to re-enable dispatch.
 "
 fi
 
+# --- Review-pending check ---
+REVIEW_PENDING_ALERT=""
+if [ -f ".iocane/review-pending.json" ]; then
+    PENDING_CPS=$(grep -o '"cp_ids":\[[^]]*\]' ".iocane/review-pending.json" | sed 's/"cp_ids":\[//;s/\]//;s/"//g')
+    REVIEW_PENDING_ALERT="
+## REVIEW PENDING APPROVAL
+
+Review completed but archival not yet approved for: ${PENDING_CPS}
+Return to /io-review Step J to archive or escalate.
+"
+fi
+
 # --- Read plan.yaml for checkpoint status ---
 PLAN_FILE="plans/plan.yaml"
 ACTIVE_CHECKPOINT=""
@@ -179,6 +191,15 @@ derive_workflow_state() {
         return
     fi
 
+    # Review-pending: review completed but human has not approved archival
+    if [ -f ".iocane/review-pending.json" ]; then
+        local PENDING_CPS
+        PENDING_CPS=$(grep -o '"cp_ids":\[[^]]*\]' ".iocane/review-pending.json" | sed 's/"cp_ids":\[//;s/\]//;s/"//g')
+        printf '{"next":"io-review","trigger":"review-pending.json exists (pending approval: %s)","review_pending":true,"timestamp":"%s"}\n' \
+            "$PENDING_CPS" "$TIMESTAMP" > "$STATE_FILE"
+        return
+    fi
+
     # No plan.yaml -> early workflow stages
     if [ ! -f "$PLAN_FILE" ]; then
         if [ -f "plans/project-spec.md" ]; then
@@ -236,6 +257,13 @@ suggest_next_workflow() {
         return
     fi
 
+    # Review completed but not yet approved
+    if [ -f ".iocane/review-pending.json" ]; then
+        PENDING_CPS=$(grep -o '"cp_ids":\[[^]]*\]' ".iocane/review-pending.json" | sed 's/"cp_ids":\[//;s/\]//;s/"//g')
+        echo "Review completed but approval pending for: $PENDING_CPS. Present /io-review Step J summary to approve archival or escalate."
+        return
+    fi
+
     # No plan.yaml yet
     if [ ! -f "$PLAN_FILE" ]; then
         if [ ! -f "plans/PRD.md" ]; then
@@ -290,6 +318,7 @@ NEXT_STEP=$(suggest_next_workflow)
 BRIEFING="# Iocane Session Briefing
 
 ${ESCALATION_ALERT}
+${REVIEW_PENDING_ALERT}
 ## Active Checkpoint
 ${ACTIVE_CHECKPOINT:-No active checkpoint detected.}
 

@@ -52,6 +52,7 @@ run_check "mypy"         uv run mypy "${TARGETS[@]}"
 run_check "lint-imports" uv run rtk lint-imports
 run_check_optional "bandit" "bandit" uv run bandit -q -ll "${TARGETS[@]}"
 run_check "di-check"     uv run python .claude/scripts/check_di_compliance.py --diff-only "${TARGETS[@]}"
+run_check "raises-coverage" uv run python .claude/scripts/check_raises_coverage.py "${TARGETS[@]}"
 
 echo ""
 if [ "$FAILED" -eq 0 ]; then

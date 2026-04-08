@@ -101,6 +101,8 @@ For each feature in `roadmap.md`:
 
 **Acceptance criteria:** Each checkpoint must include 2-4 observable, testable assertions as `acceptance_criteria`. These are design-time decisions -- they flow directly into the task file and must not be synthesized at batching time. The `contract` field is the primary `.pyi` file from the checkpoint's scope.
 
+**[HARD] Protocol Raises coverage:** For each Protocol method in the checkpoint's scope, every `Raises:` declaration in the `.pyi` docstring must appear as an acceptance criterion, or be explicitly annotated as `[DEFERRED: justification]` in the acceptance criteria list. The agent loads all `.pyi` files (instruction 5) and has `seams.yaml` available (instruction 6) -- cross-reference both. A `key_failure_modes` entry in `seams.yaml` that maps to a Protocol `Raises:` declaration reinforces the requirement. Missing coverage is a gap the evaluator cannot catch downstream because it grades only against the criteria authored here.
+
 **Decomposition rules:**
 
 - One checkpoint = one component's core behavior, OR one well-defined integration seam

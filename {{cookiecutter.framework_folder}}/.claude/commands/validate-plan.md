@@ -157,6 +157,8 @@ For each checkpoint:
 * For each Protocol method in the checkpoint's Contract section, invoke `/symbol-tracer` with `--imports-only` on the method symbols to verify an implementation file imports and references it.
 * **Flag:** Protocol method with no CRC anchor = `UNANCHORED_CONTRACT`
 * **Flag:** CRC responsibility with no Protocol method = `ORPHANED_DESIGN` (acceptable only for private helpers)
+* For each Protocol method in the checkpoint's Contract section, verify that every `Raises:` declaration in the method's docstring has a corresponding acceptance criterion in the checkpoint, or an explicit `[DEFERRED: justification]` annotation. Cross-reference with `seams.yaml` `key_failure_modes` entries for the same component.
+* **Flag:** Protocol `Raises:` declaration with no acceptance criterion and no deferral annotation = `RAISES_UNCOVERED`
 
 ---
 

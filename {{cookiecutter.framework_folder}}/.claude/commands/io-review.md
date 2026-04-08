@@ -4,7 +4,7 @@ description: Per-checkpoint behavioral review and connectivity verification. Fin
 ---
 
 > **[NO PLAN MODE]**
-> Read-only analysis. No file writes except `plans/seams.yaml` (Step F) and via /review-capture at the end.
+> Read-only analysis. No file writes except `plans/seams.yaml` (Step F), `plans/review-output.yaml` (via `stage_review_findings.py` at the end), and `.iocane/review-pending.json` (Step I).
 
 > **[CRITICAL] CONTEXT LOADING**
 >
@@ -116,6 +116,7 @@ For each component in scope, verify:
 - **CRC Responsibilities:** Does the implementation fulfill every responsibility listed in the CRC card? Flag any responsibility with no corresponding implementation.
 - **CRC Must-Nots:** Does the implementation violate any explicit constraint in the CRC card?
 - **Protocol compliance:** Does every public method match its Protocol signature exactly? Flag any signature deviation.
+- **Protocol Raises coverage:** For each Protocol method in scope, verify that every `Raises:` declaration in the `.pyi` docstring has a corresponding `pytest.raises()` call in the test file. The compliance script `check_raises_coverage.py` (run via `run-compliance.sh`) performs this check mechanically. Flag any uncovered raises path as a finding.
 - **Collaborators:** Are all collaborators received via `__init__`? Flag any that are instantiated internally.
 - **Sequence diagrams:** If a sequence diagram exists in `project-spec.md` for this component's flows, does the implementation follow it?
 - **Side effects:** Are there any observable side effects not described in the CRC?
@@ -136,7 +137,7 @@ For each component in scope, load seams via `seam_parser.load_seams('plans/seams
 
 - If drift is detected: use `seam_parser.update_component()` to update `plans/seams.yaml` for each affected component, then `save_seams()`. Record each change as a LOW-severity finding in Step H ("Seams drift -- updated `plans/seams.yaml`").
 - If a component in scope has no entry in `plans/seams.yaml` at all: use `seam_parser.add_component()` to create the entry. Record as MEDIUM-severity ("Missing seam entry -- created in `plans/seams.yaml`").
-- Do **not** modify the `backlog_refs` field -- that is populated by `/review-capture` only.
+- Do **not** modify the `backlog_refs` field -- that is populated by `/io-backlog-triage` during drain.
 - Do **not** update seam entries for components outside the current checkpoint's scope.
 
 ---
@@ -166,10 +167,19 @@ Generate a findings report:
 
 ### Findings
 
-| Severity | Location | Issue | Recommendation |
-|----------|----------|-------|----------------|
-| HIGH | `src/[path]:[line]` | [issue] | [fix] |
-| MEDIUM | ... | ... | ... |
+**Tag assignment (from `.claude/rules/ticket-taxonomy.md`):**
+
+Each finding gets one tag. Decision gate:
+
+1. Does this require a new or updated `.pyi` contract? -> [DESIGN]
+2. Does this require a CRC update (but no `.pyi` change)? -> [REFACTOR]
+3. Is this a missing or inadequate test? -> [TEST]
+4. Otherwise (implementation fix, spec already correct) -> [CLEANUP]
+
+| Severity | Tag | Location | Issue | Recommendation |
+|----------|-----|----------|-------|----------------|
+| HIGH | [TAG] | `src/[path]:[line]` | [issue] | [fix] |
+| MEDIUM | [TAG] | ... | ... | ... |
 
 ### Strengths
 - [What was done well]
@@ -190,8 +200,39 @@ Generate a findings report:
 
 ### Step I: ROUTE FINDINGS
 
-- **Action:** Run `/review-capture` to classify and log all HIGH and MEDIUM findings to `plans/review-output.md` (staging file).
+- **Action:** Write all HIGH and MEDIUM findings from Step H as structured YAML to a temp file, then invoke the staging script:
+
+  **Temp file schema** (write to `/tmp/review-findings-[CP-ID].yaml`):
+
+  ```yaml
+  source: "[CP-ID]"
+  date: "[YYYY-MM-DD]"
+  items:
+    - tag: "[TAG from Step H]"
+      severity: "HIGH"
+      component: "[ComponentName]"
+      files:
+        - "[repo-relative path]"
+      issue: "[one-line description]"
+      detail: "[implementation guidance]"
+      contract_impact: null  # or description of CRC/Protocol change needed
+  ```
+
+  **Invoke:**
+
+  ```bash
+  uv run python .claude/scripts/stage_review_findings.py --input /tmp/review-findings-[CP-ID].yaml
+  ```
+
 - **Rule:** Findings not captured in staging are invisible to subsequent workflows. This step is mandatory if any HIGH or MEDIUM findings exist. Findings flow from staging to `plans/backlog.yaml` via `/io-backlog-triage`.
+- **Rule:** The script validates tags against `BacklogTag` and exits non-zero on invalid input. If the script fails, fix the YAML and re-run before proceeding.
+- **Action (mechanical):** After findings are routed, write the review-pending sentinel:
+  ```bash
+  printf '{"cp_ids":[%s],"timestamp":"%s","trigger":"io-review Step I complete"}\n' \
+    "$(echo '[CP-IDs]' | sed 's/ /","/g; s/^/"/; s/$/"/')" \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .iocane/review-pending.json
+  ```
+- **Rule:** This sentinel marks "reviewed but not yet approved." It persists across session boundaries. `archive-approved.sh` removes it after archival. If present at session start, the briefing surfaces the pending approval gate.
 
 ---
 
@@ -232,6 +273,7 @@ Recommended:
 
 - **Human decides.** Do not auto-approve.
 - **If option 1 selected (or batch archive recommended):** Run `bash .claude/scripts/archive-approved.sh [CP-ID ...]` -- this moves task artifacts to `plans/archive/[CP-ID]/`, and for remediation checkpoints automatically marks all corresponding backlog items as `[x]` with a `Remediated:` annotation.
+- **Note:** `archive-approved.sh` removes `.iocane/review-pending.json` on invocation. No manual cleanup needed.
 - **If option 2 selected:** Escalate to `/io-architect` for design-level resolution.
 
 Archiving and backlog triage are independent operations. `archive-approved.sh` moves task artifacts; `/io-backlog-triage` drains staged findings to `plans/backlog.yaml`. Neither blocks the other. The "is this worth tracking?" judgment belongs to `/io-backlog-triage`, not this step.
