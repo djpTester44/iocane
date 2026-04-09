@@ -5,7 +5,7 @@ functions that replace grep/regex patterns previously used by scripts,
 hooks, and commands against the former plan.md (now plan.yaml).
 
 Used by hooks, scripts, auto_checkpoint.py, and commands via
-``uv run rtk python -c "..."``.
+``uv run python -c "..."``.
 """
 
 import re
@@ -113,9 +113,7 @@ def completed_checkpoints(plan: Plan) -> list[Checkpoint]:
 
 def in_progress_checkpoints(plan: Plan) -> list[Checkpoint]:
     """Return all checkpoints with status == in-progress."""
-    return [
-        cp for cp in plan.checkpoints if cp.status == CheckpointStatus.IN_PROGRESS
-    ]
+    return [cp for cp in plan.checkpoints if cp.status == CheckpointStatus.IN_PROGRESS]
 
 
 def remediation_checkpoints(plan: Plan) -> list[Checkpoint]:
@@ -133,9 +131,7 @@ def unblocked_checkpoints(plan: Plan) -> list[Checkpoint]:
     return result
 
 
-def write_targets_for_cps(
-    plan: Plan, cp_ids: list[str]
-) -> dict[str, list[str]]:
+def write_targets_for_cps(plan: Plan, cp_ids: list[str]) -> dict[str, list[str]]:
     """Return {cp_id: write_targets} for the given CP-IDs."""
     result: dict[str, list[str]] = {}
     for cp_id in cp_ids:
@@ -145,9 +141,7 @@ def write_targets_for_cps(
     return result
 
 
-def connectivity_tests_for_cp(
-    plan: Plan, cp_id: str
-) -> list[ConnectivityTest]:
+def connectivity_tests_for_cp(plan: Plan, cp_id: str) -> list[ConnectivityTest]:
     """Return connectivity tests where cp_id appears in source_cps or as target_cp.
 
     Note: CT file ownership belongs to target_cp only. Callers that need
@@ -186,9 +180,7 @@ def resolve_feature(plan: Plan, cp_id: str) -> str | None:
     return None
 
 
-def resolve_gate(
-    plan: Plan, cp_id: str, override: str | None = None
-) -> str | None:
+def resolve_gate(plan: Plan, cp_id: str, override: str | None = None) -> str | None:
     """Resolve the gate command for a checkpoint.
 
     If ``override`` is provided and is not an 'inherited from CP-NN' reference,
@@ -225,9 +217,7 @@ def resolve_gate(
 # ---------------------------------------------------------------------------
 
 
-def update_checkpoint_status(
-    plan: Plan, cp_id: str, status: CheckpointStatus
-) -> Plan:
+def update_checkpoint_status(plan: Plan, cp_id: str, status: CheckpointStatus) -> Plan:
     """Return a new Plan with the specified checkpoint's status updated."""
     new_cps: list[Checkpoint] = []
     for cp in plan.checkpoints:

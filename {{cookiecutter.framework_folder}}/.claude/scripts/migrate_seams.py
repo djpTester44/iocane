@@ -4,7 +4,7 @@ Parses Markdown layer/component seam format into the SeamsFile Pydantic
 model and serializes via seam_parser.save_seams().
 
 Usage:
-    uv run rtk python .claude/scripts/migrate_seams.py <input_path> [output_path]
+    uv run python .claude/scripts/migrate_seams.py <input_path> [output_path]
 """
 
 import argparse
@@ -45,9 +45,8 @@ def _parse_seams_md(text: str) -> SeamsFile:
             i += 1
             # Skip table header rows
             while i < len(lines) and (
-                lines[i].strip().startswith("|") and (
-                    "CT ID" in lines[i] or "---" in lines[i]
-                )
+                lines[i].strip().startswith("|")
+                and ("CT ID" in lines[i] or "---" in lines[i])
             ):
                 i += 1
             # Parse table data rows
@@ -114,7 +113,9 @@ def _parse_seams_md(text: str) -> SeamsFile:
                     while i < len(lines):
                         subline = lines[i]
                         sub_stripped = subline.strip()
-                        if sub_stripped.startswith("- ") and not sub_stripped.startswith("- **"):
+                        if sub_stripped.startswith(
+                            "- "
+                        ) and not sub_stripped.startswith("- **"):
                             key_failure_modes.append(sub_stripped[2:].strip())
                             i += 1
                         else:
@@ -181,12 +182,12 @@ def _parse_di_list(val: str) -> list[str]:
 
 def main() -> int:
     """Run seams migration."""
-    parser = argparse.ArgumentParser(
-        description="Migrate seams.md to seams.yaml"
-    )
+    parser = argparse.ArgumentParser(description="Migrate seams.md to seams.yaml")
     parser.add_argument("input_path", help="Path to seams.md")
     parser.add_argument(
-        "output_path", nargs="?", default=None,
+        "output_path",
+        nargs="?",
+        default=None,
         help="Output path (defaults to input with .yaml suffix)",
     )
     args = parser.parse_args()
@@ -222,7 +223,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO, format="%(levelname)s: %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     sys.exit(main())

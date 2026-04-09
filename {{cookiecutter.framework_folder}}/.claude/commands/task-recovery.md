@@ -53,8 +53,9 @@ Hold this data in memory.
 ### Step 2 — Load Checkpoint Sections
 
 For each affected CP-ID, use plan_parser to extract checkpoint data and connectivity tests:
+
 ```bash
-uv run rtk python -c "
+uv run python -c "
 import sys, json
 sys.path.insert(0, '.claude/scripts')
 from plan_parser import load_plan, find_checkpoint, connectivity_tests_for_cp
@@ -64,6 +65,7 @@ cts = connectivity_tests_for_cp(plan, 'CP-XX')
 print(json.dumps({'cp': cp.model_dump(mode='json', exclude_none=True), 'cts': [ct.model_dump(mode='json', exclude_none=True) for ct in cts]}, indent=2))
 "
 ```
+
 Extract: description (objective), write targets, gate command, and matching CT specs.
 
 Do not read sections for unaffected CPs.
@@ -82,8 +84,9 @@ Apply each flag as follows:
 - **CONTEXT_FILE_IN_WRITE_TARGETS:** Move the file from `declared_write_targets` to the `context_files` list.
 - **GATE_COMMAND_STALE:** Replace the `gate_command` field with the exact gate command from `plan.yaml` for this CP.
 - **ACTUAL_STATE_ASSERTION (MECHANICAL):** Scope the `acceptance_criteria` to exclude the files listed in the finding's `exclusions` array. For each excluded file, add a note: "Note: [file] is owned by [owner] and is at ACTUAL state for this checkpoint. Do not assert TARGET state on it."
-- **SEAM_ENTRY_MISSING:** Use `seam_parser.find_by_component()` to read the component's seam entry from `plans/seams.yaml`, then project via `to_seam_entry()` and embed it in `seam_context` (fields: `receives_di`, `key_failure_modes`, `external_terminal` only).
+- **SEAM_ENTRY_MISSING:** Use `seam_parser.find_by_component(seams, name)` to read the component's seam entry from `plans/seams.yaml`, then project via the standalone function `seam_parser.to_seam_entry(comp)` and embed it in `seam_context` (fields: `receives_di`, `key_failure_modes`, `external_terminal` only).
 - **FAILURE_MODE_UNCOVERED:** Extract the uncovered `key_failure_modes` entry text from the task file's `seam_context`. Synthesize an acceptance criterion from the failure mode description: "[ExceptionType] is raised when [condition]" (derived directly from the failure mode text, e.g., "RuntimeError when solver finds no feasible solution" becomes "RuntimeError is raised when the solver finds no feasible solution"). Insert into the task file's `acceptance_criteria` list.
+- **SCHEMA_INVALID:** Regenerate the entire task file from scratch using `plan.yaml` as the sole source of truth (same construction logic as `/io-plan-batch` Step D). The original file's content is structurally broken and cannot be patched field-by-field.
 
 Do NOT write to disk at this step. Hold regenerated content in memory.
 

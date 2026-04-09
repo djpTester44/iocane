@@ -44,8 +44,9 @@ For each CT ID, output:
 ### Step 2 — LOAD CT SPEC
 
 Read the CT spec from `plans/plan.yaml` for each target CT ID using plan_parser:
+
 ```bash
-uv run rtk python -c "
+uv run python -c "
 import sys, json
 sys.path.insert(0, '.claude/scripts')
 from plan_parser import load_plan
@@ -134,7 +135,7 @@ Run the `gate:` command from the CT spec exactly as written.
 In `plans/backlog.yaml`, find the open `[ ] [TEST]` entry for this CT ID.
 
 - Change `- [ ]` to `- [x]`.
-- Append on a new line: `  Resolved: CT file written and gate passes (YYYY-MM-DD).`
+- Append on a new line: `Resolved: CT file written and gate passes (YYYY-MM-DD).`
   (Use today's date.)
 
 ---

@@ -4,7 +4,7 @@ Parses Markdown checkbox-based backlog format into the Backlog Pydantic
 model and serializes via backlog_parser.save_backlog().
 
 Usage:
-    uv run rtk python .claude/scripts/migrate_backlog.py <input_path> [output_path]
+    uv run python .claude/scripts/migrate_backlog.py <input_path> [output_path]
 """
 
 import argparse
@@ -149,8 +149,14 @@ def _parse_sub_fields(sub_lines: list[str]) -> dict[str, str]:
     current_key: str | None = None
 
     known_keys = {
-        "severity", "component", "files", "detail",
-        "contract impact", "source", "routed", "blocked",
+        "severity",
+        "component",
+        "files",
+        "detail",
+        "contract impact",
+        "source",
+        "routed",
+        "blocked",
     }
 
     for raw_line in sub_lines:
@@ -183,12 +189,12 @@ def _parse_sub_fields(sub_lines: list[str]) -> dict[str, str]:
 
 def main() -> int:
     """Run backlog migration."""
-    parser = argparse.ArgumentParser(
-        description="Migrate backlog.md to backlog.yaml"
-    )
+    parser = argparse.ArgumentParser(description="Migrate backlog.md to backlog.yaml")
     parser.add_argument("input_path", help="Path to backlog.md")
     parser.add_argument(
-        "output_path", nargs="?", default=None,
+        "output_path",
+        nargs="?",
+        default=None,
         help="Output path (defaults to input with .yaml suffix)",
     )
     args = parser.parse_args()
@@ -210,9 +216,7 @@ def main() -> int:
 
         backlog = _parse_backlog_md(text)
         save_backlog(str(output_path), backlog)
-        LOG.info(
-            "Migrated %d backlog items to %s", len(backlog.items), output_path
-        )
+        LOG.info("Migrated %d backlog items to %s", len(backlog.items), output_path)
         return 0
 
     except Exception:
@@ -221,7 +225,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO, format="%(levelname)s: %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     sys.exit(main())

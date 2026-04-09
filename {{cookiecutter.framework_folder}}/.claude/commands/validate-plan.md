@@ -30,8 +30,9 @@ description: Validate plans/plan.yaml checkpoint structure against CDD principle
 ### Step 1: IDENTIFY SCOPE
 
 * Load `plans/plan.yaml` via plan_parser:
+
   ```bash
-  uv run rtk python -c "
+  uv run python -c "
   import sys, json
   sys.path.insert(0, '.claude/scripts')
   from plan_parser import load_plan
@@ -39,6 +40,7 @@ description: Validate plans/plan.yaml checkpoint structure against CDD principle
   print(json.dumps({'total_cps': len(plan.checkpoints), 'with_deps': sum(1 for cp in plan.checkpoints if cp.depends_on), 'cts': len(plan.connectivity_tests), 'validated': plan.validated}))
   "
   ```
+
 * Identify all checkpoint entries.
 * Count: total checkpoints, checkpoints with `depends_on`, parallelizable pairs, connectivity test signatures defined.
 
@@ -117,7 +119,7 @@ For the Connectivity Tests section of `plan.yaml`:
 Run the CT dependency invariant check:
 
 ```bash
-uv run rtk python .claude/scripts/check_ct_depends_on.py
+uv run python .claude/scripts/check_ct_depends_on.py
 ```
 
 For every connectivity test in `plan.yaml`, the `target_cp`'s `depends_on` list must include all CPs listed in `source_cps`. A missing dependency means the target checkpoint could be scheduled before its source completes.
@@ -298,8 +300,9 @@ Write the stamp using the following strictly sequential steps. Do NOT paralleliz
 
 * **Step 13-pre:** `bash: mkdir -p .iocane && touch .iocane/validating`
 * **Step 13:** On **PASS**, stamp `plans/plan.yaml` with `validated: true`, `validated_date`, and `validated_note` via plan_parser:
+
   ```bash
-  uv run rtk python -c "
+  uv run python -c "
   import sys
   sys.path.insert(0, '.claude/scripts')
   from plan_parser import load_plan, set_validated, save_plan
@@ -308,6 +311,7 @@ Write the stamp using the following strictly sequential steps. Do NOT paralleliz
   save_plan('plans/plan.yaml', plan)
   "
   ```
+
   On **FAIL**, stamp with `validated: false` and a note listing blocking violations.
 
 The sentinel prevents `reset-on-plan-write.sh` from immediately reverting a PASS stamp back to FAIL. The hook auto-deletes the sentinel when it detects the `validated: true` stamp write — no explicit cleanup step required.

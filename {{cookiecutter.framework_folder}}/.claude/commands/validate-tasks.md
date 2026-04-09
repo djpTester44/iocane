@@ -33,6 +33,22 @@ If it exits non-zero, HALT immediately with the error message from the script. D
 
 ---
 
+## Step 0.5 -- Schema Validation
+
+For each `plans/tasks/CP-*.yaml` file, run:
+
+    uv run python -c "import sys; sys.path.insert(0, '.claude/scripts'); from task_parser import load_task; load_task('TASK_FILE_PATH')"
+
+For each file that throws `ValidationError` or `ValueError`:
+- Record a `SCHEMA_INVALID` finding with the error message as `detail`
+- Continue checking remaining files (do not halt on first failure)
+
+Files that fail schema validation are **excluded from semantic checks** (Checks 1-5). They cannot be parsed into `TaskFile`, so semantic checks would produce cascading false positives.
+
+Files that pass schema validation proceed to Context Loading and Checks 1-5 as normal.
+
+---
+
 ## Context Loading
 
 Load in a single phase — no re-reads during check execution:
@@ -92,7 +108,7 @@ Apply the computability test from `references/actual-target-heuristic.md`:
 Every `src/` component in the checkpoint's write targets must have a seam entry in the task file's `seam_context` field.
 
 - **SEAM_ENTRY_MISSING:** A component from write targets has no entry in the task file's `seam_context` field.
-- **SEAM_ENTRY_STALE:** The task file's seam data diverges from `plans/seams.yaml` (field values differ). Use `seam_parser.find_by_component()` and `to_seam_entry()` for comparison. Log count, surface in summary. Not a blocking finding.
+- **SEAM_ENTRY_STALE:** The task file's seam data diverges from `plans/seams.yaml` (field values differ). Use `seam_parser.find_by_component(seams, name)` and the standalone function `seam_parser.to_seam_entry(comp)` for comparison. Log count, surface in summary. Not a blocking finding.
 - **SEAM_SOURCE_FABRICATED:** The task file contains a seam entry for a component that has no entry in `plans/seams.yaml`, or field values (`receives_di`, `key_failure_modes`, `external_terminal`) do not match. -> DESIGN.
 - **FAILURE_MODE_UNCOVERED:** A `key_failure_modes` entry in the task file's `seam_context` has no corresponding entry in `acceptance_criteria`. The comparison is textual: the exception type and condition description from the failure mode must appear (in substance, not verbatim) in at least one acceptance criterion. If an acceptance criterion contains `[DEFERRED: justification]` for the failure mode, the check passes for that entry. -> MECHANICAL (the failure mode text provides sufficient information for `/task-recovery` to synthesize the missing criterion).
 
@@ -130,6 +146,7 @@ Severity is always DESIGN: the checkpoint decomposition has overlapping scope. A
 | `FAILURE_MODE_UNCOVERED` | SEAM_CONTEXT_COMPLETENESS | MECHANICAL | /task-recovery |
 | `ACCEPTANCE_CRITERION_UNTESTABLE` | ACTUAL_TARGET_SCOPE | OBSERVATION | Log, surface count in summary |
 | `WRITE_TARGET_OVERLAP` | WRITE_TARGET_OVERLAP | DESIGN | Escalate |
+| `SCHEMA_INVALID` | SCHEMA_VALIDATION | MECHANICAL | /task-recovery |
 
 ---
 
@@ -137,6 +154,8 @@ Severity is always DESIGN: the checkpoint decomposition has overlapping scope. A
 
 ```
 Step 0: [HARD GATE] bash .claude/scripts/pre-invoke-validate-tasks.sh
+Step 0.5: Schema validation — run load_task() on each CP-*.yaml.
+          SCHEMA_INVALID files are excluded from Steps 1-2.
 Step 1: Load context (plan.yaml sections, component-contracts.toml, task files,
         archive status, seams.yaml)
 Step 2: Run all five checks on all task files

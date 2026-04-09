@@ -5,7 +5,7 @@ self-healing log) into the Plan Pydantic model and serializes via
 plan_parser.save_plan().
 
 Usage:
-    uv run rtk python .claude/scripts/migrate_plan.py <input_path> [output_path]
+    uv run python .claude/scripts/migrate_plan.py <input_path> [output_path]
 """
 
 import argparse
@@ -46,14 +46,26 @@ def _parse_plan_md(text: str) -> Plan:
 
     # Section B: Checkpoints
     cp_end = ct_start if ct_start is not None else len(lines)
-    checkpoints = _parse_checkpoints(lines, cp_start, cp_end) if cp_start is not None else []
+    checkpoints = (
+        _parse_checkpoints(lines, cp_start, cp_end) if cp_start is not None else []
+    )
 
     # Section C: Connectivity Tests
-    ct_end = fcm_start if fcm_start is not None else (sh_start if sh_start is not None else len(lines))
-    connectivity_tests = _parse_connectivity_tests(lines, ct_start, ct_end) if ct_start is not None else []
+    ct_end = (
+        fcm_start
+        if fcm_start is not None
+        else (sh_start if sh_start is not None else len(lines))
+    )
+    connectivity_tests = (
+        _parse_connectivity_tests(lines, ct_start, ct_end)
+        if ct_start is not None
+        else []
+    )
 
     # Section D: Self-Healing Log
-    self_healing_log = _parse_self_healing_log(lines, sh_start) if sh_start is not None else []
+    self_healing_log = (
+        _parse_self_healing_log(lines, sh_start) if sh_start is not None else []
+    )
 
     return Plan(
         generated_from=generated_from,
@@ -89,9 +101,7 @@ def _parse_metadata(
 
         gf_match = re.match(r"\*\*Generated from:\*\*\s*(.*)", line)
         if gf_match:
-            generated_from = [
-                s.strip() for s in gf_match.group(1).split(" + ")
-            ]
+            generated_from = [s.strip() for s in gf_match.group(1).split(" + ")]
 
         pv_match = re.match(
             r"\*\*Plan Validated:\*\*\s*PASS\s*\(([^,]+),?\s*(.*?)\)", line
@@ -105,7 +115,9 @@ def _parse_metadata(
 
 
 def _parse_checkpoints(
-    lines: list[str], start: int, end: int,
+    lines: list[str],
+    start: int,
+    end: int,
 ) -> list[Checkpoint]:
     """Parse checkpoint blocks between start and end line indices."""
     checkpoints: list[Checkpoint] = []
@@ -198,7 +210,9 @@ def _build_checkpoint(cp_id: str, title: str, cp_lines: list[str]) -> Checkpoint
 
     # Parse list fields
     write_targets = _parse_path_list(fields.get("Write targets", ""))
-    context_files = _parse_context_file_list(fields.get("Context files (read-only)", ""))
+    context_files = _parse_context_file_list(
+        fields.get("Context files (read-only)", "")
+    )
     gate_command = fields.get("Gate command", "").strip("`")
     depends_on = _parse_cp_list(fields.get("Depends on", ""))
     parallelizable_with = _parse_cp_list(fields.get("Parallelizable with", ""))
@@ -254,7 +268,11 @@ def _parse_scope(scope_lines: list[str]) -> list[ScopeEntry]:
         if comp_match:
             if current is not None:
                 entries.append(_scope_entry_from_dict(current))
-            current = {"component": comp_match.group(1).strip(), "protocol": None, "methods": []}
+            current = {
+                "component": comp_match.group(1).strip(),
+                "protocol": None,
+                "methods": [],
+            }
             continue
 
         proto_match = re.match(r"Protocol:\s*(.*)", stripped)
@@ -336,7 +354,9 @@ def _parse_cp_list(raw: str) -> list[str]:
 
 
 def _parse_connectivity_tests(
-    lines: list[str], start: int, end: int,
+    lines: list[str],
+    start: int,
+    end: int,
 ) -> list[ConnectivityTest]:
     """Parse CT blocks between start and end line indices."""
     tests: list[ConnectivityTest] = []
@@ -374,7 +394,9 @@ def _parse_connectivity_tests(
                     target_cp=target_cp,
                     function=str(body.get("function", "")),
                     file=str(body.get("file", "")),
-                    fixture_deps=body.get("fixture_deps", []) if isinstance(body.get("fixture_deps"), list) else [],
+                    fixture_deps=body.get("fixture_deps", [])
+                    if isinstance(body.get("fixture_deps"), list)
+                    else [],
                     contract_under_test=str(body.get("contract_under_test", "")),
                     assertion=str(body.get("assertion", "")),
                     gate=str(body.get("gate", "")),
@@ -387,7 +409,8 @@ def _parse_connectivity_tests(
 
 
 def _parse_self_healing_log(
-    lines: list[str], start: int,
+    lines: list[str],
+    start: int,
 ) -> list[SelfHealingEntry]:
     """Parse the self-healing log table."""
     entries: list[SelfHealingEntry] = []
@@ -437,12 +460,12 @@ def _parse_self_healing_log(
 
 def main() -> int:
     """Run plan migration."""
-    parser = argparse.ArgumentParser(
-        description="Migrate plan.md to plan.yaml"
-    )
+    parser = argparse.ArgumentParser(description="Migrate plan.md to plan.yaml")
     parser.add_argument("input_path", help="Path to plan.md")
     parser.add_argument(
-        "output_path", nargs="?", default=None,
+        "output_path",
+        nargs="?",
+        default=None,
         help="Output path (defaults to input with .yaml suffix)",
     )
     args = parser.parse_args()
@@ -479,7 +502,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO, format="%(levelname)s: %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     sys.exit(main())

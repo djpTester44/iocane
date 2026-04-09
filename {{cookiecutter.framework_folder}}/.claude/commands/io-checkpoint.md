@@ -51,7 +51,7 @@ roadmap features), generate a remediation checkpoint (`CP-NNR`) for each item:
 - Use naming convention `CP-{parent}R{N}` (e.g., CP-06R1, CP-06R2). Check
   existing `plans/plan.yaml` for entries matching `CP-{parent}R*` and increment
   `N` to avoid naming collisions with previously generated remediation CPs.
-  Use: `uv run rtk python -c "import sys; sys.path.insert(0,'.claude/scripts'); from plan_parser import load_plan; plan=load_plan('plans/plan.yaml'); print([cp.id for cp in plan.checkpoints])"`
+  Use: `uv run python -c "import sys; sys.path.insert(0,'.claude/scripts'); from plan_parser import load_plan; plan=load_plan('plans/plan.yaml'); print([cp.id for cp in plan.checkpoints])"`
 - Include `remediates: CP-NN` field in the checkpoint entry
 - Include `source: "plans/backlog.yaml (From CP-NN -- YYYY-MM-DD)"` field
 - Include `source_bl: [BL-NNN]` field — list of backlog item IDs
@@ -218,7 +218,7 @@ self_healing_log: []
 ```
 
 After writing the plan, validate it round-trips cleanly:
-`uv run rtk python -c "import sys; sys.path.insert(0,'.claude/scripts'); from plan_parser import load_plan; load_plan('plans/plan.yaml'); print('Schema validation: PASS')"`
+`uv run python -c "import sys; sys.path.insert(0,'.claude/scripts'); from plan_parser import load_plan; load_plan('plans/plan.yaml'); print('Schema validation: PASS')"`
 
 **Present the full proposed `plan.yaml`. Do not write the file.**
 
