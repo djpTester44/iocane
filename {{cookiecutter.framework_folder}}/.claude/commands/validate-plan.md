@@ -103,14 +103,16 @@ Using the contracts loaded in Step 2 (`pyproject.toml`):
 
 ### Step 9: CHECK — Connectivity Test Completeness [Phase 1]
 
-For the Connectivity Tests section of `plan.yaml`:
+Run the CT completeness check:
 
-* Every seam between checkpoints with a dependency relationship must have at least one connectivity test.
-* Each connectivity test must have: a CT-ID, a gate command (concrete pytest invocation), and a named checkpoint pair (producer → consumer).
-* **Flag:** Dependency seam with no connectivity test = `MISSING_CONNECTIVITY_TEST`
-* **Flag:** Connectivity test with placeholder gate command (e.g., `# TODO`) = `PLACEHOLDER_GATE`
+    uv run python .claude/scripts/check_ct_completeness.py
 
-**Exemption (INFO only, not VIOLATION):** Checkpoints with no `src/` write targets (verification-only gates, e.g. linters, coverage) are exempt from connectivity test requirements. Their `depends_on` relationships are sequencing constraints, not code-level seams.
+* **Flag:** `MISSING_CONNECTIVITY_TEST` — checkpoint has `src/` write targets and `depends_on` edge(s) but touches Protocol seam(s) with no covering CT.
+* **Flag:** `PLACEHOLDER_GATE` — connectivity test exists but gate command is a placeholder (manual check: scan for `# TODO` in CT gate fields).
+
+The script handles two exemptions internally:
+1. **Verification-only:** CPs with no `src/` write targets (INFO, not VIOLATION).
+2. **Covered seams:** CPs whose scope Protocols are all covered by existing CTs (INFO, not VIOLATION). This subsumes remediation CPs that patch the same component as their parent.
 
 ---
 

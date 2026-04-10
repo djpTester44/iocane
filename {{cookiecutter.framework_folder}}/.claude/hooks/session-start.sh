@@ -292,8 +292,8 @@ suggest_next_workflow() {
     fi
 
     # Check if task files exist but haven't been dispatched yet
-    MISSING=$(ls "$TASKS_DIR"/*.md 2>/dev/null | while read f; do
-        CP_ID=$(basename "$f" .md)
+    MISSING=$(ls "$TASKS_DIR"/CP-*.yaml 2>/dev/null | while read f; do
+        CP_ID=$(basename "$f" .yaml)
         if [ ! -f "$TASKS_DIR/$CP_ID.status" ]; then
             echo "$CP_ID"
         fi

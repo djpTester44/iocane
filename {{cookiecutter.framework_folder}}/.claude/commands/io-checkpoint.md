@@ -229,6 +229,8 @@ Output: "PROPOSAL READY. Review the checkpoint plan above. Confirm:
 2. Are the connectivity test signatures precise enough?
 3. Are the parallelization groupings safe?
 
+Run /challenge to stress-test this plan before approving.
+
 Reply with approval to write, or provide corrections."
 
 ---
