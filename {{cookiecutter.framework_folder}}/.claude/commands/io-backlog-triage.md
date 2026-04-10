@@ -185,10 +185,10 @@ For each `STILL OPEN` or `PARTIALLY RESOLVED` item, determine the routing:
 | `[DESIGN]` | any | `/auto-architect` (batch) or `/io-architect` (manual) then `/io-checkpoint` |
 | `[REFACTOR]` | any | `/auto-architect` (batch) or `/io-architect` (CRC only, manual) then `/io-checkpoint` |
 | `[CLEANUP]` | pending | `/validate-plan` -> `/io-plan-batch` -- sub-agent picks it up |
-| `[CLEANUP]` | done | `/auto-checkpoint` (batches into plan.yaml), then `/validate-plan` |
+| `[CLEANUP]` | done | `/io-checkpoint` (prompt field); `/auto-checkpoint` batches these |
 | `[TEST]` CT gap | any | `/io-ct-remediate` |
 | `[TEST]` unit gap | pending | Human amends CP scope in `plan.yaml`, then `/validate-plan` |
-| `[TEST]` unit gap | done | `/auto-checkpoint` (batches into plan.yaml), then `/validate-plan` |
+| `[TEST]` unit gap | done | `/io-checkpoint` (prompt field); `/auto-checkpoint` batches these |
 | `[CI-REGRESSION]` | any | Investigate causal checkpoint, route as `[CLEANUP]` against its write targets |
 | `[CI-COLLECTION-ERROR]` | any | Check if test references removed modules; route as `[CLEANUP]` or `[DEFERRED]` with structural notes |
 | `[CI-EXTERNAL]` | any | Human reclassification; route as `[DEFERRED]` with context note |
