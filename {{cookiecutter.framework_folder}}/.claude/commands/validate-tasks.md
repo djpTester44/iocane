@@ -40,6 +40,7 @@ For each `plans/tasks/CP-*.yaml` file, run:
     uv run python -c "import sys; sys.path.insert(0, '.claude/scripts'); from task_parser import load_task; load_task('TASK_FILE_PATH')"
 
 For each file that throws `ValidationError` or `ValueError`:
+
 - Record a `SCHEMA_INVALID` finding with the error message as `detail`
 - Continue checking remaining files (do not halt on first failure)
 
@@ -91,7 +92,7 @@ The task file's gate command must reference only files that exist or will exist 
 
 Acceptance criteria must not assert TARGET state (post-implementation behavior) on files still at ACTUAL state (not yet written by this CP or any archived-PASS predecessor).
 
-Apply the computability test from `references/actual-target-heuristic.md`:
+Apply the computability test from `.claude/references/task-state-assertion-routing.md`:
 
 1. Build the file-to-checkpoint map from `plan.yaml` write targets.
 2. Compute the transitive reachable set: archived PASS checkpoints + this CP's own write targets.
@@ -201,6 +202,7 @@ Each validated task file receives a sentinel at `plans/tasks/CP-XX.task.validati
 **Format:** `PASS YYYY-MM-DDTHH:MM:SS pass-N`
 
 **Design rationale:**
+
 - Consistent with the existing `.status` file pattern
 - No markdown string matching or formatting dependency
 - `dispatch-agents.sh` checks `[ -f "$TASKS_DIR/$CP_ID.task.validation" ]`
@@ -234,6 +236,6 @@ Written to `plans/validation-reports/task-validation-report.yaml`. Schema: `.cla
 - `/io-plan-batch` — upstream; produces task files
 - `/task-recovery` — downstream on MECHANICAL findings; regenerates affected task files
 - `bash .claude/scripts/dispatch-agents.sh` — downstream on PASS; dispatches agents
-- `references/actual-target-heuristic.md` — computability test for ACTUAL_TARGET_SCOPE
+- `.claude/references/task-state-assertion-routing.md` — computability test for ACTUAL_TARGET_SCOPE
 - `.claude/templates/task-validation-report.yaml` — validation report schema
 - `.claude/iocane.config.yaml` — `validation.tasks.max_regen_cycles`

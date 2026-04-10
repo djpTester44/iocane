@@ -46,7 +46,7 @@ def extract_eligible_items(
     Applies 5-criterion eligibility filter:
       1. Open (status == open)
       2. Tagged DESIGN or REFACTOR
-      3. Has routing_prompt containing /io-architect
+      3. Has routing prompt (via Routed annotation) containing /io-architect
       4. Not already resolved (no Resolved annotation)
       5. Not blocked by non-DESIGN/REFACTOR item (external blocker = skip)
     """
@@ -76,7 +76,8 @@ def extract_eligible_items(
             continue
 
         # Criterion 3: Has /io-architect routing prompt
-        if not item.routing_prompt or "/io-architect" not in item.routing_prompt:
+        routing_prompt = item.get_routing_prompt()
+        if not routing_prompt or "/io-architect" not in routing_prompt:
             logger.info("  SKIP %s: no /io-architect routing prompt", item.id)
             continue
 
@@ -99,7 +100,7 @@ def extract_eligible_items(
             "bl_id": item.id,
             "tag": item.tag.value,
             "severity": item.severity.value,
-            "architect_prompt": item.routing_prompt,
+            "architect_prompt": routing_prompt,
             "files": item.files,
             "detail": item.detail or "",
             "blocked_by": intra_blockers,

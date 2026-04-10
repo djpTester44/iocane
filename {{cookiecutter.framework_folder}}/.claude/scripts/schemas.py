@@ -64,8 +64,6 @@ class BacklogItem(BaseModel, frozen=True):
     contract_impact: str | None = None
     source: str | None = None
     blocked_by: list[str] = []
-    routed_to: str | None = None
-    routing_prompt: str | None = None
     annotations: list[Annotation] = []
     pre_wave_commit: str | None = None
     post_wave_commit: str | None = None
@@ -93,6 +91,20 @@ class BacklogItem(BaseModel, frozen=True):
                 msg = f"blocked_by entry must match BL-NNN format, got '{bl_id}'"
                 raise ValueError(msg)
         return v
+
+    def get_routing_prompt(self) -> str | None:
+        """Return the routing prompt from the first Routed annotation with a prompt."""
+        for ann in self.annotations:
+            if ann.type == "Routed" and ann.prompt is not None:
+                return ann.prompt
+        return None
+
+    def get_routed_to(self) -> str | None:
+        """Return the routed-to CP-ID from the first Routed annotation."""
+        for ann in self.annotations:
+            if ann.type == "Routed":
+                return ann.value
+        return None
 
 
 class Backlog(BaseModel):

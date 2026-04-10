@@ -50,7 +50,7 @@ These are operator-facing scripts. Run them directly when you need the behavior.
 - `bash .claude/scripts/reset-failed-checkpoints.sh`: resets failed checkpoints for re-queue.
 - `bash .claude/scripts/archive-approved.sh`: archives approved checkpoint artifacts from `plans/tasks/` into `plans/archive/` and updates `plans/plan.yaml` status from `[ ] pending` to `[x] complete`. For remediation CPs, resolves the source backlog item via `Source BL:` lookup.
 - `bash .claude/scripts/assign_backlog_ids.py`: assigns `BL-NNN` identifiers to any backlog items missing them. Idempotent -- safe to re-run.
-- `bash .claude/scripts/route_backlog_item.py BL-NNN CP-NNR`: adds a `Routed:` annotation to the specified backlog item. Fails if the item is not found or already routed to that CP.
+- `bash .claude/scripts/route_backlog_item.py BL-NNN CP-NNR [--prompt TEXT]`: adds a `Routed` annotation (with optional routing prompt) to the specified backlog item. Fails if the item is not found or already routed to that CP.
 - `bash .claude/scripts/pre-invoke-validate-tasks.sh` -- internal: pre-invocation gate before /validate-tasks
 - `uv run .claude/scripts/merge_pyproject.py`: compares existing `pyproject.toml` against harness-required config and reports or applies only the missing pieces. Union merge for list fields (`ruff select/ignore`, dev packages); add-only for scalars; divergences reported but never auto-corrected. Called automatically by `/io-adopt` (step 1c) and `/io-init` (step C) when `pyproject.toml` already exists.
 
@@ -58,6 +58,17 @@ These are operator-facing scripts. Run them directly when you need the behavior.
   uv run .claude/scripts/merge_pyproject.py           # check mode (default) -- exits 1 if gaps found
   uv run .claude/scripts/merge_pyproject.py --write   # apply additions
   uv run .claude/scripts/merge_pyproject.py --path path/to/pyproject.toml  # explicit path
+  ```
+
+- `uv run .claude/scripts/sync_dir_claude.py`: regenerates directory-level CLAUDE.md files
+  in `src/` subdirectories from component-contracts.toml, project-spec.md, seams.yaml, and
+  pyproject.toml. Called automatically by `/io-architect`, `/io-review`, and `/doc-sync`.
+  Can also be run standalone.
+
+  ```bash
+  uv run .claude/scripts/sync_dir_claude.py                # all directories
+  uv run .claude/scripts/sync_dir_claude.py --dir src/core # single directory
+  uv run .claude/scripts/sync_dir_claude.py --dry-run      # preview only
   ```
 
 Do not run `.claude/scripts/setup-worktree.sh` directly. It is an internal helper invoked by `dispatch-agents.sh`.
@@ -176,7 +187,7 @@ The sentinel is automatically cleared on session start. If it is unexpectedly pr
 | `/io-adopt` | Adopt an existing codebase into Iocane with extracted current-state + draft PRD | `plans/current-state.md`, `plans/PRD.md` |
 | `/io-init` | Bootstrap project structure and stub roadmap from clarified PRD | `plans/roadmap.md`, `plans/backlog.yaml` |
 | `/io-specify` | Propose feature roadmap from clarified PRD | `plans/roadmap.md` |
-| `/io-architect` | Design CRC cards, Protocols, Interface Registry | `plans/project-spec.md`, `interfaces/*.pyi`, `plans/seams.yaml` |
+| `/io-architect` | Design CRC cards, Protocols, Interface Registry | `plans/project-spec.md`, `interfaces/*.pyi`, `plans/seams.yaml`, `src/*/CLAUDE.md` |
 | `/io-replan` | Propagate PRD deltas into roadmap/spec and route impacts | `plans/roadmap.md`, `plans/project-spec.md`, `plans/backlog.yaml` |
 | `/io-checkpoint` | Define atomic checkpoints and connectivity tests | `plans/plan.yaml`, `plans/backlog.yaml` (remediation: Routed annotation via script) |
 | `/auto-architect` | Resolve DESIGN/REFACTOR backlog items via sub-agent research + evaluator gate | `plans/project-spec.md`, `interfaces/*.pyi`, `plans/component-contracts.toml`, `plans/seams.yaml`, `plans/backlog.yaml` |
@@ -188,8 +199,8 @@ The sentinel is automatically cleared on session start. If it is unexpectedly pr
 | `dispatch-agents.sh` | Dispatch agents (run directly via `bash .claude/scripts/dispatch-agents.sh [--resume CP-XX]`) | none |
 | `/io-execute` | Tier 3 sub-agent workflow that executes one checkpoint task file | `plans/tasks/CP-XX.status`, checkpoint write targets |
 | `/validate-spec` | Detect CRC-Protocol drift and re-earn `**Approved:** True` (recovery path) | `plans/project-spec.md` (stamp only) |
-| `/doc-sync` | Reconcile docs with codebase after feature completion | `plans/project-spec.md`, `plans/roadmap.md`, `plans/seams.yaml`, `README.md` |
-| `/io-review` | Post-implementation review | `plans/seams.yaml` (Step F), `plans/review-output.yaml` (via `stage_review_findings.py`) |
+| `/doc-sync` | Reconcile docs with codebase after feature completion | `plans/project-spec.md`, `plans/roadmap.md`, `plans/seams.yaml`, `README.md`, `src/*/CLAUDE.md` |
+| `/io-review` | Post-implementation review | `plans/seams.yaml` (Step F), `src/*/CLAUDE.md` (Step F-post), `plans/review-output.yaml` (via `stage_review_findings.py`) |
 | `/io-backlog-triage` | Drain staging + triage open backlog items with approved routing decisions | `plans/backlog.yaml` (reads `plans/review-output.yaml` staging) |
 | `/io-ct-remediate` | Create missing connectivity test(s) from CT spec for archived checkpoints | CT file path from `plans/plan.yaml`, `plans/backlog.yaml` |
 | `/gap-analysis` | Identify gaps between implementation and spec | `plans/review-output.yaml` (via `stage_review_findings.py`) |

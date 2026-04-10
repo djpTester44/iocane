@@ -75,8 +75,9 @@ roadmap features), generate a remediation checkpoint (`CP-NNR`) for each item:
   group. Use `add_checkpoint()` from `plan_parser` or append directly to the YAML
   list. The `remediates:` field distinguishes remediation CPs from roadmap CPs.
 - After writing the checkpoint to `plans/plan.yaml`, run:
-  `bash .claude/scripts/route_backlog_item.py BL-NNN CP-NNR`
-  where `BL-NNN` is the backlog item's ID from the `**Source BL:**` field.
+  `bash .claude/scripts/route_backlog_item.py BL-NNN CP-NNR --prompt "ROUTING_PROMPT"`
+  where `BL-NNN` is the backlog item's ID from the `**Source BL:**` field and
+  `ROUTING_PROMPT` is the full routing command text (stored in the annotation).
 
 ---
 
@@ -260,7 +261,7 @@ Next step: Run /validate-plan to approve plan.yaml, then /io-plan-batch.
 ## 3. CONSTRAINTS
 
 - This workflow produces ONLY `plans/plan.yaml`. No `.pyi` edits, no `project-spec.md` edits.
-- In remediation mode, also writes to `plans/backlog.yaml` via `route_backlog_item.py` (Routed annotation only).
+- In remediation mode, also writes to `plans/backlog.yaml` via `route_backlog_item.py --prompt` (Routed annotation with prompt text).
 - Connectivity tests are signatures only — no test code is written here.
 - Write targets per checkpoint must be derived from the `file` fields in `plans/component-contracts.toml`. A checkpoint may not write to a `src/` file whose component is not registered there.
 - **[HARD] Runtime `.py` location constraint:** All checkpoint write targets that are `.py` files must resolve to a path under `src/` or `tests/`. The `interfaces/` directory is reserved exclusively for `.pyi` contract stubs generated or approved by `/io-architect`. Any write target placing a `.py` file under `interfaces/` or any other directory outside `src/` and `tests/` is a structural error -- reject the write target and route the file to the appropriate `src/` component before the checkpoint is approved.

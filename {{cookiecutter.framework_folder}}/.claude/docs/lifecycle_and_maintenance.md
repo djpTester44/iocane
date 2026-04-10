@@ -209,7 +209,7 @@ To reference a specific item: `grep 'BL-005' plans/backlog.yaml` -- read downwar
 | Operation | Mechanism |
 |-----------|-----------|
 | Assign BL-IDs to new entries | `backlog-id-assign.sh` -> `assign_backlog_ids.py` PostToolUse hook (auto) |
-| Route backlog item to remediation CP | `bash .claude/scripts/route_backlog_item.py BL-NNN CP-NNR` |
+| Route backlog item to remediation CP | `bash .claude/scripts/route_backlog_item.py BL-NNN CP-NNR [--prompt TEXT]` |
 | Mark item remediated + flip checkbox | `bash .claude/scripts/archive-approved.sh CP-NNR` (reads `Source BL:` from plan.yaml) |
 
 ### Flow
@@ -224,7 +224,7 @@ stage_review_findings.py    --> appends validated findings to plans/review-outpu
                                  unblocks dependent CLEANUP/TEST items
 /auto-checkpoint             --> batches unblocked CLEANUP/TEST items into remediation CPs
 /io-checkpoint (remediation) --> writes Source BL: BL-NNN in CP section, runs
-                                 route_backlog_item.py to add Routed: annotation
+                                 route_backlog_item.py --prompt to add Routed annotation with prompt
 dispatch-agents.sh           --> reads backlog.yaml, warns on [DESIGN]/[REFACTOR] conflicts
 /io-review (remediation CP)  --> archive-approved.sh resolves BL item via Source BL: lookup
 /doc-sync                    --> human marks resolved items [x] after verification
@@ -272,5 +272,6 @@ Doc-sync reconciles `project-spec.md` and `roadmap.md` with actual codebase stat
 3. **CRC card reconciliation:** Verify responsibilities match implementation. Flag unanchored behavior as MEDIUM backlog items.
 4. **Roadmap status:** Propose feature status updates (`[COMPLETE]` or `[COMPLETE - PENDING REMEDIATION]`) -- human approval required.
 5. **Link integrity:** Scan for broken markdown links, auto-fix where target exists at a new path.
+6. **Directory navigation sync:** Verify `sync_dir_claude.py` ran and `src/*/CLAUDE.md` files reflect current Key files and Public via state.
 
 **Constraint:** `project-spec.md` reflects current codebase state only. No future-state items, no debt tracking artifacts.

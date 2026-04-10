@@ -26,8 +26,8 @@ connectivity_tests:
     assertion: "[What the test asserts]"
     gate: "uv run rtk pytest tests/connectivity/test_[cp_a]_[cp_nn].py::[function_name]"
 refactor_commands:
-  - "uv run ruff check src/[path]/"
-  - "uv run mypy src/[path]/"
+  - "uv run rtk ruff check --fix src/[path]/[module].py"
+  - "uv run rtk mypy src/[path]/[module].py"
 source: null
 execution_notes: "[Any checkpoint-specific guidance not captured in contract or acceptance criteria. null if none.]"
 seam_context:

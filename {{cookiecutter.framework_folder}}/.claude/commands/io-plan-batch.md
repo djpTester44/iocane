@@ -78,57 +78,19 @@ Apply `parallel.limit` cap: take only the first N checkpoints that pass the disj
 
 ### Step D — Generate Draft Task Files (in memory only)
 
-**Context gathering:** Before constructing task files, load seams once via `seam_parser.load_seams('plans/seams.yaml')`. For each checkpoint in the batch, identify the components in its write targets and use `seam_parser.find_by_component(seams, name)` to get the `SeamComponent`, then project via the standalone function `seam_parser.to_seam_entry(comp)` (fields: `receives_di`, `key_failure_modes`, `external_terminal`). `to_seam_entry` is a module-level function, not a method on `SeamComponent`. It automatically excludes `backlog_refs` and `layer` -- backlog remediation is a separate workflow concern. Hold this data in memory for embedding below.
-
-For each checkpoint in the confirmed batch, construct the full `CP-XX.yaml` task file content following the `TaskFile` schema defined in `.claude/scripts/schemas.py`. Do **not** write to disk at this step. Checkpoint data was already loaded via plan_parser in Step B — do not re-read `plan.yaml`.
-
-For connectivity tests, use plan_parser to query CTs for each checkpoint and filter to target-only:
+Run `generate_task.py` to produce schema-valid task files deterministically from `plan.yaml` + `seams.yaml`. Do **not** write to disk at this step -- use stdout mode for review.
 
 ```bash
-uv run python -c "
-import sys, json
-sys.path.insert(0, '.claude/scripts')
-from plan_parser import load_plan, connectivity_tests_for_cp, resolved_contract, resolved_criteria
-plan = load_plan('plans/plan.yaml')
-cts = connectivity_tests_for_cp(plan, 'CP-XX')
-target_cts = [ct for ct in cts if ct.target_cp == 'CP-XX']
-for ct in target_cts:
-    print(json.dumps(ct.model_dump(mode='json', exclude_none=True), indent=2))
-"
+uv run python .claude/scripts/generate_task.py --batch CP-XX CP-YY --plan plans/plan.yaml --seams plans/seams.yaml
 ```
 
-Each task file is a YAML document conforming to the `TaskFile` schema (`.claude/scripts/schemas.py`). Use `.claude/templates/tasks.yaml` as the structural reference. Required fields:
+The script derives 14 of 17 TaskFile fields mechanically (id, title, feature, workflow, objective, contract, write_targets, context_files, gate_command, connectivity_tests, refactor_commands, source, seam_context, step_progress). The remaining 3 require agent review:
 
-- `id`, `title`, `feature`, `workflow` (always "io-execute")
-- `objective` — maps from checkpoint `description`
-- `acceptance_criteria` — use `resolved_criteria(cp)`. If empty, synthesize 2-3 from description/scope and log a warning ("CP-XX: acceptance_criteria empty, synthesizing from description")
-- `contract` — use `resolved_contract(cp)`. If returns `None` (no contract AND no scope), halt with error for this CP
-- `write_targets` — including CT test file paths only for CTs where this CP is the `target_cp` (see connectivity_tests below)
-- `context_files` — read-only files the sub-agent needs
-- `gate_command` — the pytest command to pass
-- `seam_context` -- for each component in this checkpoint's write targets, look up its seam entry from `plans/seams.yaml` via `seam_parser.find_by_component(seams, name)`. If found, project via the standalone function `seam_parser.to_seam_entry(comp)` (fields: `receives_di`, `key_failure_modes`, `external_terminal` only). Skip components with no seam entry -- foundation-layer components (e.g. pure data models, config loaders) typically have none. If no scoped components have seam entries, emit `seam_context: []`. Sub-agents must not read `plans/seams.yaml` directly; this field is their only seam reference.
-- For remediation checkpoints (identified by a `remediates` field): set `source` to `"plans/backlog.yaml BL-NNN"`, where `BL-NNN` is read from the checkpoint's `source_bl` list.
-- `connectivity_tests` — CT ownership is scoped to target_cp only. Use `connectivity_tests_for_cp(plan, cp_id)` to retrieve all CTs involving this checkpoint, then filter to only those where `ct.target_cp == cp_id`. Only the target_cp receives `TaskConnectivityTest` entries in its task file. For each matching CT, include a `TaskConnectivityTest` entry (test_id, function, file, fixture_deps, contract_under_test, assertion, gate). Omit `source_cps`/`target_cp` (those are plan-level topology fields). The CT test file path from the `file` field must also be added to `write_targets` so the sub-agent is authorized to create it. Source CPs that appear only in `source_cps` do not receive CT entries and do not get CT file paths in their `write_targets` — they contribute dependency context only via `depends_on` and `context_files`. If this CP is not the `target_cp` of any CT, set `connectivity_tests: []`.
-- `refactor_commands` — ruff/mypy commands scoped to write targets
-- `execution_notes` — any checkpoint-specific guidance (null if none)
-- `execution_findings: []` — always present, initially empty
-- `step_progress` — the canonical 6-step list (B through G), all `done: false`:
+- `acceptance_criteria` -- passthrough from `plan.yaml`. If the script warns "acceptance_criteria empty" for a CP, synthesize 2-3 criteria from description/scope before proceeding.
+- `execution_notes` -- always `None` from the script. Add checkpoint-specific guidance if needed.
+- `refactor_commands` -- auto-generated as `uv run rtk ruff check --fix` + `uv run rtk mypy` per `.py` write target. Adjust if non-standard tooling is required.
 
-  ```yaml
-  step_progress:
-    - step: "B: Red -- write failing test"
-      done: false
-    - step: "C: Green -- minimum implementation"
-      done: false
-    - step: "D: Gate -- run checkpoint gate"
-      done: false
-    - step: "E: Connectivity tests"
-      done: false
-    - step: "F: Refactor -- DI and compliance"
-      done: false
-    - step: "G: Commit and write status"
-      done: false
-  ```
+If the script exits 1 for any CP, inspect the error (missing contract, unresolvable feature chain) and fix the plan before retrying.
 
 ### Step E — [HARD GATE] Score Confidence Rubric
 

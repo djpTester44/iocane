@@ -74,7 +74,13 @@ Do not read sections for unaffected CPs.
 
 ### Step 3 — Regenerate Task Files
 
-Regenerate the task file for each affected CP as YAML conforming to the `TaskFile` schema from `.claude/scripts/schemas.py`, using the same construction logic as `/io-plan-batch` Step D, with findings injected as negative constraints.
+Regenerate the task file for each affected CP using `generate_task.py` as the canonical construction logic, then apply flag-specific patches. The script produces a schema-valid baseline deterministically:
+
+```bash
+uv run python .claude/scripts/generate_task.py CP-XX --plan plans/plan.yaml --seams plans/seams.yaml
+```
+
+Inject findings as negative constraints on the generated output.
 
 Apply each flag as follows:
 
@@ -86,7 +92,11 @@ Apply each flag as follows:
 - **ACTUAL_STATE_ASSERTION (MECHANICAL):** Scope the `acceptance_criteria` to exclude the files listed in the finding's `exclusions` array. For each excluded file, add a note: "Note: [file] is owned by [owner] and is at ACTUAL state for this checkpoint. Do not assert TARGET state on it."
 - **SEAM_ENTRY_MISSING:** Use `seam_parser.find_by_component(seams, name)` to read the component's seam entry from `plans/seams.yaml`, then project via the standalone function `seam_parser.to_seam_entry(comp)` and embed it in `seam_context` (fields: `receives_di`, `key_failure_modes`, `external_terminal` only).
 - **FAILURE_MODE_UNCOVERED:** Extract the uncovered `key_failure_modes` entry text from the task file's `seam_context`. Synthesize an acceptance criterion from the failure mode description: "[ExceptionType] is raised when [condition]" (derived directly from the failure mode text, e.g., "RuntimeError when solver finds no feasible solution" becomes "RuntimeError is raised when the solver finds no feasible solution"). Insert into the task file's `acceptance_criteria` list.
-- **SCHEMA_INVALID:** Regenerate the entire task file from scratch using `plan.yaml` as the sole source of truth (same construction logic as `/io-plan-batch` Step D). The original file's content is structurally broken and cannot be patched field-by-field.
+- **SCHEMA_INVALID:** Discard the original file entirely -- do not attempt to read or patch it. Regenerate from scratch via `generate_task.py`:
+  ```bash
+  uv run python .claude/scripts/generate_task.py CP-XX --plan plans/plan.yaml --seams plans/seams.yaml
+  ```
+  Where the broken file contained agent-crafted values (acceptance_criteria, execution_notes), attempt to recover them by parsing the file as raw YAML; fall back to plan.yaml values if parsing also fails.
 
 Do NOT write to disk at this step. Hold regenerated content in memory.
 

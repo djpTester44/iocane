@@ -28,15 +28,28 @@ def _resolve_repo_root() -> str | None:
 
 def main() -> int:
     """Route a backlog item to a checkpoint."""
-    if len(sys.argv) != 3:
+    # Parse positional args and optional --prompt
+    args = sys.argv[1:]
+    prompt_text: str | None = None
+    positional: list[str] = []
+    i = 0
+    while i < len(args):
+        if args[i] == "--prompt" and i + 1 < len(args):
+            prompt_text = args[i + 1]
+            i += 2
+        else:
+            positional.append(args[i])
+            i += 1
+
+    if len(positional) != 2:
         print(
-            "Usage: uv run python .claude/scripts/route_backlog_item.py BL-NNN CP-NNR",
+            "Usage: uv run python .claude/scripts/route_backlog_item.py BL-NNN CP-NNR [--prompt TEXT]",
             file=sys.stderr,
         )
         return 1
 
-    bl_id = sys.argv[1]
-    cp_id = sys.argv[2]
+    bl_id = positional[0]
+    cp_id = positional[1]
     today = date.today().isoformat()
 
     repo_root = _resolve_repo_root()
@@ -64,7 +77,7 @@ def main() -> int:
             )
             return 1
 
-    annotation = Annotation(type="Routed", value=cp_id, date=today)
+    annotation = Annotation(type="Routed", value=cp_id, date=today, prompt=prompt_text)
     backlog = add_annotation(backlog, bl_id, annotation)
     save_backlog(backlog_path, backlog)
 

@@ -34,7 +34,7 @@ elif grep -qi "Draft" "$ROADMAP_FILE" 2>/dev/null; then
   errors=$((errors + 1))
 fi
 
-# At least one open DESIGN/REFACTOR item with routing_prompt containing /io-architect.
+# At least one open DESIGN/REFACTOR item with a Routed annotation prompt containing /io-architect.
 if [ -f "$BACKLOG_FILE" ]; then
   CHECK_RESULT=$(uv run python -c "
 import sys
@@ -45,7 +45,7 @@ opened = open_items(backlog)
 dr_items = [i for i in opened if i.tag.value in ('DESIGN', 'REFACTOR')]
 if not dr_items:
     print('no_items')
-elif not any(i.routing_prompt and '/io-architect' in i.routing_prompt for i in dr_items):
+elif not any((rp := i.get_routing_prompt()) and '/io-architect' in rp for i in dr_items):
     print('no_routed')
 else:
     print('ok')

@@ -239,17 +239,17 @@ Next step: Run /io-checkpoint to define atomic checkpoints and connectivity test
 
 After Step H-post, generate navigation artifacts from the approved design. These are derived outputs — generated from `project-spec.md` and the Interface Registry. Do not invent content; extract and reformat only.
 
-**Step I-1: Write a `CLAUDE.md` into each `src/` subdirectory** that contains at least one registered component.
+**Step I-1: Regenerate directory-level CLAUDE.md files.**
 
-Use `.claude/templates/dir-claude.md` as the structure. For each directory:
+Run the sync script:
 
-- `Layer`: from the Interface Registry layer column
-- `Owns`: one sentence summarizing the CRC responsibilities for components in this directory
-- `Public via`: list each Protocol registered to a component in this directory
-- `Must NOT`: derive from the layer constraints in `pyproject.toml` import-linter config plus any explicit `Must NOT` lines from the CRC cards
-- `Key files`: list only files with registered components, one line each
+```bash
+uv run python .claude/scripts/sync_dir_claude.py
+```
 
-**Rule:** These files are generated artifacts — overwrite on every `/io-architect` run. They must stay under 20 lines. If content would exceed 20 lines, the directory has too many responsibilities and should be flagged as a `[DESIGN]` finding.
+**Rule:** These files are generated artifacts -- the script overwrites them.
+They must stay under 20 lines. If the script reports exit code 2 (line-count
+exceeded), flag the directory as a `[DESIGN]` finding.
 
 **Step I-2: Update `plans/seams.yaml`.**
 

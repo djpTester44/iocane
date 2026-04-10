@@ -126,6 +126,19 @@ Full-project reconciliation of `plans/seams.yaml` against actual source code usi
 
 ---
 
+### Step E-post: REGENERATE NAVIGATION ARTIFACTS
+
+After full-project seams reconciliation, regenerate all directory CLAUDE.md files:
+
+```bash
+uv run python .claude/scripts/sync_dir_claude.py
+```
+
+No `--dir` flag -- doc-sync is project-wide.
+Report the count of files updated in Step G output.
+
+---
+
 ### Step F: VERIFY FILE LINKS
 
 - Scan all markdown docs for broken file links.
@@ -142,6 +155,7 @@ DOC-SYNC COMPLETE.
 README.md: updated
 roadmap.md: [N] status updates [pending approval / applied]
 seams.yaml: [N] entries updated, [N] entries created, [N] entries removed
+dir CLAUDE.md: [N] files regenerated
 backlog.yaml: [N] items closed [x], [N] still open
 Broken links fixed: [N]
 ```
@@ -154,6 +168,7 @@ Broken links fixed: [N]
 - Does not touch `interfaces/*.pyi` — contracts are owned by `/io-architect`
 - Does not edit `plans/project-spec.md` — it may be read as reference, but ownership remains outside `/doc-sync`
 - Does not **add new findings** to `plans/backlog.yaml` — new findings go via `stage_review_findings.py`. Closing resolved items (`[ ]` → `[x]`) is permitted in Step D.
+- `src/*/CLAUDE.md` — regenerated as derived navigation artifacts by sync_dir_claude.py
 - `roadmap.md` status updates require human approval
 - Do not auto-remove planned CRC/Protocol-backed components from `plans/seams.yaml`
 - No implementation code written in this workflow

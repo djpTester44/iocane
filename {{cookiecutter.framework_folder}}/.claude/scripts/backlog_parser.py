@@ -75,10 +75,10 @@ def items_by_tag(backlog: Backlog, *tags: str) -> list[BacklogItem]:
 
 
 def items_with_routing(backlog: Backlog, command: str) -> list[BacklogItem]:
-    """Return items whose routing_prompt contains the given command string."""
+    """Return items whose routing prompt annotation contains the given command string."""
     return [
         item for item in backlog.items
-        if item.routing_prompt and command in item.routing_prompt
+        if (prompt := item.get_routing_prompt()) and command in prompt
     ]
 
 

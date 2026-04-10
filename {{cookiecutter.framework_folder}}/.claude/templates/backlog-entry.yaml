@@ -25,8 +25,6 @@
 #   source: "CP-NN /io-review YYYY-MM-DD"      # optional
 #   blocked_by:                                 # optional, list of BL-NNN
 #     - BL-NNN
-#   routed_to: CP-NNRN                         # optional, set by triage
-#   routing_prompt: "/io-checkpoint ..."        # optional, set by triage
 #   annotations:                                # optional, appended by workflows
 #     - type: Routed
 #       value: CP-NNRN

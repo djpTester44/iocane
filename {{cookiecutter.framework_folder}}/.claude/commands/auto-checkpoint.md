@@ -28,7 +28,7 @@ checkpoints to `plans/plan.yaml`.
 
 Load:
 - `.claude/scripts/auto_checkpoint.py` must exist (the backing script)
-- `plans/backlog.yaml` must contain triage-approved items with routing annotations
+- `plans/backlog.yaml` must contain triage-approved items with `Routed` annotations carrying routing prompts
 - `plans/plan.yaml` must exist with at least one checkpoint (parent CPs for remediation)
 
 Pre-check: If `plans/plan.yaml` does not exist, **HALT**.
@@ -100,7 +100,7 @@ Next: /io-plan-batch
 
 ## CONSTRAINTS
 
-- Appends to `plans/plan.yaml` and writes `Routed:` annotations to `plans/backlog.yaml` (via `route_backlog_item.py`)
+- Appends to `plans/plan.yaml` and writes `Routed` annotations (with prompt text) to `plans/backlog.yaml` (via `route_backlog_item.py --prompt`)
 - Does not modify `interfaces/*.pyi` — remediation CPs never change contracts
 - Does not run `/io-plan-batch` or dispatch sub-agents
 - Does not replace `/io-checkpoint` — that workflow remains available for manual use

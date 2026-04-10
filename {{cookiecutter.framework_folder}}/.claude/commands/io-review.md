@@ -4,7 +4,10 @@ description: Per-checkpoint behavioral review and connectivity verification. Fin
 ---
 
 > **[NO PLAN MODE]**
-> Read-only analysis. No file writes except `plans/seams.yaml` (Step F), `plans/review-output.yaml` (via `stage_review_findings.py` at the end), and `.iocane/review-pending.json` (Step I).
+> Read-only analysis. No file writes except `plans/seams.yaml` (Step F),
+> `src/*/CLAUDE.md` (Step F-post, generated artifacts),
+> `plans/review-output.yaml` (via `stage_review_findings.py` at the end),
+> and `.iocane/review-pending.json` (Step I).
 
 > **[CRITICAL] CONTEXT LOADING**
 >
@@ -139,6 +142,22 @@ For each component in scope, load seams via `seam_parser.load_seams('plans/seams
 - If a component in scope has no entry in `plans/seams.yaml` at all: use `seam_parser.add_component()` to create the entry. Record as MEDIUM-severity ("Missing seam entry -- created in `plans/seams.yaml`").
 - Do **not** modify the `backlog_refs` field -- that is populated by `/io-backlog-triage` during drain.
 - Do **not** update seam entries for components outside the current checkpoint's scope.
+
+---
+
+### Step F-post: REGENERATE NAVIGATION ARTIFACTS
+
+After seams sync, regenerate directory CLAUDE.md files for directories
+containing the checkpoint's components:
+
+```bash
+uv run python .claude/scripts/sync_dir_claude.py --dir src/[directory]
+```
+
+Run once per distinct `src/` subdirectory in the checkpoint's write targets.
+
+**Rule:** If the script exits with code 2 (line count exceeded), record as a
+MEDIUM-severity [DESIGN] finding in Step H.
 
 ---
 

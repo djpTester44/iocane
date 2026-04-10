@@ -90,21 +90,15 @@ def extract_open_items_with_prompts(
     items: list[dict[str, Any]] = []
     candidates = [
         it for it in open_items(backlog)
-        if it.routing_prompt and "/io-checkpoint" in it.routing_prompt
+        if (rp := it.get_routing_prompt()) and "/io-checkpoint" in rp
     ]
 
     for item in candidates:
-        prompt_text = item.routing_prompt
+        prompt_text = item.get_routing_prompt()
         assert prompt_text is not None  # filtered above
 
-        # Determine routed_cp from annotations or prompt
-        routed_cp = item.routed_to
-        if not routed_cp:
-            # Try to extract from Routed annotations
-            for ann in item.annotations:
-                if ann.type == "Routed":
-                    routed_cp = ann.value
-                    break
+        # Determine routed_cp from Routed annotation
+        routed_cp = item.get_routed_to()
 
         if not routed_cp:
             # Try to extract from prompt text
@@ -412,7 +406,7 @@ def main() -> int:
     # Step 4: Generate checkpoint instances for each unique CP
     new_checkpoints: list[Checkpoint] = []
     summary_rows: list[tuple[str, str, str, str]] = []
-    routed_pairs: list[tuple[str, str]] = []
+    routed_pairs: list[tuple[str, str, str]] = []
 
     for cp_id, group in sorted(cp_groups.items()):
         primary = group[0]
@@ -485,7 +479,7 @@ def main() -> int:
         source_bl = ", ".join(source_bl_ids)
         summary_rows.append((cp_id, source_bl, title, max_sev))
         for bl_id in source_bl_ids:
-            routed_pairs.append((bl_id, cp_id))
+            routed_pairs.append((bl_id, cp_id, prompt))
 
     if not new_checkpoints:
         logger.info("No checkpoints generated after processing.")
@@ -505,7 +499,7 @@ def main() -> int:
         for cp_obj in new_checkpoints:
             logger.info("  %s: %s", cp_obj.id, cp_obj.title)
         logger.info("[DRY RUN] Would route %d backlog item(s):", len(routed_pairs))
-        for bl_id, cp_id in routed_pairs:
+        for bl_id, cp_id, _prompt in routed_pairs:
             logger.info("  %s -> %s", bl_id, cp_id)
         return 0
 
@@ -526,9 +520,12 @@ def main() -> int:
         logger.error("WARNING: %s not found -- skipping backlog routing.", route_script)
     else:
         route_failures = 0
-        for bl_id, cp_id in routed_pairs:
+        for bl_id, cp_id, route_prompt in routed_pairs:
+            cmd = ["uv", "run", "python", str(route_script), bl_id, cp_id]
+            if route_prompt:
+                cmd.extend(["--prompt", route_prompt])
             result = subprocess.run(
-                ["uv", "run", "python", str(route_script), bl_id, cp_id],
+                cmd,
                 capture_output=True, text=True, check=False,
                 cwd=str(repo),
             )

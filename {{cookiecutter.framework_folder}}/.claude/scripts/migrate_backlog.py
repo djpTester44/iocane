@@ -67,30 +67,27 @@ def _parse_backlog_md(text: str) -> Backlog:
 
         # Build annotations
         annotations: list[Annotation] = []
-        routed_to: str | None = None
-        routing_prompt: str | None = None
 
         if "routed" in fields:
             routed_raw = fields["routed"]
             # Parse "CP-NNR1 (DATE)" pattern
             route_match = re.match(r"(CP-\S+)\s*\(([^)]+)\)", routed_raw)
             if route_match:
-                routed_to = route_match.group(1)
+                routed_value = route_match.group(1)
                 route_date = route_match.group(2)
             else:
-                routed_to = routed_raw
+                routed_value = routed_raw
                 route_date = None
 
             # Check for routing prompt in sub-lines
-            if "routing_prompt" in fields:
-                routing_prompt = fields["routing_prompt"]
+            route_prompt = fields.get("routing_prompt")
 
             annotations.append(
                 Annotation(
                     type="Routed",
-                    value=routed_to,
+                    value=routed_value,
                     date=route_date,
-                    prompt=routing_prompt,
+                    prompt=route_prompt,
                 )
             )
 
@@ -128,8 +125,6 @@ def _parse_backlog_md(text: str) -> Backlog:
             contract_impact=contract_impact,
             source=fields.get("source"),
             blocked_by=blocked_by,
-            routed_to=routed_to,
-            routing_prompt=routing_prompt,
             annotations=annotations,
         )
         items.append(item)
@@ -143,7 +138,7 @@ def _parse_sub_fields(sub_lines: list[str]) -> dict[str, str]:
     Recognized keys: Severity, Component, Files, Detail, Contract impact,
     Source, Routed, Blocked. Continuation lines (no key: prefix) are
     appended to the current field. Indented quoted strings after Routed
-    are captured as routing_prompt.
+    are captured as the Routed annotation's prompt field.
     """
     fields: dict[str, str] = {}
     current_key: str | None = None
