@@ -4,15 +4,21 @@
 
 set -euo pipefail
 
-# Extract file_path from tool input JSON (passed via $CLAUDE_TOOL_INPUT)
-FILE_PATH=$(echo "$CLAUDE_TOOL_INPUT" | uv run python -c "
+# Skip if hook runtime didn't inject the tool input variable
+TOOL_INPUT="${CLAUDE_TOOL_INPUT:-}"
+if [[ -z "$TOOL_INPUT" ]]; then
+  exit 0
+fi
+
+# Extract file_path from tool input JSON
+FILE_PATH=$(echo "$TOOL_INPUT" | uv run python -c "
 import sys, json
 data = json.load(sys.stdin)
 print(data.get('file_path', ''))
 ")
 
-# Skip if no file path extracted
-if [[ -z "$FILE_PATH" ]]; then
+# Skip if no file path extracted or not a YAML file
+if [[ -z "$FILE_PATH" || "$FILE_PATH" != *.yaml ]]; then
   exit 0
 fi
 
