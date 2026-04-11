@@ -14,7 +14,7 @@ description: Automated DESIGN/REFACTOR backlog resolution. Tier 1 -- plan mode r
 > 3. Load the PRD: `view_file plans/PRD.md`
 > 4. Load the Roadmap: `view_file plans/roadmap.md`
 > 5. Load current Architecture Spec: `view_file plans/project-spec.md`
-> 6. Load component contracts: `view_file plans/component-contracts.toml`
+> 6. Load component contracts: `view_file plans/component-contracts.yaml`
 
 # WORKFLOW: AUTO-ARCHITECT
 
@@ -75,7 +75,7 @@ Load Tier 1 artifacts into session (if not already loaded by the context loading
 - `plans/PRD.md`
 - `plans/roadmap.md`
 - `plans/project-spec.md` (current CRC cards, Protocol signatures, Interface Registry)
-- `plans/component-contracts.toml`
+- `plans/component-contracts.yaml`
 - `.claude/skills/mini-spec/SKILL.md` (CRC card format reference)
 - `.claude/rules/planning.md`
 
@@ -138,7 +138,7 @@ re-triage: REFACTOR item requires .pyi changes (should be DESIGN)."
 
 Dispatch an Opus evaluator agent with:
 - The consolidated plan (per-item changes grouped by artifact)
-- Current project-spec.md, interfaces/*.pyi, component-contracts.toml
+- Current project-spec.md, interfaces/*.pyi, component-contracts.yaml
 - CRC card format reference (mini-spec Section 2)
 - Planning rules (.claude/rules/planning.md)
 
@@ -180,7 +180,7 @@ Edit `plans/project-spec.md` incrementally. Mark changed sections with `<!-- CHA
 
 Write to `interfaces/*.pyi` -- DESIGN items only.
 
-### F.4: Update component-contracts.toml
+### F.4: Update component-contracts.yaml
 
 If collaborators changed.
 

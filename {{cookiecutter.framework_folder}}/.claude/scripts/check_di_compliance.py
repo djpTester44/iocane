@@ -2,7 +2,7 @@
 """check_di_compliance.py
 
 Enforces the Dependency Injection rule.
-1. Loads component contracts from plans/component-contracts.toml.
+1. Loads component contracts from plans/component-contracts.yaml.
    - Provides: component -> file mapping, collaborators per component,
      composition roots exempt from DI enforcement.
    - Validates that every resolved path is strictly inside src/.
@@ -56,9 +56,10 @@ import ast
 import re
 import subprocess
 import sys
-import tomllib
 from pathlib import Path
 from typing import NamedTuple
+
+from contract_parser import load_contracts
 
 # ---------------------------------------------------------------------------
 # Compiled patterns
@@ -143,11 +144,14 @@ class Violation(NamedTuple):
 # ---------------------------------------------------------------------------
 
 
-def load_contracts(
+def load_contract_registry(
     root_dir: Path,
     src_dir: Path,
 ) -> tuple[dict[str, Path], dict[str, list[str]], set[str], list[Violation]]:
-    """Load component contracts from plans/component-contracts.toml.
+    """Load component contracts from plans/component-contracts.yaml.
+
+    Parsing and structural validation are handled by contract_parser.
+    This function resolves paths and enforces the src/ boundary.
 
     Returns:
         registry: Component -> resolved implementation file path.
@@ -155,29 +159,23 @@ def load_contracts(
         composition_roots: Component names exempt from DI enforcement.
         boundary_violations: CRITICAL violations for paths that escape src/.
     """
-    contracts_path = root_dir / "plans" / "component-contracts.toml"
-    if not contracts_path.exists():
+    contracts_path = str(root_dir / "plans" / "component-contracts.yaml")
+    contracts = load_contracts(contracts_path)
+    if not contracts.components:
         print(
-            "Error: plans/component-contracts.toml not found. "
+            "Error: plans/component-contracts.yaml not found or empty. "
             "Run /io-architect to generate it."
         )
         sys.exit(1)
 
-    with contracts_path.open("rb") as f:
-        data = tomllib.load(f)
-
-    components: dict = data.get("components", {})
     registry: dict[str, Path] = {}
     designs: dict[str, list[str]] = {}
     composition_roots: set[str] = set()
     boundary_violations: list[Violation] = []
     resolved_src = src_dir.resolve()
 
-    for comp_name, comp_data in components.items():
-        file_path: str = comp_data.get("file", "")
-        if not file_path:
-            continue
-        resolved = (root_dir / file_path).resolve()
+    for comp_name, comp_data in contracts.components.items():
+        resolved = (root_dir / comp_data.file).resolve()
         registry[comp_name] = resolved
 
         try:
@@ -196,11 +194,10 @@ def load_contracts(
                 )
             )
 
-        collaborators: list[str] = comp_data.get("collaborators", [])
-        if collaborators:
-            designs[comp_name] = collaborators
+        if comp_data.collaborators:
+            designs[comp_name] = comp_data.collaborators
 
-        if comp_data.get("composition_root", False):
+        if comp_data.composition_root:
             composition_roots.add(comp_name)
 
     return registry, designs, composition_roots, boundary_violations
@@ -1389,7 +1386,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     # Load contracts
     # ------------------------------------------------------------------
-    registry, designs, composition_roots, boundary_violations = load_contracts(
+    registry, designs, composition_roots, boundary_violations = load_contract_registry(
         root_dir, src_dir
     )
 

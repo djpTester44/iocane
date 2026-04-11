@@ -34,9 +34,9 @@ Files outside the reachable set are at ACTUAL state. Acceptance criteria must no
 
 **Explicit paths:** Quoted file paths (`src/path/module.py`, `tests/path/test_module.py`). Map each to the file-to-checkpoint map.
 
-**Broad directory patterns:** Language like "all components pass", "all tests green", "entire src/ directory". These implicitly reference all files in the named scope. Resolve to the registered file list from `plans/component-contracts.toml` for that directory.
+**Broad directory patterns:** Language like "all components pass", "all tests green", "entire src/ directory". These implicitly reference all files in the named scope. Resolve to the registered file list from `plans/component-contracts.yaml` for that directory.
 
-**Behavioral assertions:** Criteria phrased as "X behavior works end-to-end". Cross-reference `plans/seams.yaml` and `component-contracts.toml` to identify implicated files.
+**Behavioral assertions:** Criteria phrased as "X behavior works end-to-end". Cross-reference `plans/seams.yaml` and `component-contracts.yaml` to identify implicated files.
 
 ---
 
@@ -44,10 +44,10 @@ Files outside the reachable set are at ACTUAL state. Acceptance criteria must no
 
 For each file outside the reachable set that an acceptance criterion references:
 
-**Computable → MECHANICAL:** The file appears in `component-contracts.toml` and is owned by a CP-ID resolvable from the file-to-checkpoint map. The exclusion set is fully enumerable from `plan.yaml` + `component-contracts.toml`.
+**Computable → MECHANICAL:** The file appears in `component-contracts.yaml` and is owned by a CP-ID resolvable from the file-to-checkpoint map. The exclusion set is fully enumerable from `plan.yaml` + `component-contracts.yaml`.
 
 **Not computable → DESIGN:** Any of the following conditions:
-- The file is absent from `component-contracts.toml` (unregistered component).
+- The file is absent from `component-contracts.yaml` (unregistered component).
 - The file's owning CP-ID is not reachable from the dependency graph.
 - The acceptance criterion uses implicit scope language that cannot be resolved to a finite file list.
 - Multiple CPs claim overlapping paths and authority is ambiguous.
@@ -82,5 +82,5 @@ These cases require human judgment and produce DESIGN findings:
 
 1. **Implicit references:** "All integration points are stable" — no finite file list derivable.
 2. **Multi-CP files:** A file appears in two checkpoints' write targets (should be caught by `/io-plan-batch` parallelization safety, but may slip through in sequential batches).
-3. **Non-component files:** Config files, scripts, templates absent from `component-contracts.toml`.
+3. **Non-component files:** Config files, scripts, templates absent from `component-contracts.yaml`.
 4. **Remediation CPs:** A remediation CP's scope may intentionally reference files outside the normal dependency graph. Flag as OBSERVATION rather than ACTUAL_STATE_ASSERTION unless the assertion is clearly incorrect.

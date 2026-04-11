@@ -9,7 +9,7 @@ description: Full-system integration correctness analysis after all checkpoints 
 > **[CRITICAL] CONTEXT LOADING**
 >
 > 1. Load planning rules: `view_file .claude/rules/planning.md`
-> 2. Load the component registry: `view_file plans/component-contracts.toml`
+> 2. Load the component registry: `view_file plans/component-contracts.yaml`
 > 3. Load the Architecture Spec: `view_file plans/project-spec.md`
 > 4. Load all contracts: `view_file interfaces/*.pyi`
 
@@ -52,7 +52,7 @@ If any checkpoint gate or connectivity test is failing, output a warning and con
 
 ### Step B: CONTRACT SATISFACTION AUDIT
 
-For every entry in `plans/component-contracts.toml` (use the `file` field for the component->implementation mapping):
+For every entry in `plans/component-contracts.yaml` (use the `file` field for the component->implementation mapping):
 
 - **Action:** Run `uv run python .claude/scripts/extract_structure.py <implementation_file>` to map the public surface area.
 

@@ -1,6 +1,6 @@
 ---
 name: validate-tasks
-description: Validate generated task files against plan.yaml and component-contracts.toml before agent dispatch. Sits between /io-plan-batch and dispatch-agents.sh.
+description: Validate generated task files against plan.yaml and component-contracts.yaml before agent dispatch. Sits between /io-plan-batch and dispatch-agents.sh.
 ---
 
 # /validate-tasks
@@ -55,7 +55,7 @@ Files that pass schema validation proceed to Context Loading and Checks 1-5 as n
 Load in a single phase — no re-reads during check execution:
 
 - `plans/plan.yaml` — line-bounded reads of checkpoint sections per CP-ID (write targets, `Depends on` chains)
-- `plans/component-contracts.toml` — component-to-file mapping
+- `plans/component-contracts.yaml` — component-to-file mapping
 - `plans/tasks/CP-*.yaml` — all task files in the current batch
 - `plans/archive/CP-*/CP-*.status` — completed checkpoint status (glob, then read each)
 - `plans/seams.yaml` -- seam entries for completeness check (via `seam_parser.load_seams()`)
@@ -97,10 +97,10 @@ Apply the computability test from `.claude/references/task-state-assertion-routi
 1. Build the file-to-checkpoint map from `plan.yaml` write targets.
 2. Compute the transitive reachable set: archived PASS checkpoints + this CP's own write targets.
 3. Scan acceptance criteria for explicit file paths and broad directory patterns.
-4. For each referenced path outside the reachable set: determine whether the full exclusion set is derivable from `plan.yaml` + `component-contracts.toml`.
+4. For each referenced path outside the reachable set: determine whether the full exclusion set is derivable from `plan.yaml` + `component-contracts.yaml`.
 
-- **ACTUAL_STATE_ASSERTION (exclusions computable):** Criterion asserts TARGET state on an unreachable file, and the full exclusion set is derivable from plan.yaml + component-contracts.toml. → MECHANICAL. Include computed exclusions in the finding detail.
-- **ACTUAL_STATE_ASSERTION (exclusions have gaps):** Criterion asserts TARGET state on an unreachable file, but the exclusion set contains paths absent from `component-contracts.toml` or unresolvable dependency links. → DESIGN.
+- **ACTUAL_STATE_ASSERTION (exclusions computable):** Criterion asserts TARGET state on an unreachable file, and the full exclusion set is derivable from plan.yaml + component-contracts.yaml. → MECHANICAL. Include computed exclusions in the finding detail.
+- **ACTUAL_STATE_ASSERTION (exclusions have gaps):** Criterion asserts TARGET state on an unreachable file, but the exclusion set contains paths absent from `component-contracts.yaml` or unresolvable dependency links. → DESIGN.
 - **ACTUAL_STATE_UNCERTAIN:** An acceptance criterion's scope is ambiguous (e.g., implicit "all components" language without a file list). Log count, do not halt.
 - **ACCEPTANCE_CRITERION_UNTESTABLE:** An acceptance criterion cannot be verified by any deterministic command or file check. Log count, do not halt.
 
@@ -157,7 +157,7 @@ Severity is always DESIGN: the checkpoint decomposition has overlapping scope. A
 Step 0: [HARD GATE] bash .claude/scripts/pre-invoke-validate-tasks.sh
 Step 0.5: Schema validation — run load_task() on each CP-*.yaml.
           SCHEMA_INVALID files are excluded from Steps 1-2.
-Step 1: Load context (plan.yaml sections, component-contracts.toml, task files,
+Step 1: Load context (plan.yaml sections, component-contracts.yaml, task files,
         archive status, seams.yaml)
 Step 2: Run all five checks on all task files
 Step 3: Classify findings by severity using the flag taxonomy.
@@ -223,7 +223,7 @@ Written to `plans/validation-reports/task-validation-report.yaml`. Schema: `.cla
 ## Constraints
 
 - Does NOT edit task files
-- Does NOT edit `plan.yaml`, `project-spec.md`, or `component-contracts.toml`
+- Does NOT edit `plan.yaml`, `project-spec.md`, or `component-contracts.yaml`
 - Remediation owned by `/task-recovery`
 - DESIGN findings escalate immediately — never enter the recovery loop
 - Same finding persisting across two consecutive passes → escalate to DESIGN

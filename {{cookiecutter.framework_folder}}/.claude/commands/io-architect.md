@@ -142,7 +142,7 @@ Write the complete Interface Registry to `plans/project-spec.md` under a `## Int
 | [ComponentName] | [ProtocolName] | `interfaces/[protocol].pyi` | [N] |
 ```
 
-Every component with a Protocol must appear here. This table is the Protocol contract registry — it maps components to their interface definitions. Composition roots (Entrypoint Layer) do not appear here — they have no Protocol. They are registered in `plans/component-contracts.toml` only (Step H-2c).
+Every component with a Protocol must appear here. This table is the Protocol contract registry — it maps components to their interface definitions. Composition roots (Entrypoint Layer) do not appear here — they have no Protocol. They are registered in `plans/component-contracts.yaml` only (Step H-2c).
 
 **Write the full Interface Registry to `plans/project-spec.md`. Do not print it to the terminal.**
 
@@ -196,12 +196,13 @@ The sentinel prevents `reset-on-project-spec-write.sh` and `reset-on-pyi-write.s
 - Write a minimal `__init__.py` (empty or with a module docstring) to each new directory
 - Skip directories that already exist — do not overwrite existing `__init__.py` files
 
-**Step H-2c:** Write `plans/component-contracts.toml`:
+**Step H-2c:** Write `plans/component-contracts.yaml` using `contract_parser.save_contracts()`:
 
-- For each registered component in the Interface Registry, emit a `[components.ComponentName]` block containing:
-  - `file = "src/..."` — the implementation path from the registry
-  - `collaborators = [...]` — the collaborator list from the CRC card (`[]` if none)
-  - `composition_root = true` — set only for Entrypoint Layer components; omit for all others
+- Build a `ComponentContractsFile` with one `ComponentContract` per registered component in the Interface Registry:
+  - `file: src/...` — the implementation path from the registry
+  - `collaborators: [...]` — the collaborator list from the CRC card (`[]` if none)
+  - `composition_root: true` — set only for Entrypoint Layer components; omit for all others
+- Call `save_contracts()` to write — this validates the model before serialization
 - Overwrite if the file already exists — it is always regenerated from the current spec
 - This file is the machine-readable contract consumed by `check_di_compliance.py`
 
@@ -224,7 +225,7 @@ CONTRACTS LOCKED.
 
 Protocols written: [N]
 Interface Registry entries: [N]
-component-contracts.toml: written
+component-contracts.yaml: written
 
 This is the Tier 1 / Tier 2 boundary.
 Sub-agents will build against these contracts exactly.

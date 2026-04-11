@@ -6,7 +6,7 @@ structured data sources. These are navigation artifacts -- always overwritten,
 never hand-edited.
 
 Data sources:
-  - plans/component-contracts.toml  (authoritative component list)
+  - plans/component-contracts.yaml  (authoritative component list)
   - plans/project-spec.md           (CRC card responsibilities + Must NOT)
   - plans/seams.yaml                (layer assignments)
   - pyproject.toml                  (import-linter layer contracts)
@@ -14,7 +14,7 @@ Data sources:
 
 Exit codes:
   0 -- success
-  1 -- missing required inputs (component-contracts.toml)
+  1 -- missing required inputs (component-contracts.yaml)
   2 -- 20-line limit exceeded for one or more directories
 
 Usage:
@@ -30,37 +30,15 @@ import sys
 import tomllib
 from pathlib import Path
 
-import yaml
+from pydantic import ValidationError
+
+from contract_parser import load_contracts
+from schemas import ComponentContract, SeamComponent
+from seam_parser import load_seams
 
 logger = logging.getLogger(__name__)
 
 MAX_LINES = 20
-
-# ---------------------------------------------------------------------------
-# Data loading
-# ---------------------------------------------------------------------------
-
-
-def load_component_contracts(path: Path) -> dict[str, dict[str, object]]:
-    """Load plans/component-contracts.toml and return components dict."""
-    if not path.exists():
-        return {}
-    with path.open("rb") as f:
-        data = tomllib.load(f)
-    return data.get("components", {})
-
-
-def load_seams_yaml(path: Path) -> list[dict[str, object]]:
-    """Load plans/seams.yaml and return components list."""
-    if not path.exists():
-        return []
-    text = path.read_text(encoding="utf-8")
-    if not text.strip():
-        return []
-    raw = yaml.safe_load(text)
-    if raw is None:
-        return []
-    return raw.get("components", [])
 
 
 def load_pyproject_contracts(path: Path) -> list[dict[str, object]]:
@@ -142,7 +120,7 @@ def parse_crc_cards(path: Path) -> dict[str, dict[str, list[str]]]:
 
 
 def build_dir_component_map(
-    components: dict[str, dict[str, object]],
+    components: dict[str, ComponentContract],
 ) -> dict[str, list[str]]:
     """Map src/ subdirectory paths to component names.
 
@@ -150,11 +128,10 @@ def build_dir_component_map(
     """
     dir_map: dict[str, list[str]] = {}
     for comp_name, comp_data in components.items():
-        file_path = str(comp_data.get("file", ""))
-        if not file_path.startswith("src/"):
+        if not comp_data.file.startswith("src/"):
             continue
         # Directory is the parent of the implementation file
-        dir_path = Path(file_path).parent.as_posix()
+        dir_path = Path(comp_data.file).parent.as_posix()
         if dir_path not in dir_map:
             dir_map[dir_path] = []
         dir_map[dir_path].append(comp_name)
@@ -168,7 +145,7 @@ def build_dir_component_map(
 
 def get_layer(
     comp_names: list[str],
-    seam_components: list[dict[str, object]],
+    seam_components: list[SeamComponent],
     il_contracts: list[dict[str, object]],
 ) -> str:
     """Derive layer label for a directory's components.
@@ -179,10 +156,9 @@ def get_layer(
 
     # Check seams.yaml first
     for seam in seam_components:
-        if seam.get("component") in comp_names:
-            layer_num = seam.get("layer")
-            if layer_num in layer_map:
-                return layer_map[layer_num]
+        if seam.component in comp_names:
+            if seam.layer in layer_map:
+                return layer_map[seam.layer]
 
     # Fallback: infer from import-linter layer contract ordering
     for contract in il_contracts:
@@ -224,18 +200,20 @@ def get_owns(
 
 def get_public_via(
     comp_names: list[str],
-    components: dict[str, dict[str, object]],
+    components: dict[str, ComponentContract],
     interfaces_dir: Path,
 ) -> list[str]:
-    """Build Public via lines from component-contracts.toml.
+    """Build Public via lines from component-contracts.yaml.
 
     Cross-references with interfaces/*.pyi existence.
     """
     lines: list[str] = []
     for name in sorted(comp_names):
-        comp = components.get(name, {})
+        comp = components.get(name)
+        if comp is None:
+            continue
         # Skip composition roots -- they have no Protocol
-        if comp.get("composition_root"):
+        if comp.composition_root:
             continue
         # Convention: protocol file is interfaces/{name}_protocol.pyi
         # or interfaces/{snake_case_name}.pyi
@@ -328,7 +306,7 @@ def _find_layer_index(pkg: str, layers: list[str]) -> int | None:
 def get_key_files(
     dir_path: str,
     comp_names: list[str],
-    components: dict[str, dict[str, object]],
+    components: dict[str, ComponentContract],
     crc_cards: dict[str, dict[str, list[str]]],
     project_root: Path,
 ) -> list[str]:
@@ -345,9 +323,10 @@ def get_key_files(
     # Build component -> filename mapping
     comp_files: dict[str, str] = {}
     for name in comp_names:
-        comp = components.get(name, {})
-        file_path = str(comp.get("file", ""))
-        comp_files[Path(file_path).name] = name
+        comp = components.get(name)
+        if comp is None:
+            continue
+        comp_files[Path(comp.file).name] = name
 
     lines: list[str] = []
     for py_file in sorted(full_dir.glob("*.py")):
@@ -425,8 +404,8 @@ def find_project_root() -> Path:
 def sync_directory(
     dir_path: str,
     comp_names: list[str],
-    components: dict[str, dict[str, object]],
-    seam_components: list[dict[str, object]],
+    components: dict[str, ComponentContract],
+    seam_components: list[SeamComponent],
     il_contracts: list[dict[str, object]],
     crc_cards: dict[str, dict[str, list[str]]],
     project_root: Path,
@@ -496,19 +475,31 @@ def main(argv: list[str] | None = None) -> int:
     project_root = find_project_root()
 
     # Load data sources
-    contracts_path = project_root / "plans" / "component-contracts.toml"
-    components = load_component_contracts(contracts_path)
-    if not components:
+    contracts_path = str(project_root / "plans" / "component-contracts.yaml")
+    try:
+        contracts = load_contracts(contracts_path)
+    except ValidationError:
         logger.error(
-            "plans/component-contracts.toml not found or empty -- "
+            "plans/component-contracts.yaml failed validation -- "
+            "run /io-architect first",
+        )
+        return 1
+    if not contracts.components:
+        logger.error(
+            "plans/component-contracts.yaml not found or empty -- "
             "run /io-architect first",
         )
         return 1
 
-    seams_path = project_root / "plans" / "seams.yaml"
-    seam_components = load_seams_yaml(seams_path)
+    seams_path = str(project_root / "plans" / "seams.yaml")
+    try:
+        seams = load_seams(seams_path)
+    except (ValidationError, FileNotFoundError):
+        logger.warning("plans/seams.yaml not found or invalid -- layer data may be incomplete")
+        seams = None
+    seam_components = seams.components if seams else []
     if not seam_components:
-        logger.warning("plans/seams.yaml not found or empty -- layer data may be incomplete")
+        logger.warning("plans/seams.yaml empty -- layer data may be incomplete")
 
     pyproject_path = project_root / "pyproject.toml"
     il_contracts = load_pyproject_contracts(pyproject_path)
@@ -519,10 +510,10 @@ def main(argv: list[str] | None = None) -> int:
         logger.warning("plans/project-spec.md CRC cards not found -- Owns/Must NOT may be incomplete")
 
     # Build directory -> components map
-    dir_map = build_dir_component_map(components)
+    dir_map = build_dir_component_map(contracts.components)
 
     if not dir_map:
-        logger.error("no src/ directories found in component-contracts.toml")
+        logger.error("no src/ directories found in component-contracts.yaml")
         return 1
 
     # Filter to single directory if requested
@@ -530,7 +521,7 @@ def main(argv: list[str] | None = None) -> int:
         target_dir = args.dir.rstrip("/").rstrip("\\")
         if target_dir not in dir_map:
             logger.error(
-                "%s has no registered components in component-contracts.toml",
+                "%s has no registered components in component-contracts.yaml",
                 target_dir,
             )
             return 1
@@ -543,7 +534,7 @@ def main(argv: list[str] | None = None) -> int:
         result = sync_directory(
             dir_path,
             comp_names,
-            components,
+            contracts.components,
             seam_components,
             il_contracts,
             crc_cards,

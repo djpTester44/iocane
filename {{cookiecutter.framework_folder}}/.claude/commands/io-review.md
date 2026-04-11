@@ -12,7 +12,7 @@ description: Per-checkpoint behavioral review and connectivity verification. Fin
 > **[CRITICAL] CONTEXT LOADING**
 >
 > 1. Load planning rules: `view_file .claude/rules/planning.md`
-> 2. Load the component registry: `view_file plans/component-contracts.toml`
+> 2. Load the component registry: `view_file plans/component-contracts.yaml`
 > 3. Load the checkpoint being reviewed from `plans/plan.yaml`
 > 4. Load CRC cards for checkpoint components from `plans/project-spec.md`
 > 5. Load relevant Protocol contracts from `interfaces/*.pyi`
@@ -105,7 +105,7 @@ For each implementation file in the checkpoint's write targets:
 - Run `uv run python .claude/scripts/extract_structure.py <file>` — map public surface area
 - Run `bash .claude/scripts/run-compliance.sh <write_targets>` — ruff, mypy, lint-imports, bandit, DI check
 - Invoke `/symbol-tracer` with `--summary` on the checkpoint's Protocol symbols — verify Protocol is consumed
-- **Registry check:** For each write target under `src/`, verify the file path (or its parent component) appears in `plans/component-contracts.toml` under `[components]`. A `src/` file whose component is absent from the TOML registry is a HIGH finding: `UNREGISTERED_WRITE_TARGET` — route to `/io-architect` before the checkpoint can be considered approved. `tests/` files and tooling files outside `src/` are exempt.
+- **Registry check:** For each write target under `src/`, verify the file path (or its parent component) appears in `plans/component-contracts.yaml` as a top-level component key. A `src/` file whose component is absent from the YAML registry is a HIGH finding: `UNREGISTERED_WRITE_TARGET` — route to `/io-architect` before the checkpoint can be considered approved. `tests/` files and tooling files outside `src/` are exempt.
 - **[HARD] Location check:** For each write target that is a `.py` file, verify it resides under `src/` or `tests/`. A `.py` file outside these directories is a HIGH finding: `MISPLACED_RUNTIME_MODULE`. The `interfaces/` directory must contain only `.pyi` stub files; any `.py` file there is a violation. Record in findings and route to backlog -- do not defer to Step E.
 
 Flag any violations. Do not fix — record for findings.

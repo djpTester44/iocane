@@ -33,7 +33,7 @@ Before proceeding, load the following artifacts:
 
 - `plans/validation-reports/task-validation-report.yaml` — parse the **latest pass entry** (the last entry in the `passes` list) for MECHANICAL findings
 - `plans/plan.yaml` — line-bounded reads of checkpoint sections for affected CP-IDs only (write targets, objective, acceptance criteria, gate command, seam context needed). Do not read sections for unaffected CPs.
-- `plans/component-contracts.toml` — file registry
+- `plans/component-contracts.yaml` — file registry
 - `plans/seams.yaml` -- seam entries for affected components (via `seam_parser.load_seams()`)
 - `plans/archive/CP-*/CP-*.status` — completed checkpoint status files
 
@@ -153,7 +153,7 @@ Output: "Task files regenerated. Re-run /validate-tasks to validate before dispa
 
 ## Constraints
 
-- Does not modify `plan.yaml`, `component-contracts.toml`, `seams.yaml`, or other source-of-truth artifacts
+- Does not modify `plan.yaml`, `component-contracts.yaml`, `seams.yaml`, or other source-of-truth artifacts
 - Human approval gate (Step 4) is mandatory before any file is written
 - Does not invoke `/validate-tasks` — no circular dependency
 - Deletes stale `.task.validation` sentinels so `/validate-tasks` re-checks regenerated files

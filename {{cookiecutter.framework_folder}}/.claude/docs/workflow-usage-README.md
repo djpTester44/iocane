@@ -61,7 +61,7 @@ These are operator-facing scripts. Run them directly when you need the behavior.
   ```
 
 - `uv run .claude/scripts/sync_dir_claude.py`: regenerates directory-level CLAUDE.md files
-  in `src/` subdirectories from component-contracts.toml, project-spec.md, seams.yaml, and
+  in `src/` subdirectories from component-contracts.yaml, project-spec.md, seams.yaml, and
   pyproject.toml. Called automatically by `/io-architect`, `/io-review`, and `/doc-sync`.
   Can also be run standalone.
 
@@ -190,11 +190,11 @@ The sentinel is automatically cleared on session start. If it is unexpectedly pr
 | `/io-architect` | Design CRC cards, Protocols, Interface Registry | `plans/project-spec.md`, `interfaces/*.pyi`, `plans/seams.yaml`, `src/*/CLAUDE.md` |
 | `/io-replan` | Propagate PRD deltas into roadmap/spec and route impacts | `plans/roadmap.md`, `plans/project-spec.md`, `plans/backlog.yaml` |
 | `/io-checkpoint` | Define atomic checkpoints and connectivity tests | `plans/plan.yaml`, `plans/backlog.yaml` (remediation: Routed annotation via script) |
-| `/auto-architect` | Resolve DESIGN/REFACTOR backlog items via sub-agent research + evaluator gate | `plans/project-spec.md`, `interfaces/*.pyi`, `plans/component-contracts.toml`, `plans/seams.yaml`, `plans/backlog.yaml` |
+| `/auto-architect` | Resolve DESIGN/REFACTOR backlog items via sub-agent research + evaluator gate | `plans/project-spec.md`, `interfaces/*.pyi`, `plans/component-contracts.yaml`, `plans/seams.yaml`, `plans/backlog.yaml` |
 | `/auto-checkpoint` | Batch-generate remediation CPs from triage-approved routing prompts | `plans/plan.yaml`, `plans/backlog.yaml` (Routed annotation) |
 | `/validate-plan` | Validate `plan.yaml` CDD compliance before batch composition | `plans/plan.yaml` (stamp only) |
 | `/io-plan-batch` | Compose dispatch batch, score confidence, get human approval | `plans/tasks/CP-XX.yaml` (on acceptance) |
-| `/validate-tasks` | Validate task files against plan.yaml and component-contracts.toml | `plans/tasks/CP-XX.task.validation`, `plans/validation-reports/task-validation-report.yaml` |
+| `/validate-tasks` | Validate task files against plan.yaml and component-contracts.yaml | `plans/tasks/CP-XX.task.validation`, `plans/validation-reports/task-validation-report.yaml` |
 | `/task-recovery` | Regenerate task files for CPs with MECHANICAL findings | `plans/tasks/CP-XX.yaml` (regenerated) |
 | `dispatch-agents.sh` | Dispatch agents (run directly via `bash .claude/scripts/dispatch-agents.sh [--resume CP-XX]`) | none |
 | `/io-execute` | Tier 3 sub-agent workflow that executes one checkpoint task file | `plans/tasks/CP-XX.status`, checkpoint write targets |

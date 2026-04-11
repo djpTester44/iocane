@@ -5,7 +5,7 @@
 set -euo pipefail
 
 PLAN_FILE="plans/plan.yaml"
-CONTRACTS_FILE="plans/component-contracts.toml"
+CONTRACTS_FILE="plans/component-contracts.yaml"
 TASKS_DIR="plans/tasks"
 
 if [ ! -f "$PLAN_FILE" ]; then

@@ -10,7 +10,7 @@ description: Reconcile documentation and design artifacts with current codebase 
 
 > **[CRITICAL] CONTEXT LOADING**
 >
-> 1. Load the component registry: `view_file plans/component-contracts.toml`
+> 1. Load the component registry: `view_file plans/component-contracts.yaml`
 > 2. Load the Architecture Spec: `view_file plans/project-spec.md` (read-only — reference only for planned CRC/Protocol-backed components)
 > 3. Load the Roadmap: `view_file plans/roadmap.md`
 > 4. Load the Integration Seams reference (if exists) via `seam_parser.load_seams('plans/seams.yaml')`
@@ -104,7 +104,7 @@ Full-project reconciliation of `plans/seams.yaml` against actual source code usi
 
 **Load seams:** `seam_parser.load_seams('plans/seams.yaml')`. Use `find_by_component()` for lookups.
 
-**For every component in `plans/component-contracts.toml` (iterate `[components]` keys; use `file` field for the implementation path):**
+**For every component in `plans/component-contracts.yaml` (iterate top-level component keys; use `file` field for the implementation path):**
 
 1. Read the component's `__init__` signature from its implementation file in `src/`.
 2. Use `find_by_component()` to locate the component's seam entry (or note the entry is missing).
@@ -114,7 +114,7 @@ Full-project reconciliation of `plans/seams.yaml` against actual source code usi
    - **key_failure_modes:** Compare raised exception types against listed failure modes.
 4. If the component has no implementation file yet (planned but unbuilt): skip it.
 
-**Preservation rule:** Treat `plans/component-contracts.toml` as the authoritative component list. If a seam entry corresponds to a component still registered there, do **not** auto-remove that seam entry just because the implementation file does not exist yet. Cross-check `plans/project-spec.md` CRC cards when the TOML entry is ambiguous.
+**Preservation rule:** Treat `plans/component-contracts.yaml` as the authoritative component list. If a seam entry corresponds to a component still registered there, do **not** auto-remove that seam entry just because the implementation file does not exist yet. Cross-check `plans/project-spec.md` CRC cards when the YAML entry is ambiguous.
 
 **Actions:**
 

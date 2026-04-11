@@ -1,16 +1,16 @@
 ---
 name: validate-spec
-description: Detect and remediate drift between plans/project-spec.md CRC cards and interfaces/*.pyi files. Re-syncs plans/component-contracts.toml. Re-earns **Approved:** True after out-of-band .pyi changes.
+description: Detect and remediate drift between plans/project-spec.md CRC cards and interfaces/*.pyi files. Re-syncs plans/component-contracts.yaml. Re-earns **Approved:** True after out-of-band .pyi changes.
 ---
 
 # WORKFLOW: VALIDATE-SPEC (CRC-Protocol Drift Detection)
 
-**Objective:** Detect drift between `plans/project-spec.md` CRC cards and `interfaces/*.pyi` Protocol definitions. Auto-remediate stale CRC entries, escalate structural changes to human judgment, re-sync `plans/component-contracts.toml`, and re-earn the `**Approved:** True` stamp that gates `/io-checkpoint`.
+**Objective:** Detect drift between `plans/project-spec.md` CRC cards and `interfaces/*.pyi` Protocol definitions. Auto-remediate stale CRC entries, escalate structural changes to human judgment, re-sync `plans/component-contracts.yaml`, and re-earn the `**Approved:** True` stamp that gates `/io-checkpoint`.
 
 **Context:**
 
-* Target artifacts: `plans/project-spec.md` (CRC cards section), `interfaces/*.pyi`, and `plans/component-contracts.toml`
-* Output: Drift report, updated `plans/component-contracts.toml`, and re-stamped `**Approved:** True` on `plans/project-spec.md`
+* Target artifacts: `plans/project-spec.md` (CRC cards section), `interfaces/*.pyi`, and `plans/component-contracts.yaml`
+* Output: Drift report, updated `plans/component-contracts.yaml`, and re-stamped `**Approved:** True` on `plans/project-spec.md`
 * Trigger: Recovery path. Run after `reset-on-pyi-write.sh` has reset `**Approved:** False` due to an out-of-band `.pyi` modification.
 
 **Position in chain:**
@@ -37,7 +37,7 @@ description: Detect and remediate drift between plans/project-spec.md CRC cards 
 
 * For each file in `interfaces/*.pyi`: run `python extract_structure.py <file>` to load its structural skeleton (Protocol names, method signatures, decorators) into context.
 * Load the CRC cards section and Interface Registry from `plans/project-spec.md`.
-* Load `plans/component-contracts.toml`. If the file does not exist, note it as missing — it will be generated in Step E-1.
+* Load `plans/component-contracts.yaml`. If the file does not exist, note it as missing — it will be generated in Step E-1.
 * Do not load full `.pyi` file contents or implementation files — signatures and Protocol names only.
 
 Files loaded in this step remain in context for all subsequent steps — do not re-read unless modified during this run.
@@ -101,33 +101,33 @@ Present a drift table to the user:
 
 ---
 
-### Step E-1 — Sync component-contracts.toml
+### Step E-1 — Sync component-contracts.yaml
 
-After CRC-Protocol drift is resolved (or if zero drift was found in Step B), regenerate `plans/component-contracts.toml` from the current state of `plans/project-spec.md`.
+After CRC-Protocol drift is resolved (or if zero drift was found in Step B), regenerate `plans/component-contracts.yaml` from the current state of `plans/project-spec.md`.
 
-**Drift detection:** Compare the current `component-contracts.toml` (loaded in Step A) against what would be generated from the current spec. If any of the following differ, regeneration is required:
+**Drift detection:** Compare the current `component-contracts.yaml` (loaded in Step A) against what would be generated from the current spec. If any of the following differ, regeneration is required:
 
-* A component appears in the Interface Registry or as a composition root in the CRC cards but has no entry in `component-contracts.toml`
-* A component has an entry in `component-contracts.toml` but no longer exists in `project-spec.md`
-* A component's `collaborators` list in `component-contracts.toml` does not match the `Receives (DI)` list in its CRC card
-* A component's `file` path in `component-contracts.toml` does not match the implementation path in its CRC card
+* A component appears in the Interface Registry or as a composition root in the CRC cards but has no entry in `component-contracts.yaml`
+* A component has an entry in `component-contracts.yaml` but no longer exists in `project-spec.md`
+* A component's `collaborators` list in `component-contracts.yaml` does not match the `Receives (DI)` list in its CRC card
+* A component's `file` path in `component-contracts.yaml` does not match the implementation path in its CRC card
 
 **Regeneration procedure** (mirrors `/io-architect` Step H-2c exactly):
 
-* For each component in the Interface Registry: emit a `[components.ComponentName]` block with:
-  * `file = "src/..."` — implementation path from the CRC card
-  * `collaborators = [...]` — `Receives (DI)` list from the CRC card (`[]` if none)
+* Build the contracts dict and call `contract_parser.save_contracts()` to write the file. For each component in the Interface Registry, include a `components.ComponentName` entry with:
+  * `file: "src/..."` — implementation path from the CRC card
+  * `collaborators: [...]` — `Receives (DI)` list from the CRC card (`[]` if none)
   * Omit `composition_root` — Interface Registry components are not composition roots
-* For each composition root defined in the CRC cards (Entrypoint Layer components not in the Interface Registry): emit a `[components.ComponentName]` block with:
-  * `file = "src/..."` — implementation path from the CRC card
-  * `collaborators = [...]` — `Receives (DI)` list from the CRC card
-  * `composition_root = true`
-* Overwrite `plans/component-contracts.toml` completely — it is always regenerated from the current spec, never patched.
+* For each composition root defined in the CRC cards (Entrypoint Layer components not in the Interface Registry), include a `components.ComponentName` entry with:
+  * `file: "src/..."` — implementation path from the CRC card
+  * `collaborators: [...]` — `Receives (DI)` list from the CRC card
+  * `composition_root: true`
+* Overwrite `plans/component-contracts.yaml` completely — it is always regenerated from the current spec, never patched.
 * Prepend the standard header comment block (matching the format in the existing file).
 
-If `component-contracts.toml` is already in sync (no differences detected), skip the write — no unnecessary file churn.
+If `component-contracts.yaml` is already in sync (no differences detected), skip the write — no unnecessary file churn.
 
-Report: "component-contracts.toml: in sync" or "component-contracts.toml: regenerated (N changes)".
+Report: "component-contracts.yaml: in sync" or "component-contracts.yaml: regenerated (N changes)".
 
 ---
 
@@ -154,5 +154,5 @@ Report: "component-contracts.toml: in sync" or "component-contracts.toml: regene
 * `extract_structure.py` output is the sole source for `.pyi` structural facts — do not read `.pyi` files directly unless `extract_structure.py` is unavailable.
 * The sentinel must be active before any write to `plans/project-spec.md` in Step E and Step F. Never write to `project-spec.md` without the sentinel.
 * If Step E and Step F writes are performed in sequence, a single sentinel set at the start of Step E covers both — do not re-set between steps.
-* `plans/component-contracts.toml` is always regenerated in full — never patched. Partial edits risk inconsistency with `check_di_compliance.py`.
-* Step E-1 runs regardless of whether Step E made changes. Even if zero CRC-Protocol drift was found, `component-contracts.toml` may still be stale from a prior OOB change.
+* `plans/component-contracts.yaml` is always regenerated in full — never patched. Partial edits risk inconsistency with `check_di_compliance.py`.
+* Step E-1 runs regardless of whether Step E made changes. Even if zero CRC-Protocol drift was found, `component-contracts.yaml` may still be stale from a prior OOB change.

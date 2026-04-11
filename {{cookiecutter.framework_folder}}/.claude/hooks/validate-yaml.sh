@@ -56,6 +56,14 @@ from seam_parser import load_seams
 load_seams('$FILE_PATH')
 " 2>&1 || { echo "YAML validation failed for $FILE_PATH" >&2; exit 2; }
     ;;
+  */plans/component-contracts.yaml)
+    uv run python -c "
+import sys
+sys.path.insert(0, '.claude/scripts')
+from contract_parser import load_contracts
+load_contracts('$FILE_PATH')
+" 2>&1 || { echo "YAML validation failed for $FILE_PATH" >&2; exit 2; }
+    ;;
   *)
     # Not a schema-validated YAML file -- pass through
     exit 0

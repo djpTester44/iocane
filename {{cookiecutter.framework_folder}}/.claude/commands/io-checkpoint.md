@@ -10,7 +10,7 @@ description: Decompose roadmap features into atomic checkpoints with connectivit
 > **[CRITICAL] CONTEXT LOADING**
 >
 > 1. Load planning rules: `view_file .claude/rules/planning.md`
-> 2. Load the component registry: `view_file plans/component-contracts.toml`
+> 2. Load the component registry: `view_file plans/component-contracts.yaml`
 > 3. Load the Roadmap: `view_file plans/roadmap.md`
 > 4. Load the Architecture Spec: `view_file plans/project-spec.md`
 > 5. Load all interfaces: `view_file interfaces/*.pyi`
@@ -265,7 +265,7 @@ Next step: Run /validate-plan to approve plan.yaml, then /io-plan-batch.
 - This workflow produces ONLY `plans/plan.yaml`. No `.pyi` edits, no `project-spec.md` edits.
 - In remediation mode, also writes to `plans/backlog.yaml` via `route_backlog_item.py --prompt` (Routed annotation with prompt text).
 - Connectivity tests are signatures only — no test code is written here.
-- Write targets per checkpoint must be derived from the `file` fields in `plans/component-contracts.toml`. A checkpoint may not write to a `src/` file whose component is not registered there.
+- Write targets per checkpoint must be derived from the `file` fields in `plans/component-contracts.yaml`. A checkpoint may not write to a `src/` file whose component is not registered there.
 - **[HARD] Runtime `.py` location constraint:** All checkpoint write targets that are `.py` files must resolve to a path under `src/` or `tests/`. The `interfaces/` directory is reserved exclusively for `.pyi` contract stubs generated or approved by `/io-architect`. Any write target placing a `.py` file under `interfaces/` or any other directory outside `src/` and `tests/` is a structural error -- reject the write target and route the file to the appropriate `src/` component before the checkpoint is approved.
 - If decomposing a feature reveals a gap in the Interface Registry (a required component has no Protocol), HALT and route to `/io-architect` before continuing.
 - `plan.yaml` is the orchestrator's only input for delegation decisions. Vague checkpoints will produce low confidence scores and stall execution.

@@ -1,9 +1,9 @@
 """Pydantic schemas for YAML-based harness data files.
 
 Defines the canonical structure for plans/backlog.yaml, plans/plan.yaml,
-plans/tasks/CP-XX.yaml, and plans/seams.yaml.
+plans/tasks/CP-XX.yaml, plans/seams.yaml, and plans/component-contracts.yaml.
 Used by backlog_parser.py, plan_parser.py, task_parser.py, seam_parser.py,
-hooks, and scripts for validation and serialization.
+contract_parser.py, hooks, and scripts for validation and serialization.
 """
 
 import re
@@ -334,6 +334,34 @@ class SeamsFile(BaseModel, frozen=True):
 
     components: list[SeamComponent] = []
     missing_ct_seams: list[MissingCtSeam] = []
+
+
+# ---------------------------------------------------------------------------
+# Component contracts (plans/component-contracts.yaml)
+# ---------------------------------------------------------------------------
+
+
+class ComponentContract(BaseModel, frozen=True):
+    """A single component entry in plans/component-contracts.yaml."""
+
+    file: str
+    collaborators: list[str] = []
+    composition_root: bool = False
+
+    @field_validator("file")
+    @classmethod
+    def validate_file_path(cls, v: str) -> str:
+        """Enforce non-empty .py path."""
+        if not v or not v.endswith(".py"):
+            msg = f"file must be a non-empty .py path, got '{v}'"
+            raise ValueError(msg)
+        return v
+
+
+class ComponentContractsFile(BaseModel, frozen=True):
+    """Top-level container for plans/component-contracts.yaml."""
+
+    components: dict[str, ComponentContract] = {}
 
 
 class TaskConnectivityTest(BaseModel, frozen=True):

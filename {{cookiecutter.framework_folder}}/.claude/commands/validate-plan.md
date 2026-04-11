@@ -50,10 +50,10 @@ description: Validate plans/plan.yaml checkpoint structure against CDD principle
 
 Load the following — and only the following — before running Phase 1 checks:
 
-* **`plans/component-contracts.toml`** — provides file path mappings for write-target verification.
+* **`plans/component-contracts.yaml`** — provides file path mappings for write-target verification.
 * **`pyproject.toml`** — load the `[tool.importlinter]` section to understand `root_packages` and all `[[tool.importlinter.contracts]]` entries (type `independence` and type `layers`).
 
-If `plans/component-contracts.toml` does not exist, HALT: "Run `/io-architect` to generate component contracts before validation."
+If `plans/component-contracts.yaml` does not exist, HALT: "Run `/io-architect` to generate component contracts before validation."
 
 `plans/plan.yaml` is already in context from Step 1.
 
@@ -76,8 +76,8 @@ Files loaded in this step remain in context for all subsequent steps — do not 
 
 For every write target listed in every checkpoint:
 
-* Verify the file path appears as a `file` value in `plans/component-contracts.toml`.
-* **Flag:** Write target not in `component-contracts.toml` = `UNREGISTERED_WRITE_TARGET`
+* Verify the file path appears as a `file` value in `plans/component-contracts.yaml`.
+* **Flag:** Write target not in `component-contracts.yaml` = `UNREGISTERED_WRITE_TARGET`
 
 **Exemptions (INFO only, not VIOLATION):**
 
@@ -86,7 +86,7 @@ For every write target listed in every checkpoint:
 
 **Not exempt under any circumstances:**
 
-* Any `.py` file under `src/` — including internal utilities annotated "no Protocol." A `src/` file absent from `component-contracts.toml` is always `UNREGISTERED_WRITE_TARGET` (VIOLATION), regardless of prior log precedents or "internal utility" annotations. Route to `/io-architect` for explicit registration or exemption before orchestration.
+* Any `.py` file under `src/` — including internal utilities annotated "no Protocol." A `src/` file absent from `component-contracts.yaml` is always `UNREGISTERED_WRITE_TARGET` (VIOLATION), regardless of prior log precedents or "internal utility" annotations. Route to `/io-architect` for explicit registration or exemption before orchestration.
 * Any `.py` file outside `src/` and `tests/`. Runtime Python modules must live under `src/`. Flag as `MISPLACED_RUNTIME_MODULE` (VIOLATION). This explicitly includes `interfaces/*.py`, which is a contract-only directory reserved for `.pyi` stubs.
 
 ---
