@@ -154,7 +154,7 @@ def build_dir_component_map(
         if not file_path.startswith("src/"):
             continue
         # Directory is the parent of the implementation file
-        dir_path = str(Path(file_path).parent)
+        dir_path = Path(file_path).parent.as_posix()
         if dir_path not in dir_map:
             dir_map[dir_path] = []
         dir_map[dir_path].append(comp_name)
