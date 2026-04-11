@@ -22,7 +22,8 @@ The three-tier model ensures no generated code reaches the codebase without huma
 |----------|----------|-------|---------|
 | PRD | `plans/PRD.md` | Human | Requirements, user stories, stack decisions |
 | Roadmap | `plans/roadmap.md` | Human (via /io-specify) | Feature sequence, dependency order |
-| Architecture Spec | `plans/project-spec.md` | Human (via /io-architect) | CRC cards, Interface Registry -- current codebase state only |
+| Architecture Spec | `plans/project-spec.md` | Human (via /io-architect) | Interface Registry -- current codebase state only |
+| CRC Contracts | `plans/component-contracts.yaml` | Human (via /io-architect) | CRC behavioral data (responsibilities, must_not, protocol) |
 | Contracts | `interfaces/*.pyi` | Human (via /io-architect) | Binding Protocol definitions |
 | Checkpoint Plan | `plans/plan.yaml` | Human (via /io-checkpoint) | Atomic checkpoints, connectivity test signatures |
 | Task Files | `plans/tasks/[CP-ID].yaml` | Orchestrator | Per-checkpoint sub-agent work packages |

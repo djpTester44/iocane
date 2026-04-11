@@ -118,7 +118,7 @@ Provide the agent with:
 The agent explores code at the referenced files, reads current state, and returns:
 - Atomic CRC card changes (which responsibility lines to add/modify/remove)
 - Protocol signature changes if DESIGN (which methods/docstrings to update)
-- Component-contracts.toml changes if collaborators changed
+- Component-contracts.yaml changes if collaborators changed
 - seams.yaml changes if failure modes or DI receivers changed (via seam_parser)
 - file:line citations for all claims about existing code
 
@@ -174,7 +174,13 @@ For each REFACTOR item in the batch, set context:
 
 ### F.2: Write CRC card changes
 
-Edit `plans/project-spec.md` incrementally. Mark changed sections with `<!-- CHANGED -->`.
+Write CRC changes to `plans/component-contracts.yaml` via `save_contracts()`, then render to project-spec.md:
+
+```bash
+uv run python .claude/scripts/render_crc.py
+```
+
+Use `git diff plans/project-spec.md` to inspect what changed in the rendered output.
 
 ### F.3: Write Protocol signature changes
 
@@ -182,7 +188,11 @@ Write to `interfaces/*.pyi` -- DESIGN items only.
 
 ### F.4: Update component-contracts.yaml
 
-If collaborators changed.
+If CRC data changed (collaborators, responsibilities, must_not, or protocol), write to `plans/component-contracts.yaml` via `save_contracts()`, then re-render:
+
+```bash
+uv run python .claude/scripts/render_crc.py
+```
 
 ### F.5: Update seams.yaml
 

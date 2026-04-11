@@ -101,31 +101,38 @@ Present a drift table to the user:
 
 ---
 
-### Step E-1 — Sync component-contracts.yaml
+### Step E-1 — Sync component-contracts.yaml and Render CRC
 
-After CRC-Protocol drift is resolved (or if zero drift was found in Step B), regenerate `plans/component-contracts.yaml` from the current state of `plans/project-spec.md`.
+After CRC-Protocol drift is resolved (or if zero drift was found in Step B), ensure `plans/component-contracts.yaml` is consistent and re-render the CRC section of project-spec.md.
 
-**Drift detection:** Compare the current `component-contracts.yaml` (loaded in Step A) against what would be generated from the current spec. If any of the following differ, regeneration is required:
+**Drift detection (rendered CRC vs. YAML):** Run `render_crc.py --dry-run` and diff its output against the current `## CRC Cards` section in `plans/project-spec.md`. Any difference means the rendered narrative has drifted from the YAML source of truth.
 
-* A component appears in the Interface Registry or as a composition root in the CRC cards but has no entry in `component-contracts.yaml`
-* A component has an entry in `component-contracts.yaml` but no longer exists in `project-spec.md`
-* A component's `collaborators` list in `component-contracts.yaml` does not match the `Receives (DI)` list in its CRC card
-* A component's `file` path in `component-contracts.yaml` does not match the implementation path in its CRC card
+```bash
+uv run python .claude/scripts/render_crc.py --dry-run
+```
 
-**Regeneration procedure** (mirrors `/io-architect` Step H-2c exactly):
+**Drift detection (structural):** Compare the current `component-contracts.yaml` (loaded in Step A) against what the .pyi Protocols imply. If any of the following differ, remediation is required:
 
-* Build the contracts dict and call `contract_parser.save_contracts()` to write the file. For each component in the Interface Registry, include a `components.ComponentName` entry with:
-  * `file: "src/..."` — implementation path from the CRC card
-  * `collaborators: [...]` — `Receives (DI)` list from the CRC card (`[]` if none)
-  * Omit `composition_root` — Interface Registry components are not composition roots
-* For each composition root defined in the CRC cards (Entrypoint Layer components not in the Interface Registry), include a `components.ComponentName` entry with:
-  * `file: "src/..."` — implementation path from the CRC card
-  * `collaborators: [...]` — `Receives (DI)` list from the CRC card
-  * `composition_root: true`
-* Overwrite `plans/component-contracts.yaml` completely — it is always regenerated from the current spec, never patched.
+* A component appears in the Interface Registry or as a composition root but has no entry in `component-contracts.yaml`
+* A component has an entry in `component-contracts.yaml` but no longer exists in the Interface Registry
+* A component's `collaborators` list does not match the `Receives (DI)` list implied by its Protocol
+* A component's `file` path does not match the implementation path in the Interface Registry
+* A component's `responsibilities` do not align with the methods in its `.pyi` Protocol
+
+**Auto-remediation procedure:**
+
+When .pyi contracts drift from CRC responsibilities, write corrected behavioral data (`responsibilities`, `must_not`, `protocol`) directly to `plans/component-contracts.yaml` via `contract_parser.save_contracts()`. Then re-render:
+
+```bash
+uv run python .claude/scripts/render_crc.py
+```
+
+This follows the same save-then-render pattern as `/io-architect` Step H-2c + Step I-0: write YAML first, then generate the project-spec.md CRC section from it.
+
+* Overwrite `plans/component-contracts.yaml` completely -- it is always regenerated, never patched.
 * Prepend the standard header comment block (matching the format in the existing file).
 
-If `component-contracts.yaml` is already in sync (no differences detected), skip the write — no unnecessary file churn.
+If `component-contracts.yaml` is already in sync and the rendered CRC matches project-spec.md (no differences detected), skip the write -- no unnecessary file churn.
 
 Report: "component-contracts.yaml: in sync" or "component-contracts.yaml: regenerated (N changes)".
 

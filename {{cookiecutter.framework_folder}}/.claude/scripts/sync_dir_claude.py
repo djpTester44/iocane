@@ -6,8 +6,7 @@ structured data sources. These are navigation artifacts -- always overwritten,
 never hand-edited.
 
 Data sources:
-  - plans/component-contracts.yaml  (authoritative component list)
-  - plans/project-spec.md           (CRC card responsibilities + Must NOT)
+  - plans/component-contracts.yaml  (CRC responsibilities + Must NOT)
   - plans/seams.yaml                (layer assignments)
   - pyproject.toml                  (import-linter layer contracts)
   - src/[dir]/*.py on disk          (Key files listing)
@@ -50,68 +49,6 @@ def load_pyproject_contracts(path: Path) -> list[dict[str, object]]:
     tool = data.get("tool", {})
     il = tool.get("importlinter", {})
     return il.get("contracts", [])
-
-
-def parse_crc_cards(path: Path) -> dict[str, dict[str, list[str]]]:
-    """Parse CRC cards from project-spec.md.
-
-    Returns dict keyed by component name with:
-      - responsibilities: list[str]
-      - must_not: list[str]
-    """
-    if not path.exists():
-        return {}
-
-    text = path.read_text(encoding="utf-8")
-    cards: dict[str, dict[str, list[str]]] = {}
-
-    # Split on CRC card headings (### ComponentName)
-    # CRC cards live under ## CRC Cards section
-    in_crc_section = False
-    current_component: str | None = None
-    current_section: str | None = None
-
-    for line in text.splitlines():
-        if line.strip().startswith("## CRC Cards"):
-            in_crc_section = True
-            continue
-        if in_crc_section and line.strip().startswith("## ") and "CRC" not in line:
-            break
-        if not in_crc_section:
-            continue
-
-        # Component heading
-        h3_match = re.match(r"^###\s+(.+?)(?:\s*<!--.*-->)?\s*$", line)
-        if h3_match:
-            current_component = h3_match.group(1).strip()
-            cards[current_component] = {
-                "responsibilities": [],
-                "must_not": [],
-            }
-            current_section = None
-            continue
-
-        if current_component is None:
-            continue
-
-        stripped = line.strip()
-
-        # Detect sub-sections within a CRC card
-        if stripped.startswith("**Responsibilities"):
-            current_section = "responsibilities"
-            continue
-        if stripped.startswith("**Must NOT") or stripped.startswith("**Must not"):
-            current_section = "must_not"
-            continue
-        if stripped.startswith("**") and current_section is not None:
-            current_section = None
-            continue
-
-        # Collect bullet items
-        if current_section and stripped.startswith("- "):
-            cards[current_component][current_section].append(stripped[2:].strip())
-
-    return cards
 
 
 # ---------------------------------------------------------------------------
@@ -181,18 +118,14 @@ def get_layer(
 
 def get_owns(
     comp_names: list[str],
-    crc_cards: dict[str, dict[str, list[str]]],
+    components: dict[str, ComponentContract],
 ) -> str:
-    """Build Owns line from CRC responsibilities.
-
-    Joins first responsibility per component with semicolons.
-    """
+    """Build Owns line from CRC responsibilities."""
     parts: list[str] = []
     for name in sorted(comp_names):
-        card = crc_cards.get(name, {})
-        responsibilities = card.get("responsibilities", [])
-        if responsibilities:
-            parts.append(responsibilities[0])
+        comp = components.get(name)
+        if comp and comp.responsibilities:
+            parts.append(comp.responsibilities[0])
     if not parts:
         return "[no CRC data]"
     return "; ".join(parts)
@@ -254,19 +187,20 @@ def _to_snake_case(name: str) -> str:
 
 def get_must_not(
     comp_names: list[str],
-    crc_cards: dict[str, dict[str, list[str]]],
+    components: dict[str, ComponentContract],
     il_contracts: list[dict[str, object]],
     dir_path: str,
 ) -> list[str]:
-    """Build Must NOT lines from CRC cards + import-linter contracts."""
+    """Build Must NOT lines from component contracts + import-linter."""
     lines: list[str] = []
 
-    # From CRC cards
+    # From component contracts
     for name in sorted(comp_names):
-        card = crc_cards.get(name, {})
-        for item in card.get("must_not", []):
-            if item not in lines:
-                lines.append(item)
+        comp = components.get(name)
+        if comp:
+            for item in comp.must_not:
+                if item not in lines:
+                    lines.append(item)
 
     # From import-linter layer hierarchy
     for contract in il_contracts:
@@ -307,7 +241,6 @@ def get_key_files(
     dir_path: str,
     comp_names: list[str],
     components: dict[str, ComponentContract],
-    crc_cards: dict[str, dict[str, list[str]]],
     project_root: Path,
 ) -> list[str]:
     """Build Key files lines from disk state + CRC descriptions.
@@ -335,8 +268,8 @@ def get_key_files(
         fname = py_file.name
         if fname in comp_files:
             comp_name = comp_files[fname]
-            card = crc_cards.get(comp_name, {})
-            responsibilities = card.get("responsibilities", [])
+            comp = components.get(comp_name)
+            responsibilities = comp.responsibilities if comp else []
             desc = responsibilities[0] if responsibilities else comp_name
             lines.append(f"`{fname}` -- {desc}")
         else:
@@ -407,7 +340,6 @@ def sync_directory(
     components: dict[str, ComponentContract],
     seam_components: list[SeamComponent],
     il_contracts: list[dict[str, object]],
-    crc_cards: dict[str, dict[str, list[str]]],
     project_root: Path,
     dry_run: bool,
 ) -> int:
@@ -419,11 +351,11 @@ def sync_directory(
     interfaces_dir = project_root / "interfaces"
 
     layer = get_layer(comp_names, seam_components, il_contracts)
-    owns = get_owns(comp_names, crc_cards)
+    owns = get_owns(comp_names, components)
     public_via = get_public_via(comp_names, components, interfaces_dir)
-    must_not = get_must_not(comp_names, crc_cards, il_contracts, dir_path)
+    must_not = get_must_not(comp_names, components, il_contracts, dir_path)
     key_files = get_key_files(
-        dir_path, comp_names, components, crc_cards, project_root,
+        dir_path, comp_names, components, project_root,
     )
 
     content = render_claude_md(dir_name, layer, owns, public_via, must_not, key_files)
@@ -504,10 +436,14 @@ def main(argv: list[str] | None = None) -> int:
     pyproject_path = project_root / "pyproject.toml"
     il_contracts = load_pyproject_contracts(pyproject_path)
 
-    spec_path = project_root / "plans" / "project-spec.md"
-    crc_cards = parse_crc_cards(spec_path)
-    if not crc_cards:
-        logger.warning("plans/project-spec.md CRC cards not found -- Owns/Must NOT may be incomplete")
+    if all(
+        not c.responsibilities
+        for c in contracts.components.values()
+    ):
+        logger.warning(
+            "No responsibilities in component-contracts.yaml -- "
+            "run /io-architect to populate"
+        )
 
     # Build directory -> components map
     dir_map = build_dir_component_map(contracts.components)
@@ -537,7 +473,6 @@ def main(argv: list[str] | None = None) -> int:
             contracts.components,
             seam_components,
             il_contracts,
-            crc_cards,
             project_root,
             args.dry_run,
         )

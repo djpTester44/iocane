@@ -347,6 +347,9 @@ class ComponentContract(BaseModel, frozen=True):
     file: str
     collaborators: list[str] = []
     composition_root: bool = False
+    protocol: str = ""
+    responsibilities: list[str] = []
+    must_not: list[str] = []
 
     @field_validator("file")
     @classmethod

@@ -74,10 +74,15 @@ Present proposed roadmap changes. Wait for human approval before write.
 For each change in the delta:
 
 * **NEW components:** Propose new CRC card and Interface Registry entry. Do not write `.pyi` — that is `/io-architect`'s job.
-* **MODIFIED components:** Propose updated CRC responsibilities and sequence diagrams.
+* **MODIFIED components:** Propose updated CRC responsibilities and must_not constraints. On approval, write changes to `plans/component-contracts.yaml` via `save_contracts()`, then render to project-spec.md:
+
+```bash
+uv run python .claude/scripts/render_crc.py
+```
+
 * **REMOVED components:** Propose marking the Protocol Interfaces row `[DEPRECATED]` and adding a deprecation warning to the CRC card.
 
-Present proposed spec changes. Wait for human approval before write.
+Present proposed spec changes. Wait for human approval before write. All CRC data is written to component-contracts.yaml first (single source of truth), then rendered to project-spec.md. Do not edit project-spec.md CRC content directly.
 
 ---
 

@@ -92,12 +92,12 @@ For incremental runs: mark any changed section with an HTML comment `<!-- CHANGE
 
 ---
 
-### Step D: WRITE CRC CARDS
+### Step D: DESIGN CRC CARDS
 
-For every component identified in Step B, write a CRC card using the format defined in the `mini-spec` skill (Section 2: CRC Card Standard).
+For every component identified in Step B, design a CRC card using the format defined in the `mini-spec` skill (Section 2: CRC Card Standard).
 
-- **Action:** Write all CRC cards to `plans/project-spec.md` under a `## CRC Cards` section. Do not print them to the terminal.
-- **Incremental runs:** Mark each new or changed CRC card heading with `<!-- CHANGED -->`.
+- **Action:** Determine responsibilities, must_not constraints, collaborators, and layer for each component. This is a reasoning step -- do not write to `plans/project-spec.md` yet. The CRC data will be written to `component-contracts.yaml` in Step H-2c and rendered to project-spec.md in Step I.
+- **Incremental runs:** Note which CRC cards are new or changed for later `<!-- CHANGED -->` marking.
 
 ---
 
@@ -198,13 +198,12 @@ The sentinel prevents `reset-on-project-spec-write.sh` and `reset-on-pyi-write.s
 
 **Step H-2c:** Write `plans/component-contracts.yaml` using `contract_parser.save_contracts()`:
 
-- Build a `ComponentContractsFile` with one `ComponentContract` per registered component in the Interface Registry:
-  - `file: src/...` — the implementation path from the registry
-  - `collaborators: [...]` — the collaborator list from the CRC card (`[]` if none)
-  - `composition_root: true` — set only for Entrypoint Layer components; omit for all others
-- Call `save_contracts()` to write — this validates the model before serialization
-- Overwrite if the file already exists — it is always regenerated from the current spec
-- This file is the machine-readable contract consumed by `check_di_compliance.py`
+- Build a `ComponentContractsFile` with one `ComponentContract` per component. Include both structural and behavioral fields:
+  - **Structural:** `file: src/...` (implementation path), `collaborators: [...]` (from the CRC card, `[]` if none), `composition_root: true` (Entrypoint Layer only; omit for others)
+  - **Behavioral:** `responsibilities: [...]` (from CRC card design in Step D), `must_not: [...]` (from CRC card design in Step D), `protocol: interfaces/[name].pyi` (the .pyi path from the Interface Registry, omit for composition roots)
+- Call `save_contracts()` to write -- this validates the model before serialization
+- Overwrite if the file already exists -- it is always regenerated from the current design
+- This file is the single source of truth for CRC data. The CRC section of project-spec.md is rendered from it in Step I.
 
 **Step H-3:** Write `interfaces/*.pyi`:
 
@@ -239,6 +238,16 @@ Next step: Run /io-checkpoint to define atomic checkpoints and connectivity test
 ### Step I: GENERATE NAVIGATION ARTIFACTS
 
 After Step H-post, generate navigation artifacts from the approved design. These are derived outputs — generated from `project-spec.md` and the Interface Registry. Do not invent content; extract and reformat only.
+
+**Step I-0: Render CRC section of project-spec.md from YAML.**
+
+Run the render script to generate the CRC Cards section from `component-contracts.yaml`:
+
+```bash
+uv run python .claude/scripts/render_crc.py
+```
+
+This overwrites the `## CRC Cards` section in `plans/project-spec.md` with content derived from `plans/component-contracts.yaml`. For incremental runs, use `git diff plans/project-spec.md` to inspect what changed.
 
 **Step I-1: Regenerate directory-level CLAUDE.md files.**
 

@@ -63,6 +63,10 @@ component = os.environ['COMPONENT_NAME']
 contracts = load_contracts('plans/component-contracts.yaml')
 print('yes' if component in contracts.components else 'no')
 ")
+# Fallback: if component-contracts.yaml is missing (pre-migration repos),
+# check project-spec.md for a CRC heading matching the component name.
+# This branch exists only for backward compatibility and should not be
+# the primary path in repos that have adopted YAML-based contracts.
 elif [ -f "plans/project-spec.md" ]; then
     FOUND=$(COMPONENT_NAME="$COMPONENT_NAME" uv run python -c "
 import re, sys, os

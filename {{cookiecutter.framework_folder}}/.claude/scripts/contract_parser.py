@@ -39,6 +39,12 @@ def save_contracts(path: str, contracts: ComponentContractsFile) -> None:
             comp.pop("collaborators", None)
         if not comp.get("composition_root"):
             comp.pop("composition_root", None)
+        if not comp.get("protocol"):
+            comp.pop("protocol", None)
+        if not comp.get("responsibilities"):
+            comp.pop("responsibilities", None)
+        if not comp.get("must_not"):
+            comp.pop("must_not", None)
     output = yaml.dump(
         data, default_flow_style=False, sort_keys=False, allow_unicode=True,
     )

@@ -28,10 +28,7 @@ Class-Responsibility-Collaboration (CRC) cards map the observable behavior of a 
 **Protocol:** `interfaces/[protocol].pyi`
 
 **Responsibilities:**
-- `[CURRENT]` [Responsibility verified in existing code — cite file:line]
-- `[TARGET]` [Responsibility not yet implemented — design intent]
-- [Each responsibility is testable in isolation]
-- [If a CURRENT responsibility diverges from TARGET design, add a prose note beneath]
+- [Each responsibility is a testable behavioral statement]
 
 **Collaborators:**
 - [ComponentName] via [ProtocolName] — [why needed]
@@ -40,13 +37,27 @@ Class-Responsibility-Collaboration (CRC) cards map the observable behavior of a 
 - [Explicit negative constraint — what this component must never do]
 ```
 
+**Source of truth:** CRC behavioral data (responsibilities,
+must_not) lives in `plans/component-contracts.yaml`. The CRC
+Cards section of `project-spec.md` is rendered from the YAML
+by `render_crc.py`. Do not hand-edit the CRC section -- modify
+the YAML and re-render.
+
+This format definition describes the RENDERED output, not a
+hand-authored input.
+
 **Heuristics:**
 
 - **Observable behaviors only:** Responsibilities describe outcomes, not implementation steps. "Validates payload against domain model" not "calls `.model_validate()` on input dict".
 - **One card, one concept:** If a card has more than 7 responsibilities, break it into two components.
 - **Traceability:** Every responsibility must map to at least one public method in the Protocol. Private helpers (`_`-prefixed) do not appear in CRC cards.
-- **Must NOT is mandatory:** At least one negative constraint per card. Derive from the layer rules in `pyproject.toml` import-linter config (e.g., "Must NOT import from `src/domain/`").
-- **Current/Target tagging is mandatory:** Every responsibility line carries exactly one tag: `[CURRENT]` (verified, with `file:line` citation) or `[TARGET]` (design intent). In greenfield projects, all responsibilities are `[TARGET]`.
+- **Must NOT is mandatory for Protocol components:** Derive
+  from layer rules in `pyproject.toml` import-linter config.
+  Leaf components (no Protocol, no collaborators) are exempt
+  -- their constraints are implicit in their layer placement.
+- **Testable, not tagged:** Every responsibility is a testable
+  behavioral statement. No implementation status tags or file
+  citations -- those are tracked by the backlog and codebase.
 
 ## 3. Sequence Diagram Standard
 

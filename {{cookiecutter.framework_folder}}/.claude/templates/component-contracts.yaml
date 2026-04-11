@@ -10,7 +10,16 @@ components: {}
 #   Settings:
 #     file: src/core/config.py
 #     collaborators: []
+#     responsibilities:
+#       - Load and validate application configuration
+#     must_not:
+#       - Import from domain or entrypoint layer
 #   Router:
 #     file: src/domain/router.py
 #     collaborators: [Settings, Geocoder]
+#     protocol: interfaces/router.pyi
+#     responsibilities:
+#       - Route incoming requests to the correct handler
+#     must_not:
+#       - Access configuration directly (use Settings via DI)
 #     composition_root: false

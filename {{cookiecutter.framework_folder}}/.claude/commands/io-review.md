@@ -116,8 +116,8 @@ Flag any violations. Do not fix — record for findings.
 
 For each component in scope, verify:
 
-- **CRC Responsibilities:** Does the implementation fulfill every responsibility listed in the CRC card? Flag any responsibility with no corresponding implementation.
-- **CRC Must-Nots:** Does the implementation violate any explicit constraint in the CRC card?
+- **CRC Responsibilities:** Does the implementation fulfill every responsibility listed in `plans/component-contracts.yaml`? Flag any responsibility with no corresponding implementation.
+- **CRC Must-Nots:** Does the implementation violate any `must_not` constraint in `plans/component-contracts.yaml`?
 - **Protocol compliance:** Does every public method match its Protocol signature exactly? Flag any signature deviation.
 - **Protocol Raises coverage:** For each Protocol method in scope, verify that every `Raises:` declaration in the `.pyi` docstring has a corresponding `pytest.raises()` call in the test file. The compliance script `check_raises_coverage.py` (run via `run-compliance.sh`) performs this check mechanically. Flag any uncovered raises path as a finding.
 - **Collaborators:** Are all collaborators received via `__init__`? Flag any that are instantiated internally.

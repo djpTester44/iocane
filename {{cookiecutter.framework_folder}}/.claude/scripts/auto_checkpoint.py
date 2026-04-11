@@ -314,7 +314,7 @@ def build_context_files(
 ) -> list[str]:
     """Build context files list for a remediation checkpoint."""
     files = [protocol_file]
-    files.append(f"plans/project-spec.md (CRC card for {component_name} only)")
+    files.append(f"plans/component-contracts.yaml ({component_name} entry only)")
     files.append(f"plans/backlog.yaml (From {parent_cp} section)")
     return files
 

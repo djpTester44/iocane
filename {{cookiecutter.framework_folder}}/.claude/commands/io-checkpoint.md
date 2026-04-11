@@ -96,7 +96,7 @@ roadmap features), generate a remediation checkpoint (`CP-NNR`) for each item:
 For each feature in `roadmap.md`:
 
 - **Read** the feature's acceptance criteria and `depends_on` list.
-- **Read** the CRC cards for all components involved in this feature.
+- **Read** the CRC entries in `plans/component-contracts.yaml` for all components involved in this feature.
 - **Identify** the function-level units of work implied by the CRC responsibilities.
 - **Group** related functions into the smallest independently-testable unit.
 
