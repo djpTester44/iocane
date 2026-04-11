@@ -57,7 +57,12 @@ Before proceeding, output the following metadata:
 - **Action:** Read `plans/PRD.md` and `plans/roadmap.md`.
 - **Goal:** Identify every distinct component required to satisfy all features.
 - **Component types to identify:**
-  - Domain entities (data models, aggregates)
+  - Domain aggregates (entities with invariants — these get CRC cards)
+- **Domain value types to identify separately:**
+  - Value objects, DTOs, enums, and typed structures shared across components
+  - These are contract vocabulary, not behavioral components — they do NOT get CRC cards
+  - They will be defined in `interfaces/models.pyi` (Step E)
+- **Component types (continued):**
   - Repositories / data access layer
   - Service / orchestration layer
   - External adapters (APIs, queues, storage)
@@ -103,13 +108,23 @@ For every component identified in Step B, design a CRC card using the format def
 
 ### Step E: WRITE PROTOCOL SIGNATURES
 
-For every CRC card, write the corresponding Protocol interface to `plans/project-spec.md` under a `## Protocol Signatures` section:
+For every CRC card, write the corresponding Protocol interface to `plans/project-spec.md` under a `## Protocol Signatures` section.
+
+**First: define shared domain types.**
+
+Before writing Protocol signatures, identify all domain types (value objects, DTOs, enums) referenced across Protocol method parameters and return types. Design these as `.pyi` stubs for `interfaces/models.pyi`.
+
+Write these stubs to `plans/project-spec.md` under a `## Domain Type Stubs` section, before the Protocol Signatures section. Protocol files will import from these stubs.
+
+For brownfield projects: derive type definitions from the design in Steps B-D, not from existing `src/` code. The types in `interfaces/models.pyi` are the contract-level vocabulary — they may differ from current runtime implementations.
+
+**Protocol template:**
 
 ```python
 # interfaces/[protocol].pyi
 
 from typing import Protocol
-from [module] import [RelevantTypes]
+from interfaces.models import [RelevantTypes]
 
 class [ProtocolName](Protocol):
     def [method_name](self, [params]: [Types]) -> [ReturnType]:
@@ -123,6 +138,7 @@ class [ProtocolName](Protocol):
 - Parameters and return types must be concrete — no `Any`, no `dict` without type params.
 - Methods must be testable in isolation — no side-effectful signatures that cannot be mocked.
 - Protocols describe behavior at the boundary, not implementation details.
+- **[HARD] Self-containment:** Protocol `.pyi` files must not import from `src/`. All domain types must be defined in `interfaces/models.pyi`. All custom exceptions in `interfaces/exceptions.pyi`. The `interfaces/` package is the complete contract surface with no dependencies beyond the standard library and `typing`.
 
 **Write all Protocol signatures to `plans/project-spec.md`. Do not print them to the terminal. Do not write `.pyi` files yet.**
 
@@ -207,9 +223,10 @@ The sentinel prevents `reset-on-project-spec-write.sh` and `reset-on-pyi-write.s
 
 **Step H-3:** Write `interfaces/*.pyi`:
 
-- One file per Protocol
-- Exactly as written in `plans/project-spec.md` Protocol Signatures section — no additions or simplifications
-- Include docstrings on every method
+- `interfaces/models.pyi` — domain type stubs, exactly as in `plans/project-spec.md` Domain Type Stubs section
+- `interfaces/exceptions.pyi` — exception hierarchy (if any), exactly as in `plans/project-spec.md` Domain Type Stubs section
+- One `.pyi` file per Protocol, exactly as in `plans/project-spec.md` Protocol Signatures section — no additions or simplifications
+- Include docstrings on every method in Protocol files
 
 **Step H-4:** Stamp `plans/project-spec.md` with `**Approved:** True` in the doc header.
 
