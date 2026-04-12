@@ -127,7 +127,7 @@ When .pyi contracts drift from CRC responsibilities, write corrected behavioral 
 uv run python .claude/scripts/render_crc.py
 ```
 
-This follows the same save-then-render pattern as `/io-architect` Step H-2c + Step I-0: write YAML first, then generate the project-spec.md CRC section from it.
+This follows the same save-then-render pattern as `/io-architect` Step H-2c + Step I-1: write YAML first, then generate the project-spec.md CRC section from it.
 
 * Overwrite `plans/component-contracts.yaml` completely -- it is always regenerated, never patched.
 * Prepend the standard header comment block (matching the format in the existing file).

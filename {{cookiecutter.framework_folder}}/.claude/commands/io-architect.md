@@ -254,31 +254,9 @@ Next step: Run /io-checkpoint to define atomic checkpoints and connectivity test
 
 ### Step I: GENERATE NAVIGATION ARTIFACTS
 
-After Step H-post, generate navigation artifacts from the approved design. These are derived outputs — generated from `project-spec.md` and the Interface Registry. Do not invent content; extract and reformat only.
+After Step H-post, generate navigation artifacts from the approved design. Step I-0 derives the integration seams from the approved design (layer assignments require architect judgment). Steps I-1 and I-2 are mechanical reformatters -- generated from `component-contracts.yaml` and `seams.yaml`. Do not invent content in I-1 or I-2; extract and reformat only.
 
-**Step I-0: Render CRC section of project-spec.md from YAML.**
-
-Run the render script to generate the CRC Cards section from `component-contracts.yaml`:
-
-```bash
-uv run python .claude/scripts/render_crc.py
-```
-
-This overwrites the `## CRC Cards` section in `plans/project-spec.md` with content derived from `plans/component-contracts.yaml`. For incremental runs, use `git diff plans/project-spec.md` to inspect what changed.
-
-**Step I-1: Regenerate directory-level CLAUDE.md files.**
-
-Run the sync script:
-
-```bash
-uv run python .claude/scripts/sync_dir_claude.py
-```
-
-**Rule:** These files are generated artifacts -- the script overwrites them.
-They must stay under 20 lines. If the script reports exit code 2 (line-count
-exceeded), flag the directory as a `[DESIGN]` finding.
-
-**Step I-2: Update `plans/seams.yaml`.**
+**Step I-0: Update `plans/seams.yaml`.**
 
 For each component added or modified in this architect run (identified from the Interface Registry delta), update its entry in `plans/seams.yaml` using `seam_parser` functions:
 
@@ -300,6 +278,28 @@ seams = load_seams('plans/seams.yaml')
 
 If `plans/seams.yaml` does not exist, create it from `.claude/templates/seams.yaml`.
 Derive from `plans/project-spec.md` only — do not read source code.
+
+**Step I-1: Render CRC section of project-spec.md from YAML.**
+
+Run the render script to generate the CRC Cards section from `component-contracts.yaml`:
+
+```bash
+uv run python .claude/scripts/render_crc.py
+```
+
+This overwrites the `## CRC Cards` section in `plans/project-spec.md` with content derived from `plans/component-contracts.yaml`. For incremental runs, use `git diff plans/project-spec.md` to inspect what changed.
+
+**Step I-2: Regenerate directory-level CLAUDE.md files.**
+
+Run the sync script:
+
+```bash
+uv run python .claude/scripts/sync_dir_claude.py
+```
+
+**Rule:** These files are generated artifacts -- the script overwrites them.
+They must stay under 20 lines. If the script reports exit code 2 (line-count
+exceeded), flag the directory as a `[DESIGN]` finding.
 
 ---
 

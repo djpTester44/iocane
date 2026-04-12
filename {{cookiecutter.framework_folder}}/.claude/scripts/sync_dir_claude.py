@@ -84,6 +84,7 @@ def get_layer(
     comp_names: list[str],
     seam_components: list[SeamComponent],
     il_contracts: list[dict[str, object]],
+    dir_path: str,
 ) -> str:
     """Derive layer label for a directory's components.
 
@@ -98,20 +99,22 @@ def get_layer(
                 return layer_map[seam.layer]
 
     # Fallback: infer from import-linter layer contract ordering
+    # Match directory name against package path segments (e.g. "domain"
+    # matches "route_planner.domain"), not component class names.
+    dir_name = Path(dir_path).name.lower()
     for contract in il_contracts:
         if contract.get("type") != "layers":
             continue
         layers = contract.get("layers", [])
         # layers are ordered top-to-bottom (entrypoint first)
-        # Check if any component's package appears in the layers list
         for idx, layer_pkg in enumerate(layers):
-            for comp_name in comp_names:
-                if comp_name.lower() in layer_pkg.lower():
-                    # Map position to layer number (reversed: last = foundation)
-                    total = len(layers)
-                    layer_num = total - idx
-                    if layer_num in layer_map:
-                        return layer_map[layer_num]
+            pkg_segments = layer_pkg.lower().split(".")
+            if dir_name in pkg_segments:
+                # Map position to layer number (reversed: last = foundation)
+                total = len(layers)
+                layer_num = total - idx
+                if layer_num in layer_map:
+                    return layer_map[layer_num]
 
     return "[unknown]"
 
@@ -350,7 +353,7 @@ def sync_directory(
     dir_name = Path(dir_path).name
     interfaces_dir = project_root / "interfaces"
 
-    layer = get_layer(comp_names, seam_components, il_contracts)
+    layer = get_layer(comp_names, seam_components, il_contracts, dir_path)
     owns = get_owns(comp_names, components)
     public_via = get_public_via(comp_names, components, interfaces_dir)
     must_not = get_must_not(comp_names, components, il_contracts, dir_path)

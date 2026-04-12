@@ -20,8 +20,17 @@ except Exception:
     print('')
 " 2>/dev/null)
 
-# Only gate rm commands (rmdir handled by deny list)
-echo "$COMMAND" | grep -qE '(^|[[:space:];&|])rm[[:space:]]' || exit 0
+# Only gate commands where rm is an executed shell command.
+# 1. Strip quoted strings so "rm -f foo" inside python -c doesn't trigger.
+# 2. Split on shell metacharacters so compound commands are checked per-segment.
+# 3. Match rm as the leading command (with optional wrapper prefixes).
+# 4. Separately catch find -exec rm.
+_STRIPPED=$(echo "$COMMAND" | sed "s/'[^']*'//g; s/\"[^\"]*\"//g")
+{
+  echo "$_STRIPPED" | tr ';&|' '\n' |
+    grep -qE '^\s*(sudo\s+|env\s+|command\s+|nohup\s+|nice\s+|time\s+|doas\s+|xargs\s+)*rm\s' ||
+  echo "$_STRIPPED" | grep -qE '[-]exec\s+rm(\s|$)'
+} || exit 0
 
 # Block if no allowlist exists
 if [ ! -f "$ALLOWLIST" ]; then

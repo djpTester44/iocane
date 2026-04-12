@@ -172,7 +172,11 @@ mkdir -p .iocane && touch .iocane/validating
 For each REFACTOR item in the batch, set context:
 `IOCANE_REFACTOR_MODE=1` -- write-gate.sh blocks interfaces/*.pyi writes when set.
 
-### F.2: Write CRC card changes
+### F.2: Update seams.yaml
+
+If failure modes or DI receivers changed. Use `seam_parser.update_component()` and `save_seams()`.
+
+### F.3: Write CRC card changes
 
 Write CRC changes to `plans/component-contracts.yaml` via `save_contracts()`, then render to project-spec.md:
 
@@ -182,11 +186,11 @@ uv run python .claude/scripts/render_crc.py
 
 Use `git diff plans/project-spec.md` to inspect what changed in the rendered output.
 
-### F.3: Write Protocol signature changes
+### F.4: Write Protocol signature changes
 
 Write to `interfaces/*.pyi` -- DESIGN items only.
 
-### F.4: Update component-contracts.yaml
+### F.5: Update component-contracts.yaml
 
 If CRC data changed (collaborators, responsibilities, must_not, or protocol), write to `plans/component-contracts.yaml` via `save_contracts()`, then re-render:
 
@@ -194,11 +198,19 @@ If CRC data changed (collaborators, responsibilities, must_not, or protocol), wr
 uv run python .claude/scripts/render_crc.py
 ```
 
-### F.5: Update seams.yaml
+### F.6: Regenerate directory-level CLAUDE.md files
 
-If failure modes or DI receivers changed. Use `seam_parser.update_component()` and `save_seams()`.
+Run the sync script:
 
-### F.6: VALIDATE-SPEC GATE (Sonnet agent)
+```bash
+uv run python .claude/scripts/sync_dir_claude.py
+```
+
+**Rule:** These files are generated artifacts -- the script overwrites them.
+They must stay under 20 lines. If the script reports exit code 2 (line-count
+exceeded), flag the directory as a `[DESIGN]` finding.
+
+### F.7: VALIDATE-SPEC GATE (Sonnet agent)
 
 Dispatch Sonnet agent to run `/validate-spec` against the written artifacts.
 
@@ -206,19 +218,19 @@ validate-spec runs BEFORE the Approved: True stamp. Its Step 0 gate checks for
 Approved: True and halts if present -- so we run it while the stamp is still False,
 letting it verify CRC/.pyi consistency.
 
-- **PASS:** Proceed to F.7.
+- **PASS:** Proceed to F.8.
 - **FAIL:** Report drift findings. HALT. Sentinel cleanup needed manually.
   Items not marked resolved. Re-run after fixes.
 
-### F.7: Strip markers
+### F.8: Strip markers
 
 Remove all `<!-- CHANGED -->` markers from project-spec.md.
 
-### F.8: Stamp approval
+### F.9: Stamp approval
 
 Write `**Approved:** True` to plans/project-spec.md.
 
-### F.9: Delete sentinel
+### F.10: Delete sentinel
 
 ```bash
 rm -f .iocane/validating

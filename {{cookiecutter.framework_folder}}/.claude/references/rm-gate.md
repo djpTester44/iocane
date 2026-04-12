@@ -19,7 +19,7 @@ matches a pattern in the allowlist, it passes; otherwise exit 2 blocks it.
 
 | File | Purpose |
 |---|---|
-| `.claude/hooks/rm-gate.sh` | Hook script. Extracts the command from tool input JSON, checks if it is an `rm` invocation, matches against allowlist patterns. |
+| `.claude/hooks/rm-gate.sh` | Hook script. Extracts the command from tool input JSON, strips quoted strings and splits on shell metacharacters to detect `rm` as an executed shell command (not a substring inside quotes), then matches against allowlist patterns. Also catches `find -exec rm`. |
 | `.iocane/rm-allowlist.txt` | Glob patterns, one per line. Lines starting with `#` are comments. Blank lines ignored. |
 | `.claude/settings.json` | Hook registration under `hooks.PreToolUse` with `"matcher": "Bash"`. |
 
