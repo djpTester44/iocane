@@ -101,8 +101,18 @@ For incremental runs: mark any changed section with an HTML comment `<!-- CHANGE
 
 For every component identified in Step B, design a CRC card using the format defined in the `mini-spec` skill (Section 2: CRC Card Standard).
 
-- **Action:** Determine responsibilities, must_not constraints, collaborators, and layer for each component. This is a reasoning step -- do not write to `plans/project-spec.md` yet. The CRC data will be written to `component-contracts.yaml` in Step H-2c and rendered to project-spec.md in Step I.
+- **Action:** Determine responsibilities, must_not constraints, collaborators, layer, and roadmap features for each component. This is a reasoning step -- do not write to `plans/project-spec.md` yet. The CRC data will be written to `component-contracts.yaml` in Step H-2c and rendered to project-spec.md in Step I.
 - **Incremental runs:** Note which CRC cards are new or changed for later `<!-- CHANGED -->` marking.
+
+**[HARD] CRC budget caps.** A single component that absorbs too many behaviors, too many features, or too much composition wiring stops being a reviewable unit. Each CRC must satisfy all three caps; a violation forces decomposition, not a rewording.
+
+- **Responsibility cap:** max 3 testable responsibilities per CRC. A component with 4+ responsibilities must be split.
+- **Feature fan-out cap:** max 2 roadmap features per CRC. A component serving 3+ features from `plans/roadmap.md` must be split along feature boundaries. **Every component that carries feature logic MUST declare the feature IDs** (e.g., `F-01`, `F-02`) it supports -- they are written to the `features:` field in Step H-2c and are what the pre-gate reads. An empty `features:` is reserved for shared infrastructure that legitimately has no direct feature fan-out (e.g., `Settings`, loggers); the pre-gate emits a non-blocking warning if a behavioral component (has a Protocol or is a composition root) leaves `features:` empty, so A.1b cannot be silently bypassed by forgetting to declare.
+- **Composition-root decomposition:** a `composition_root: true` component with 3+ Layer-2/3 collaborators (domain + infrastructure, excluding other composition roots) must decompose into resource-scoped sub-components -- one router/handler/sub-app per resource, each wiring at most 2 Layer-2/3 collaborators.
+
+**Shared-type exemption:** `interfaces/models.pyi` and `interfaces/exceptions.pyi` hold contract vocabulary, not behavioral components -- they are not CRC cards and the caps do not apply. Mirrors the carve-out in `hooks/design-before-contract.sh`.
+
+These caps are mechanically enforced by `.claude/scripts/validate_crc_budget.py` at Step G before the human approval gate. Thresholds are defined as constants in that script for per-project tuning.
 
 ---
 
@@ -164,6 +174,27 @@ Every component with a Protocol must appear here. This table is the Protocol con
 
 ---
 
+### Step G-pre: [MECHANICAL PRE-GATE] CRC BUDGET CHECK
+
+Before presenting the approval summary, write the Step D CRC design to `plans/component-contracts.yaml` (using `contract_parser.save_contracts()` with the same field set as Step H-2c, including the `features:` list) and run the budget validator:
+
+```bash
+uv run python .claude/scripts/validate_crc_budget.py
+```
+
+The script enforces the Step D [HARD] budget caps mechanically:
+
+- **A.1a:** responsibilities <= 3 per CRC
+- **A.1b:** features <= 2 per CRC (skipped when `features` is empty)
+- **A.1c:** composition_root components with <= 2 Layer-2/3 collaborators. Until `plans/seams.yaml` is generated in Step I-0, the script falls back to counting every collaborator -- this is intentional and fail-safe.
+- **A.1e:** components whose protocol is `interfaces/models.pyi` or `interfaces/exceptions.pyi` are skipped.
+
+If the script exits non-zero, do NOT proceed to Step G. Revise the Step D design (decompose offending components, split feature fan-out, remove responsibilities) and re-run this step. The human never sees a design that has not cleared the pre-gate.
+
+**On interruption.** Step G-pre writes the real `plans/component-contracts.yaml` before validation. If the workflow is interrupted (Ctrl-C, crash) between a failed validation and the revised rewrite, the repo is left with an over-budget contracts file on disk. Recover with `git checkout HEAD -- plans/component-contracts.yaml`, then re-run `/io-architect`. Equivalent to any interrupted write -- not a new class of risk.
+
+---
+
 ### Step G: [HUMAN GATE] APPROVAL REQUIRED
 
 Print only this compact summary to the terminal:
@@ -214,11 +245,12 @@ The sentinel prevents `reset-on-project-spec-write.sh` and `reset-on-pyi-write.s
 
 **Step H-2c:** Write `plans/component-contracts.yaml` using `contract_parser.save_contracts()`:
 
-- Build a `ComponentContractsFile` with one `ComponentContract` per component. Include both structural and behavioral fields:
+- Build a `ComponentContractsFile` with one `ComponentContract` per component. Include structural, behavioral, and roadmap fields:
   - **Structural:** `file: src/...` (implementation path), `collaborators: [...]` (from the CRC card, `[]` if none), `composition_root: true` (Entrypoint Layer only; omit for others)
   - **Behavioral:** `responsibilities: [...]` (from CRC card design in Step D), `must_not: [...]` (from CRC card design in Step D), `protocol: interfaces/[name].pyi` (the .pyi path from the Interface Registry, omit for composition roots)
+  - **Roadmap:** `features: [F-XX, ...]` (roadmap feature IDs from `plans/roadmap.md` this component supports). Required for every component that carries feature logic. Empty is reserved for shared infrastructure without direct feature fan-out; the pre-gate emits a warning (not a failure) if a behavioral component leaves this empty, so the A.1b cap cannot be bypassed by omission.
 - Call `save_contracts()` to write -- this validates the model before serialization
-- Overwrite if the file already exists -- it is always regenerated from the current design
+- Overwrite if the file already exists -- it is always regenerated from the current design. Note: Step G-pre may have already written a passing draft; this step re-writes so any corrections applied during the Step G human review are captured.
 - This file is the single source of truth for CRC data. The CRC section of project-spec.md is rendered from it in Step I.
 
 **Step H-3:** Write `interfaces/*.pyi`:

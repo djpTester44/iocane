@@ -159,6 +159,31 @@ Dispatch an Opus evaluator agent with:
 
 ---
 
+## Step E.5: [MECHANICAL] CRC BUDGET PRE-GATE
+
+After Step E filters the batch, and BEFORE Step F writes anything to `plans/` or `interfaces/`, serialize the proposed CRC state and run the deterministic budget gate. This mirrors `/io-architect` Step G-pre; invoking `/auto-architect` must never be a way to sidestep the A.1 caps.
+
+1. Build the proposed `ComponentContractsFile`: start from the current `plans/component-contracts.yaml` and apply every remaining (post-Step-E) item's CRC changes in memory.
+2. Write the proposed state to the staging path `.iocane/crc-budget-staging.yaml` using `contract_parser.save_contracts()`.
+3. Run the validator against the staging file:
+
+```bash
+uv run python .claude/scripts/validate_crc_budget.py \
+  --contracts .iocane/crc-budget-staging.yaml
+```
+
+4. On exit 1 (violations):
+   - HALT before Step F. No real writes to `plans/` or `interfaces/` have happened.
+   - Report violating components and the backlog items whose changes introduced the over-capacity state.
+   - Instruct the user to either (a) narrow/split the offending items via `/io-backlog-triage`, or (b) decompose the affected components via `/io-architect`. `/auto-architect` cannot repair structural over-capacity on its own.
+   - Leave failing items `[ ]` in backlog for the next run. Delete `.iocane/crc-budget-staging.yaml`.
+5. On exit 2 (load error): HALT and surface the error -- something is wrong with the staging serialization.
+6. On exit 0: delete `.iocane/crc-budget-staging.yaml` and proceed to Step F.
+
+The staging path isolates the gate from `plans/component-contracts.yaml`, so a failed pre-gate does not leave partially-approved contracts on disk or perturb `hooks/design-before-contract.sh`.
+
+---
+
 ## Step F: EXECUTE (sequential)
 
 ### F.0: Create sentinel

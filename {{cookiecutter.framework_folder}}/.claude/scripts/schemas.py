@@ -350,6 +350,7 @@ class ComponentContract(BaseModel, frozen=True):
     protocol: str = ""
     responsibilities: list[str] = []
     must_not: list[str] = []
+    features: list[str] = []
 
     @field_validator("file")
     @classmethod

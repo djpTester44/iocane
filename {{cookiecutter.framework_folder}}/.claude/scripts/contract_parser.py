@@ -10,7 +10,6 @@ from pathlib import Path
 import yaml
 from schemas import ComponentContractsFile
 
-
 # ---------------------------------------------------------------------------
 # I/O
 # ---------------------------------------------------------------------------
@@ -45,6 +44,8 @@ def save_contracts(path: str, contracts: ComponentContractsFile) -> None:
             comp.pop("responsibilities", None)
         if not comp.get("must_not"):
             comp.pop("must_not", None)
+        if not comp.get("features"):
+            comp.pop("features", None)
     output = yaml.dump(
         data, default_flow_style=False, sort_keys=False, allow_unicode=True,
     )

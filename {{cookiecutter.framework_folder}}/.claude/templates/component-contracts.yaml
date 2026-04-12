@@ -23,3 +23,4 @@ components: {}
 #     must_not:
 #       - Access configuration directly (use Settings via DI)
 #     composition_root: false
+#     features: [F-01, F-02]  # roadmap features this component supports
