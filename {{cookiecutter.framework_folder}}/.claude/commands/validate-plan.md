@@ -140,7 +140,7 @@ uv run python .claude/scripts/validate_ct_assertions.py
 
 For every CT, the validator checks the assertion string (case-insensitive substring match) for at least one keyword from each of the three behavior-observable sets required by Step D of `/io-checkpoint`:
 
-* **call binding:** called, invoked, with argument, passes, passed to
+* **call binding:** called, invoke/invoked/invokes, with argument, passes, passed to
 * **cardinality:** once, exactly, per, times, each, for every
 * **error propagation:** raises, propagates, re-raises, error, exception
 
@@ -152,12 +152,52 @@ The script exits 0 regardless of findings. Absence of `WARN:` lines means every 
 
 ---
 
+### Step 9D: CHECK — Path Reference Resolvability [Phase 1]
+
+Run the Appendix A §A.6 file-reference resolvability gate:
+
+```bash
+uv run python .claude/scripts/validate_path_refs.py --stage validate-plan
+```
+
+For every path reference extracted from spec artifacts (PRD, roadmap, project-spec, component-contracts, seams, plan.yaml), the script verifies the path resolves to one of:
+
+* (a) an existing file on disk,
+* (b) a CP `write_target` in `plans/plan.yaml`, or
+* (c) a CP's `relies_on_existing` entry.
+
+Surface the script's stderr output verbatim in the findings report. Each `WARN:` line names the source artifact, the line number, and the unresolved path.
+
+* **Flag:** `UNRESOLVED_PATH_REF` — path reference in a spec artifact does not resolve to filesystem, a CP `write_target`, or a CP's `relies_on_existing` declaration. Severity: OBSERVATION (non-blocking). Same channel as `CT_ASSERTION_KEYWORDS` (Step 9C). Does not block Phase 1 or gate passage, but is listed in the Step 11 findings table for human review.
+
+The script exits 0 regardless of findings. Absence of `WARN:` lines means every extracted path resolves.
+
+---
+
+### Step 9E: CHECK — Plan-Wide Raises Coverage [Phase 1]
+
+Run the Appendix A §A.4d plan-wide Raises coverage check:
+
+```bash
+uv run python .claude/scripts/validate_plan_raises_coverage.py
+```
+
+For every `Raises:` declaration in every `interfaces/*.pyi` Protocol method, the script checks whether the exception class name appears in at least one `connectivity_tests[*].assertion` in `plans/plan.yaml`. This is the plan-wide tightening noted in A.4d: A.4a-c only require coverage on the source side of a declared DI seam, which misses exceptions raised inside a component rather than propagated across a seam.
+
+Surface the script's stderr output verbatim in the findings report. Each `WARN:` line names the Protocol, method, and uncovered exception type.
+
+* **Flag:** `RAISES_ASSERTION_UNCOVERED` — Protocol `Raises:` declaration not named in any CT assertion. Severity: OBSERVATION (non-blocking). Same channel as `CT_ASSERTION_KEYWORDS` (9C) and `UNRESOLVED_PATH_REF` (9D). Does not block Phase 1 or gate passage, but is listed in the Step 11 findings table for human review. Distinct from the Step 5 Phase 2 `RAISES_UNCOVERED` check, which verifies coverage in per-CP acceptance criteria -- 9E validates that the seam surface itself (CT assertions) names each exception.
+
+The script exits 0 regardless of findings.
+
+---
+
 ### [PHASE 1 HALT GATE]
 
-After running Steps 4, 7, 8, 9, 9B, and 9C:
+After running Steps 4, 7, 8, 9, 9B, 9C, 9D, and 9E:
 
 * If any Phase 1 check produced a **non-auto-remediable VIOLATION**: HALT immediately. Do not load Phase 2 context. Output findings and escalate to user.
-* If all Phase 1 violations are auto-remediable: apply auto-fixes, mark `[AUTO-AMENDED]`, and re-run Steps 4, 7, 8, 9, 9B only (no Phase 2 reload per self-heal iteration). See Step 12 for loop procedure.
+* If all Phase 1 violations are auto-remediable: apply auto-fixes, mark `[AUTO-AMENDED]`, and re-run Steps 4, 7, 8, 9, 9B only (no Phase 2 reload per self-heal iteration). Steps 9C, 9D, and 9E always emit OBSERVATION-severity findings -- never VIOLATION -- so they do not participate in the self-heal loop. See Step 12 for loop procedure.
 * Only when Phase 1 is clean (zero Phase 1 VIOLATIONs): proceed to Phase 2.
 
 ---

@@ -21,6 +21,8 @@ description: Clarify the PRD before Init to ensure testable, autonomous executio
    - Provide binary or categorical options (e.g., "For API timeout errors, should the system implement exponential backoff, or fail immediately and alert?").
 4. **Halt Execution:** Do not proceed to architecture or planning. Present the questions to the user and wait for explicit answers. Ensure the `**Clarified:**` field in `plans/PRD.md` remains `False`.
 5. **Update PRD:** Once the user answers all questions, update `plans/PRD.md` with the new constraints.
+
+   **Appendix A §A.6e -- Grep-verify paths before writing.** When a user answer introduces a file path into the PRD (e.g., a fixture location, a dataset, a config file), use the Grep tool to verify the path either (a) already exists on disk, (b) is a project convention established elsewhere in the codebase, or (c) is explicitly flagged as a future artifact. Paths authored from memory during clarification propagate through every downstream artifact and surface as orphan warnings at `/validate-plan` Step 9D. Authoring discipline starts here.
 6. **Critique PRD:** After all ambiguities are resolved, critique the full `plans/PRD.md` against the following rubric. Score each criterion and produce an overall PASS/FAIL:
 
    | Criterion | Description |

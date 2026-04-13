@@ -302,7 +302,8 @@ seams = load_seams('plans/seams.yaml')
 "
 ```
 
-- `receives_di`: derive from the CRC card Collaborators list
+- `receives_di`: derive from the CRC card Collaborators list (deprecated alias; retained for readers that have not migrated to Protocol-level DI graphs)
+- `receives_di_protocols`: **Appendix A §A.3b.** Required for every component whose `component-contracts.yaml` entry has `composition_root: true`. Enumerate every Protocol the component injects -- these are Protocol names (the `.pyi` class symbols), not collaborator component names. This list drives the composition-root CT emission in `/io-checkpoint` Step D. For non-composition components, leave empty.
 - `external_terminal`: derive from CRC card Responsibilities (any external system explicitly mentioned) and Must NOT constraints
 - `key_failure_modes`: derive from Protocol method docstrings (exception types documented)
 - `layer`: assign based on component placement (1=Foundation, 2=Utility, 3=Domain)
@@ -333,6 +334,18 @@ uv run python .claude/scripts/sync_dir_claude.py
 They must stay under 20 lines. If the script reports exit code 2 (line-count
 exceeded), flag the directory as a `[DESIGN]` finding.
 
+**Step I-3: [MECHANICAL POST-GATE] FILE-REFERENCE RESOLVABILITY.**
+
+**Appendix A §A.6c (architect stage).** After all spec artifacts (project-spec.md, component-contracts.yaml, seams.yaml, interfaces/*.pyi) are on disk, scan them plus PRD/roadmap for path references that do not resolve:
+
+```bash
+uv run python .claude/scripts/validate_path_refs.py --stage architect
+```
+
+The script uses `rg` with extension-anchored patterns (A.6a). For each extracted path it verifies resolution against (a) the filesystem, (b) any existing plan.yaml's `write_targets`, (c) any existing plan.yaml's `relies_on_existing`. Unresolved paths emit OBSERVATION-severity `WARN:` lines on stderr. Exit code is always 0 -- non-blocking by design.
+
+Surface the stderr output verbatim to the user. Do not auto-fix. An unresolved path is a signal that either (1) a referenced artifact was authored from memory without Grep-verification, or (2) a legitimate upcoming CP will produce the artifact -- in the second case the warning re-appears at `/validate-plan` Step 9D with the full plan context, where a CP `write_target` or `relies_on_existing` declaration can close it.
+
 ---
 
 ## 3. INCREMENTAL MODE (extending existing design)
@@ -354,5 +367,6 @@ If `project-spec.md` and `interfaces/*.pyi` already exist:
 - `project-spec.md` reflects current codebase state only — no debt tracking, no state artifacts.
 - Protocol files are binding contracts. They are the source of truth for sub-agent execution.
 - The human's approval at Step G is the point of no return for Tier 2 delegation.
+- **Appendix A §A.6e -- Grep-verify paths before writing.** Before writing any file path into `project-spec.md`, `component-contracts.yaml`, `seams.yaml`, or the Interface Registry, use the Grep tool to verify the path either (a) already exists on disk, (b) traces to an upstream artifact (PRD, roadmap), or (c) is a declared output of this architect run. Paths authored from memory are a recurring defect class. The Step I-3 mechanical gate catches unresolved references non-blockingly, but authoring discipline is the primary defense.
 
 > `[HARD] Evidence citation rule:` Any spec claim citing existing code must include an explicit `file:line` citation. The architect must read the cited line before writing the claim. Uncited claims about existing code are forbidden.

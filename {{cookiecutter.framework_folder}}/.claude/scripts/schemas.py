@@ -153,6 +153,12 @@ class Checkpoint(BaseModel, frozen=True):
     depends_on: list[str] = []
     parallelizable_with: list[str] = []
 
+    # Appendix A §A.6d -- pre-existing artifacts referenced by this CP's
+    # acceptance criteria or gate but not produced by it. Consumed by
+    # validate_path_refs.py to suppress orphan warnings for files already
+    # on disk at planning time.
+    relies_on_existing: list[str] = []
+
     # Task-file bridging fields (populated by /io-checkpoint)
     acceptance_criteria: list[str] = []
     contract: str | None = None
@@ -234,9 +240,10 @@ class ConnectivityTest(BaseModel, frozen=True):
 # Appendix A §A.4c -- behavior-observable keyword sets for CT assertions.
 # Case-insensitive substring match; an assertion must contain at least one
 # keyword from each set or the lexical validator emits a warning.
+# The "invoke" stem matches "invoke", "invoked", and "invokes".
 CT_ASSERTION_KEYWORDS: dict[str, frozenset[str]] = {
     "call binding": frozenset(
-        {"called", "invoked", "with argument", "passes", "passed to"},
+        {"called", "invoke", "with argument", "passes", "passed to"},
     ),
     "cardinality": frozenset(
         {"once", "exactly", "per", "times", "each", "for every"},
@@ -309,10 +316,18 @@ class ExecutionFinding(BaseModel, frozen=True):
 
 
 class SeamEntry(BaseModel, frozen=True):
-    """Seam context entry describing a component boundary."""
+    """Seam context entry describing a component boundary.
+
+    Appendix A §A.3a: ``receives_di_protocols`` is the canonical field for
+    Protocol-level DI graph. ``receives_di`` is a deprecated alias carrying
+    collaborator component names from pre-A.3 seams files; readers migrating
+    the graph to Protocol names should prefer ``receives_di_protocols`` and
+    fall back to ``receives_di`` only when the new field is empty.
+    """
 
     component: str
     receives_di: list[str] = []
+    receives_di_protocols: list[str] = []
     key_failure_modes: list[str] = []
     external_terminal: str | None = None
 

@@ -5,7 +5,8 @@ Soft lexical validator for ``ConnectivityTest.assertion`` strings in
 
 For every CT in the plan, verifies that the assertion contains at
 least one keyword from each of the three behavior-observable sets:
-  - call binding: called, invoked, with argument, passes, passed to
+  - call binding: called, invoke (stem matches invoke/invoked/invokes),
+                  with argument, passes, passed to
   - cardinality:  once, exactly, per, times, each, for every
   - error propagation: raises, propagates, re-raises, error, exception
 

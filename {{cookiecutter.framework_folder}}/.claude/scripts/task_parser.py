@@ -66,6 +66,11 @@ def save_task(path: str, task: TaskFile) -> None:
     for seam in data.get("seam_context", []):
         if "receives_di" in seam and not seam["receives_di"]:
             del seam["receives_di"]
+        if (
+            "receives_di_protocols" in seam
+            and not seam["receives_di_protocols"]
+        ):
+            del seam["receives_di_protocols"]
         if "key_failure_modes" in seam and not seam["key_failure_modes"]:
             del seam["key_failure_modes"]
     # Ensure always-emit fields exist

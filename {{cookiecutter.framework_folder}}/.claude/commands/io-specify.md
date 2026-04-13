@@ -135,3 +135,4 @@ Next step: Run /io-architect to define CRC cards, Protocols, and the Interface R
 - Do not propose implementation approaches — roadmap entries describe outcomes, not mechanisms.
 - If the PRD is ambiguous about whether two things are one feature or two, flag it and ask before proceeding.
 - In brownfield repos, any PRD claim about existing behavior that cannot be verified against source must carry an `[UNVERIFIED]` tag through to `roadmap.md`.
+- **Appendix A §A.6e -- Grep-verify paths before writing.** Before naming any file path in a feature's `PRD reference` or acceptance criteria, use the Grep tool to verify the path either (a) exists on disk, (b) traces back to the PRD, or (c) is explicitly flagged as a planned artifact with the producing feature named. Paths authored from memory here propagate through every downstream artifact and surface as orphan warnings at `/validate-plan` Step 9D.
