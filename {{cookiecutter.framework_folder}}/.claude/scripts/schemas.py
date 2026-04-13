@@ -231,6 +231,41 @@ class ConnectivityTest(BaseModel, frozen=True):
         return v
 
 
+# Appendix A §A.4c -- behavior-observable keyword sets for CT assertions.
+# Case-insensitive substring match; an assertion must contain at least one
+# keyword from each set or the lexical validator emits a warning.
+CT_ASSERTION_KEYWORDS: dict[str, frozenset[str]] = {
+    "call binding": frozenset(
+        {"called", "invoked", "with argument", "passes", "passed to"},
+    ),
+    "cardinality": frozenset(
+        {"once", "exactly", "per", "times", "each", "for every"},
+    ),
+    "error propagation": frozenset(
+        {"raises", "propagates", "re-raises", "error", "exception"},
+    ),
+}
+
+
+def ct_assertion_warnings(assertion: str) -> list[str]:
+    """Return the observable-set labels missing from a CT assertion.
+
+    Soft lexical validator per Appendix A §A.4c. Checks the assertion
+    string (case-insensitive substring match) for at least one keyword
+    from each of three sets in ``CT_ASSERTION_KEYWORDS``: call binding,
+    cardinality, and error propagation. Returns the labels of missing
+    sets; an empty list means all three observables are covered. Never
+    raises -- warnings are non-blocking and surfaced by
+    ``validate_ct_assertions.py`` under ``/validate-plan``.
+    """
+    text = assertion.lower()
+    return [
+        label
+        for label, keywords in CT_ASSERTION_KEYWORDS.items()
+        if not any(kw in text for kw in keywords)
+    ]
+
+
 class SelfHealingEntry(BaseModel, frozen=True):
     """An entry in the plan's self-healing log."""
 

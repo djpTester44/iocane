@@ -130,9 +130,31 @@ For every connectivity test in `plan.yaml`, the `target_cp`'s `depends_on` list 
 
 ---
 
+### Step 9C: CHECK — CT Assertion Behavior Keywords [Phase 1]
+
+Run the soft lexical validator on every `ConnectivityTest.assertion`:
+
+```bash
+uv run python .claude/scripts/validate_ct_assertions.py
+```
+
+For every CT, the validator checks the assertion string (case-insensitive substring match) for at least one keyword from each of the three behavior-observable sets required by Step D of `/io-checkpoint`:
+
+* **call binding:** called, invoked, with argument, passes, passed to
+* **cardinality:** once, exactly, per, times, each, for every
+* **error propagation:** raises, propagates, re-raises, error, exception
+
+Surface the script's stderr output verbatim in the findings report. Each `WARN:` line names a CT whose assertion lacks keywords for one or more of the observables.
+
+* **Flag:** `CT_ASSERTION_KEYWORDS` — CT assertion missing behavior-observable keywords. Severity: OBSERVATION (non-blocking). Does not cause Phase 1 to halt, but is listed in the Step 11 findings table and must be acknowledged by the human reviewer.
+
+The script exits 0 regardless of findings. Absence of `WARN:` lines means every CT assertion covers all three observables.
+
+---
+
 ### [PHASE 1 HALT GATE]
 
-After running Steps 4, 7, 8, 9, and 9B:
+After running Steps 4, 7, 8, 9, 9B, and 9C:
 
 * If any Phase 1 check produced a **non-auto-remediable VIOLATION**: HALT immediately. Do not load Phase 2 context. Output findings and escalate to user.
 * If all Phase 1 violations are auto-remediable: apply auto-fixes, mark `[AUTO-AMENDED]`, and re-run Steps 4, 7, 8, 9, 9B only (no Phase 2 reload per self-heal iteration). See Step 12 for loop procedure.

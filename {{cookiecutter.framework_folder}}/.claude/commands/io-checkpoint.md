@@ -144,9 +144,17 @@ A connectivity test verifies that the output of checkpoint A satisfies the input
 test_id: CT-[NNN]
 function: test_[descriptive_name]
 file: tests/connectivity/test_[cp_a]_[cp_b].py
-fixture_deps: [[fixture_name], [fixture_name]]
+fixture_deps: [mock_[source_protocol], spy_[source_protocol], ...]
 contract_under_test: interfaces/[protocol].pyi :: [ProtocolName].[method_name]
-assertion: [What must be true about the return value — type, shape, invariants. No implementation detail.]
+assertion: [Three observables, each phrased against the seam:
+  1. Call binding -- which upstream method is invoked and with which argument(s)
+     (keywords: called, invoked, with argument, passes, passed to).
+  2. Call cardinality -- how many times the upstream is invoked
+     (keywords: once, exactly, per, times, each, for every).
+  3. Error propagation -- behaviour when the upstream raises each declared
+     exception (keywords: raises, propagates, re-raises, error, exception).
+  Every Protocol ``Raises:`` on the source side of the seam must be named
+  here OR annotated ``[DEFERRED: <reason>]`` inline. No implementation detail.]
 gate: pytest tests/connectivity/test_[cp_a]_[cp_b].py::[function_name]
 ```
 
@@ -156,6 +164,8 @@ gate: pytest tests/connectivity/test_[cp_a]_[cp_b].py::[function_name]
 
 - The assertion must be precise enough that `/io-execute` can build the test without ambiguity
 - The assertion describes the observable contract boundary — return type, key invariants, no ORM types leaking through domain layer, etc.
+- **[HARD] Three-observable assertion (A.4a).** Every assertion must name all three seam-level observables: (1) **call binding** -- which upstream method the downstream invokes and with what argument(s); (2) **call cardinality** -- how many times the upstream is called per downstream operation; (3) **error propagation** -- what the downstream does when the upstream raises each of its declared exceptions. Each Protocol `Raises:` on the source side of the seam must be named in the assertion OR explicitly annotated `[DEFERRED: <reason>]`. An assertion that only checks return type/shape is an identity CT and is rejected. The schema-level lexical validator (`ct_assertion_warnings` in `scripts/schemas.py`) surfaces missing keywords as non-blocking warnings under `/validate-plan`.
+- **[HARD] Spy-capable fixtures (A.4b).** `fixture_deps` must include, for every source Protocol on the seam, a `MagicMock`-based or spy-capable stub (e.g., `unittest.mock.MagicMock`, `pytest-mock`'s `mocker.spy`, or a hand-rolled stub that records calls and arguments). Identity-only fixtures -- a plain function returning a fixed value, or a dataclass with no call-recording surface -- are **insufficient**: call binding and cardinality cannot be observed against them and the three-observable assertion becomes unenforceable. A fixture entry like `stub_geocoder_returning_location` is a rejection signal; the correct form is `mock_geocoder_client` (with the expectation that the fixture exposes `.called`, `.call_args`, `.call_count`, or equivalent).
 - `fixture_deps` must name real fixtures or factories that will exist after CP-A is complete
 - Every dependency edge in the checkpoint graph must have at least one connectivity test
 - The CT test file is a write target of `target_cp` only. Source checkpoints must NOT include the CT file in their `write_targets` or `gate_command`.
