@@ -13,6 +13,9 @@
 set -euo pipefail
 
 INPUT=$(cat)
+# CWD-scoped intentionally: pre-compact-state.json and compact.log are
+# consumed by post-compact.sh IN THE SAME SESSION. Parent-scoping would
+# cross sessions and corrupt unrelated post-compact reads.
 mkdir -p .iocane
 
 TRIGGER=$(printf '%s' "$INPUT" | uv run python -c "

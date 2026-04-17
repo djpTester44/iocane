@@ -102,7 +102,7 @@ Protocol, per CDD (`.claude/references/cdd/cdt-vs-impl-testing.md`).
 - **Gate:** Run the impl test(s) you authored and any relevant
   pre-existing contract + connectivity tests:
   ```bash
-  uv run rtk pytest [impl_test_path] [tests/contracts/test_X.py] [tests/connectivity/test_Y.py]
+  uv run rtk test pytest [impl_test_path] [tests/contracts/test_X.py] [tests/connectivity/test_Y.py]
   ```
   - Impl tests should FAIL before impl exists (skeleton-import is
     acceptable; see Step C).
@@ -131,7 +131,7 @@ Protocol, per CDD (`.claude/references/cdd/cdt-vs-impl-testing.md`).
   - No global state, no module-level side effects
   - `from __future__ import annotations` at top of every module
   - Protocol imports inside `if TYPE_CHECKING:` only
-- **Gate:** Run `uv run rtk pytest [test_file_path]`
+- **Gate:** Run `uv run rtk test pytest [test_file_path]`
   - Must PASS. If fail: attempt remediation up to 3 times. If still failing after 3 attempts → escalate (see Section 3).
 - **On completion:** Mark step C done via the same `mark_step_done` pattern as Step B (substitute `'C'` for the step prefix).
 
@@ -306,13 +306,18 @@ something the impl MUST know:
    - `attempt:` -- leave at schema default (`1`);
      `handle_amend_signal.py` populates the final value on consume.
 
-2. Write `.iocane/amend-signals/${CP_ID}.yaml`. Validate via:
+2. Write `${IOCANE_REPO_ROOT:-.}/.iocane/amend-signals/${CP_ID}.yaml`.
+   The `IOCANE_REPO_ROOT` prefix is required: the generator runs with
+   CWD inside the worktree, so a relative `.iocane/...` path would
+   land in `worktree/.iocane/`, which the architect (parent CWD) never
+   reads. `dispatch-agents.sh` exports `IOCANE_REPO_ROOT=<parent>`
+   before spawning the generator. Validate via:
    ```bash
    uv run python -c "
    import sys, yaml
    sys.path.insert(0, '.claude/scripts')
    from schemas import AmendSignalFile
-   data = yaml.safe_load(open('.iocane/amend-signals/${CP_ID}.yaml'))
+   data = yaml.safe_load(open('${IOCANE_REPO_ROOT:-.}/.iocane/amend-signals/${CP_ID}.yaml'))
    AmendSignalFile.model_validate(data)
    "
    ```
@@ -322,7 +327,7 @@ something the impl MUST know:
 3. Write a `.status` file naming the HALT:
    ```bash
    bash "$IOCANE_REPO_ROOT/.claude/scripts/write-status.sh" [CP-ID] \
-     "FAIL: impl-Protocol gap; AMEND signal emitted at .iocane/amend-signals/[CP-ID].yaml"
+     "FAIL: impl-Protocol gap; AMEND signal emitted at \${IOCANE_REPO_ROOT:-.}/.iocane/amend-signals/[CP-ID].yaml"
    ```
 
 4. Terminate. Do NOT attempt impl. The architect consumes the signal
@@ -354,7 +359,7 @@ are disjoint by shape (`CP-\d+` vs identifier-like Protocol stems).
 - Files listed in `write_targets` (typically `src/**/*.py` and impl-test paths)
 - `tests/**/*.py` EXCEPT `tests/contracts/` and `tests/connectivity/` -- impl tests go under other directories (e.g., `tests/test_<module>_impl.py`)
 - The task file itself (for `step_progress` and `execution_findings` updates via `task_parser`)
-- `.iocane/amend-signals/${CP_ID}.yaml` on impl-Protocol-gap (see Section 3 AMEND path)
+- `${IOCANE_REPO_ROOT:-.}/.iocane/amend-signals/${CP_ID}.yaml` on impl-Protocol-gap (parent-scoped; see Section 3 AMEND path)
 
 **Never-edit** (per Phase 4 D15 -- any write here triggers reset hooks and invalidates architect validation stamps during parallel dispatch):
 

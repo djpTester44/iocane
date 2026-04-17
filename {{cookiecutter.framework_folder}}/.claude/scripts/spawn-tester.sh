@@ -75,9 +75,10 @@ fi
 # no stamp (its validation is coupled to test-plan via the reset-hook
 # chain -- any symbols.yaml write resets test-plan.yaml.validated).
 # symbols.yaml: existence check only.
-# test-plan.yaml: anchored grep on the top-level key. A substring match
-# would false-green on any invariant description containing the literal
-# "validated: true" (e.g., pass-criteria prose quoting prior state).
+# test-plan.yaml: structured parse via load_test_plan(). Grep on
+# `validated: true` would false-green on any invariant description
+# containing that literal string (e.g., pass-criteria prose quoting
+# prior state).
 if [ ! -f "$REPO_ROOT/plans/test-plan.yaml" ]; then
     echo "spawn-tester: plans/test-plan.yaml not found" >&2
     exit 1
@@ -86,7 +87,13 @@ if [ ! -f "$REPO_ROOT/plans/symbols.yaml" ]; then
     echo "spawn-tester: plans/symbols.yaml not found" >&2
     exit 1
 fi
-if ! grep -qE '^validated:[[:space:]]*true[[:space:]]*$' "$REPO_ROOT/plans/test-plan.yaml"; then
+if ! uv run python -c "
+import sys
+sys.path.insert(0, '$REPO_ROOT/.claude/scripts')
+from test_plan_parser import load_test_plan
+plan = load_test_plan('$REPO_ROOT/plans/test-plan.yaml')
+sys.exit(0 if plan.validated else 1)
+" 2>/dev/null; then
     echo "spawn-tester: plans/test-plan.yaml not stamped validated: true (run /io-architect Step H-post-validate)" >&2
     exit 1
 fi

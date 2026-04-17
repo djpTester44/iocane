@@ -69,7 +69,14 @@ fi
 # --- Review-pending check ---
 REVIEW_PENDING_ALERT=""
 if [ -f ".iocane/review-pending.json" ]; then
-    PENDING_CPS=$(grep -o '"cp_ids":\[[^]]*\]' ".iocane/review-pending.json" | sed 's/"cp_ids":\[//;s/\]//;s/"//g')
+    PENDING_CPS=$(uv run python -c "
+import json
+try:
+    d = json.load(open('.iocane/review-pending.json', encoding='utf-8'))
+    print(','.join(d.get('cp_ids') or []))
+except Exception:
+    pass
+" 2>/dev/null || true)
     REVIEW_PENDING_ALERT="
 ## REVIEW PENDING APPROVAL
 
@@ -83,6 +90,8 @@ PLAN_FILE="plans/plan.yaml"
 ACTIVE_CHECKPOINT=""
 PENDING_CHECKPOINTS=""
 COMPLETED_CHECKPOINTS=""
+VALIDATED=""
+HAS_COMPLETE=""
 
 if [ -f "$PLAN_FILE" ]; then
     eval "$(uv run python -c "
@@ -102,13 +111,19 @@ if prog:
     active = f'{prog[0].id}: {prog[0].title}'
 elif pend:
     active = f'{pend[0].id}: {pend[0].title}'
+validated_str = 'true' if plan.validated else ''
+has_complete_str = 'true' if comp else ''
 print(f'PENDING_CHECKPOINTS=\"{pend_str}\"')
 print(f'COMPLETED_CHECKPOINTS=\"{comp_str}\"')
 print(f'ACTIVE_CHECKPOINT=\"{active}\"')
+print(f'VALIDATED=\"{validated_str}\"')
+print(f'HAS_COMPLETE=\"{has_complete_str}\"')
 " 2>/dev/null)" || {
         PENDING_CHECKPOINTS="none"
         COMPLETED_CHECKPOINTS="none"
         ACTIVE_CHECKPOINT=""
+        VALIDATED=""
+        HAS_COMPLETE=""
     }
 fi
 
@@ -184,7 +199,14 @@ derive_workflow_state() {
         # Read existing next state if available, preserve it under escalation
         local EXISTING_NEXT=""
         if [ -f "$STATE_FILE" ]; then
-            EXISTING_NEXT=$(grep -o '"next":"[^"]*"' "$STATE_FILE" | cut -d'"' -f4)
+            EXISTING_NEXT=$(uv run python -c "
+import json
+try:
+    d = json.load(open('$STATE_FILE', encoding='utf-8'))
+    print(d.get('next') or '')
+except Exception:
+    pass
+" 2>/dev/null || true)
         fi
         printf '{"next":"%s","trigger":"escalation.flag exists at session boot","escalation":true,"timestamp":"%s"}\n' \
             "${EXISTING_NEXT:-unknown}" "$TIMESTAMP" > "$STATE_FILE"
@@ -194,7 +216,14 @@ derive_workflow_state() {
     # Review-pending: review completed but human has not approved archival
     if [ -f ".iocane/review-pending.json" ]; then
         local PENDING_CPS
-        PENDING_CPS=$(grep -o '"cp_ids":\[[^]]*\]' ".iocane/review-pending.json" | sed 's/"cp_ids":\[//;s/\]//;s/"//g')
+        PENDING_CPS=$(uv run python -c "
+import json
+try:
+    d = json.load(open('.iocane/review-pending.json', encoding='utf-8'))
+    print(','.join(d.get('cp_ids') or []))
+except Exception:
+    pass
+" 2>/dev/null || true)
         printf '{"next":"io-review","trigger":"review-pending.json exists (pending approval: %s)","review_pending":true,"timestamp":"%s"}\n' \
             "$PENDING_CPS" "$TIMESTAMP" > "$STATE_FILE"
         return
@@ -215,11 +244,9 @@ derive_workflow_state() {
         return
     fi
 
-    # plan.yaml exists -> derive from its content
-    local VALIDATED
-    VALIDATED=$(grep -o 'validated: *true' "$PLAN_FILE" 2>/dev/null)
-    local HAS_COMPLETE
-    HAS_COMPLETE=$(grep -o 'status: *complete' "$PLAN_FILE" 2>/dev/null)
+    # plan.yaml exists -> VALIDATED and HAS_COMPLETE come from the
+    # top-level python block (script-scope), which uses plan_parser.load_plan
+    # for structural correctness under `set -euo pipefail`.
 
     # Check for pending task files (ready for validate-tasks or dispatch)
     local HAS_TASK_FILES=""
@@ -259,7 +286,14 @@ suggest_next_workflow() {
 
     # Review completed but not yet approved
     if [ -f ".iocane/review-pending.json" ]; then
-        PENDING_CPS=$(grep -o '"cp_ids":\[[^]]*\]' ".iocane/review-pending.json" | sed 's/"cp_ids":\[//;s/\]//;s/"//g')
+        PENDING_CPS=$(uv run python -c "
+import json
+try:
+    d = json.load(open('.iocane/review-pending.json', encoding='utf-8'))
+    print(','.join(d.get('cp_ids') or []))
+except Exception:
+    pass
+" 2>/dev/null || true)
         echo "Review completed but approval pending for: $PENDING_CPS. Present /io-review Step J summary to approve archival or escalate."
         return
     fi

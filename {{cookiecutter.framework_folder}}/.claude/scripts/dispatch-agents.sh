@@ -139,6 +139,21 @@ if [ -z "$RESUME_CP" ]; then
         exit 1
     fi
 
+    # --- Architect-mode gate ---
+    # .iocane/architect-mode signals /io-architect is mid-design; Protocols
+    # are mid-mutation and sub-agents would be written against stale
+    # contracts. This is the architectural layer for the gate: REPO_ROOT
+    # is the parent repo here (pre-worktree), so the sentinel read is
+    # always correctly parent-scoped. Per-spawn-script checks
+    # (spawn-ct-writer.sh:62, spawn-tester.sh:62) remain as defense-in-
+    # depth for standalone user-invoked spawns that bypass the dispatcher.
+    ARCHITECT_MODE_FLAG="$REPO_ROOT/.iocane/architect-mode"
+    if [ -f "$ARCHITECT_MODE_FLAG" ]; then
+        echo "ERROR: .iocane/architect-mode sentinel is set. /io-architect is mid-design." >&2
+        echo "       Complete or abandon the architect pass and clear $ARCHITECT_MODE_FLAG before dispatching." >&2
+        exit 1
+    fi
+
     # --- Clean-tree gate ---
     # Worktrees branch from HEAD; uncommitted changes won't propagate to sub-agents.
     if ! git -C "$REPO_ROOT" diff --quiet HEAD 2>/dev/null || \
@@ -286,7 +301,7 @@ for f in extract_ct_files(load_task('$TASKS_DIR/$CP_ID.yaml')):
                 # CT body never exercises the target -- is caught
                 # post-ct_author via symbol_tracer AST analysis in
                 # Phase 2A, not here (see Fix #4 in Phase 4 /challenge).
-                if uv run rtk pytest -x --timeout=60 "$ct_file" >> "$LOG_FILE" 2>&1; then
+                if uv run rtk test pytest -x --timeout=60 "$ct_file" >> "$LOG_FILE" 2>&1; then
                     bash "$REPO_ROOT/.claude/scripts/write-status.sh" "$CP_ID" \
                         "PREFLIGHT_FAIL: CT $ct_file already passes before generation"
                     echo "1" > "$EXIT_FILE"
@@ -432,13 +447,24 @@ except: print('')
         # Clear previous status for retry
         rm -f "$STATUS_FILE"
 
-        echo "$GEN_PROMPT" | timeout "$AGENT_TIMEOUT" claude -p \
-            --model "$MODEL" \
-            --max-turns "$MAX_TURNS" \
-            --allowedTools "Bash,Read,Write,Edit" \
-            --output-format json \
-            > "$RESULT_FILE" 2>> "$LOG_FILE"
-        local GEN_EXIT=$?
+        # Errexit-safe exit capture: under `set -euo pipefail` a failing
+        # pipeline aborts the shell before $? can be read. Wrapping in
+        # `if cmd; then :; else X=$?; fi` makes the call errexit-exempt
+        # AND preserves $? inside the else branch (the `if ! cmd; then
+        # X=$?` form looks similar but returns 0 because $? reflects
+        # the `!` operator's exit, not the pipeline's). Mirrors the
+        # ct_author pattern above (Phase 4 /challenge Fix #1).
+        local GEN_EXIT=0
+        if echo "$GEN_PROMPT" | timeout "$AGENT_TIMEOUT" claude -p \
+                --model "$MODEL" \
+                --max-turns "$MAX_TURNS" \
+                --allowedTools "Bash,Read,Write,Edit" \
+                --output-format json \
+                > "$RESULT_FILE" 2>> "$LOG_FILE"; then
+            :
+        else
+            GEN_EXIT=$?
+        fi
 
         # Check generator result
         local GEN_STATUS
@@ -454,13 +480,18 @@ except: print('')
         # Clear previous eval for retry
         rm -f "$EVAL_FILE"
 
-        echo "$EVAL_PROMPT" | timeout "$EVAL_TIMEOUT" claude -p \
-            --model "$EVAL_MODEL" \
-            --max-turns "$EVAL_MAX_TURNS" \
-            --allowedTools "Bash,Read,Write" \
-            --output-format json \
-            > "$TASKS_DIR/$CP_ID.eval-result.json" 2>> "$LOG_FILE"
-        local EVAL_EXIT=$?
+        # Errexit-safe exit capture (see generator call above).
+        local EVAL_EXIT=0
+        if echo "$EVAL_PROMPT" | timeout "$EVAL_TIMEOUT" claude -p \
+                --model "$EVAL_MODEL" \
+                --max-turns "$EVAL_MAX_TURNS" \
+                --allowedTools "Bash,Read,Write" \
+                --output-format json \
+                > "$TASKS_DIR/$CP_ID.eval-result.json" 2>> "$LOG_FILE"; then
+            :
+        else
+            EVAL_EXIT=$?
+        fi
 
         # --- Evaluator crash handling ---
         # If evaluator crashed or didn't write eval.json, treat as
@@ -684,8 +715,16 @@ if [ -f "$REPO_ROOT/.iocane/escalation.flag" ]; then
     # Reset workflow-state.json escalation field
     STATE_FILE="$REPO_ROOT/.iocane/workflow-state.json"
     if [ -f "$STATE_FILE" ]; then
-        _NEXT=$(grep -o '"next":"[^"]*"' "$STATE_FILE" | cut -d'"' -f4)
-        _TRIGGER=$(grep -o '"trigger":"[^"]*"' "$STATE_FILE" | cut -d'"' -f4)
+        _STATE=$(uv run python -c "
+import json
+try:
+    d = json.load(open('$STATE_FILE', encoding='utf-8'))
+    print((d.get('next') or '') + '|' + (d.get('trigger') or ''))
+except Exception:
+    print('|')
+" 2>/dev/null || echo "|")
+        _NEXT="${_STATE%|*}"
+        _TRIGGER="${_STATE#*|}"
         printf '{"next":"%s","trigger":"%s","escalation":false,"timestamp":"%s"}\n' \
             "${_NEXT:-unknown}" "${_TRIGGER:-batch-passed}" \
             "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" > "$STATE_FILE"

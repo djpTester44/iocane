@@ -35,7 +35,7 @@ uv run python -m src.main
 ## Development
 
 * **Linting:** `uv run rtk ruff check .`
-* **Testing:** `uv run rtk pytest`
+* **Testing:** `uv run rtk test pytest`
 * **Type Checking:** `uv run mypy .`
 
 ## Project Structure

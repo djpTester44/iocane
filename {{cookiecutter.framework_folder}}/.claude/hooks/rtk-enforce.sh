@@ -48,7 +48,7 @@ FIX = {
     'rg':     'rtk grep',
     'gh':     'rtk gh',
     'find':   'rtk find',
-    'pytest': 'uv run rtk pytest',
+    'pytest': 'uv run rtk test pytest',
     'ruff':   'uv run rtk ruff',
     'mypy':   'uv run rtk mypy',
 }

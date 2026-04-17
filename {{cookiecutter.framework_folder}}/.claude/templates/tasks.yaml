@@ -14,7 +14,7 @@ write_targets:
 context_files:
   - "interfaces/[protocol].pyi"
   - "plans/project-spec.md (lines [N]-[N])"
-gate_command: "uv run rtk pytest tests/[path]/test_[module].py"
+gate_command: "uv run rtk test pytest tests/[path]/test_[module].py"
 # connectivity_tests: present only when this CP is the target_cp of a CT.
 # Source CPs have connectivity_tests: [].
 connectivity_tests:
@@ -24,7 +24,7 @@ connectivity_tests:
     fixture_deps: []
     contract_under_test: "interfaces/[protocol].pyi :: [Method]"
     assertion: "[What the test asserts]"
-    gate: "uv run rtk pytest tests/connectivity/test_[cp_a]_[cp_nn].py::[function_name]"
+    gate: "uv run rtk test pytest tests/connectivity/test_[cp_a]_[cp_nn].py::[function_name]"
 refactor_commands:
   - "uv run rtk ruff check --fix src/[path]/[module].py"
   - "uv run rtk mypy src/[path]/[module].py"

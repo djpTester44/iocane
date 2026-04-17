@@ -125,8 +125,16 @@ echo "$TIMESTAMP" > "$FLAG_FILE"
 STATE_FILE="$PARENT_ROOT/.iocane/workflow-state.json"
 if [ -f "$STATE_FILE" ]; then
     # Merge escalation:true into existing state (preserve next/trigger)
-    EXISTING_NEXT=$(grep -o '"next":"[^"]*"' "$STATE_FILE" | cut -d'"' -f4)
-    EXISTING_TRIGGER=$(grep -o '"trigger":"[^"]*"' "$STATE_FILE" | cut -d'"' -f4)
+    STATE=$(uv run python -c "
+import json
+try:
+    d = json.load(open('$STATE_FILE', encoding='utf-8'))
+    print((d.get('next') or '') + '|' + (d.get('trigger') or ''))
+except Exception:
+    print('|')
+" 2>/dev/null || echo "|")
+    EXISTING_NEXT="${STATE%|*}"
+    EXISTING_TRIGGER="${STATE#*|}"
     printf '{"next":"%s","trigger":"%s","escalation":true,"timestamp":"%s"}\n' \
         "${EXISTING_NEXT:-unknown}" "${EXISTING_TRIGGER:-escalation.flag written}" "$TIMESTAMP" \
         > "$STATE_FILE"

@@ -59,6 +59,13 @@ fi
 # Architect-mode sentinel: if /io-architect is mid-amend, Protocols
 # are mid-mutation and CTs authored now would be against stale
 # contracts. Mirrors spawn-tester.sh precedent.
+#
+# Defense-in-depth: the primary architect-mode gate lives in
+# dispatch-agents.sh (pre-worktree, parent CWD guaranteed). This
+# check remains for standalone user-invoked CT-writer spawns that
+# bypass the dispatcher. In the dispatcher path REPO_ROOT resolves
+# to the worktree (dispatcher cds in before spawning), so this check
+# is a no-op there; the dispatcher gate caught it first.
 if [ -f "$REPO_ROOT/.iocane/architect-mode" ]; then
     echo "spawn-ct-writer: .iocane/architect-mode sentinel is set -- resolve before dispatch" >&2
     exit 1

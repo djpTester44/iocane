@@ -67,11 +67,12 @@ Maps every harness constraint to its enforcement mechanism.
 | Plan-wide Raises coverage in CT assertions | `validate_plan_raises_coverage.py` | validate-plan Step 9E [OBSERVATION] |
 | Protocol under-specification signal (AMEND) | `io-test-author.md` Step E, writes `.iocane/amend-signals/<stem>.yaml` per `AmendSignalFile` schema | io-test-author Step E [HARD GATE] |
 | AMEND retry cap + DESIGN escalation | `handle_amend_signal.py --consume <stem>` (reads `architect.amend_retries`, default 2; zero/negative/non-int rejected with fallback) | io-architect Section 4 AMEND MODE Step 2 [HARD GATE]; exit 2 HALTs amend before any artifact write |
-| Tester preflight (architect-mode sentinel, validated stamps, `interfaces/<stem>.pyi` exists) | `spawn-tester.sh` | pre-dispatch |
-| CT Author preflight (architect-mode sentinel, task-file validity, target_cp CT count) | `spawn-ct-writer.sh` (Phase 4) | pre-dispatch |
+| Batch architect-mode preflight (blocks dispatch while `/io-architect` mid-design) | `dispatch-agents.sh` (post-escalation-flag gate, pre-worktree) | pre-batch-dispatch |
+| Tester preflight (architect-mode sentinel, validated stamps, `interfaces/<stem>.pyi` exists) | `spawn-tester.sh` (defense-in-depth for standalone spawns) | pre-dispatch |
+| CT Author preflight (architect-mode sentinel, task-file validity, target_cp CT count) | `spawn-ct-writer.sh` (Phase 4; defense-in-depth for standalone spawns) | pre-dispatch |
 | CT-Writer stage per CP (before generator) | `dispatch-agents.sh` run_checkpoint_pipeline Phase 2A | per-CP, pre-generator |
 | Post-ct_author identity-CT escape detection (AST import check) | `dispatch-agents.sh` Phase 2A, invoking `symbol_tracer.py --imports-from-prefix src` | per-CP, post-ct_author, pre-generator [HARD GATE] |
-| Generator AMEND signal emission on impl-Protocol gap | `io-execute.md` Section 3 AMEND-on-impl-gap path, writes `.iocane/amend-signals/<cp-id>.yaml` per `AmendSignalFile` schema | io-execute Step B/C/D/E (any point impl cannot proceed) [HARD GATE] |
+| Generator AMEND signal emission on impl-Protocol gap | `io-execute.md` Section 3 AMEND-on-impl-gap path, writes `${IOCANE_REPO_ROOT:-.}/.iocane/amend-signals/<cp-id>.yaml` per `AmendSignalFile` schema (parent-scoped; generator CWD = worktree, so `IOCANE_REPO_ROOT` is required for the architect to read the signal) | io-execute Step B/C/D/E (any point impl cannot proceed) [HARD GATE] |
 | Batch confidence threshold (85%) | inline scoring rubric | io-plan-batch Step E [HARD GATE] |
 | Batch human approval | user accept/modify/reject | io-plan-batch Step F [HUMAN GATE] |
 | Ruff lint compliance | `run-compliance.sh` → `uv run rtk ruff check` | io-review Step D, gap-analysis Step C |

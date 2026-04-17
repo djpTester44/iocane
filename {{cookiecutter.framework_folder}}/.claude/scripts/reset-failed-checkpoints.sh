@@ -70,8 +70,16 @@ if [ -f "$IOCANE_DIR/escalation.log" ]; then
 fi
 STATE_FILE="$IOCANE_DIR/workflow-state.json"
 if [ -f "$STATE_FILE" ]; then
-    EXISTING_NEXT=$(grep -o '"next":"[^"]*"' "$STATE_FILE" | cut -d'"' -f4)
-    EXISTING_TRIGGER=$(grep -o '"trigger":"[^"]*"' "$STATE_FILE" | cut -d'"' -f4)
+    STATE=$(uv run python -c "
+import json
+try:
+    d = json.load(open('$STATE_FILE', encoding='utf-8'))
+    print((d.get('next') or '') + '|' + (d.get('trigger') or ''))
+except Exception:
+    print('|')
+" 2>/dev/null || echo "|")
+    EXISTING_NEXT="${STATE%|*}"
+    EXISTING_TRIGGER="${STATE#*|}"
     printf '{"next":"%s","trigger":"%s","escalation":false,"timestamp":"%s"}\n' \
         "${EXISTING_NEXT:-unknown}" "${EXISTING_TRIGGER:-reset-failed-checkpoints}" \
         "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" > "$STATE_FILE"

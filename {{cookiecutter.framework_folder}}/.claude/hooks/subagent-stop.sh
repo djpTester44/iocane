@@ -14,6 +14,9 @@
 set -euo pipefail
 
 INPUT=$(cat)
+# CWD-scoped intentionally: subagent-stop artifacts are per-session
+# debug dumps with no cross-session reader. Parent-scoping would
+# collide across concurrent sub-agents writing the same log.
 mkdir -p .iocane
 
 # Guard: stop_hook_active prevents infinite continuation loop

@@ -14,6 +14,9 @@
 set -euo pipefail
 
 INPUT=$(cat)
+# CWD-scoped intentionally: reads pre-compact-state.json written by
+# pre-compact.sh IN THE SAME SESSION. See pre-compact.sh for the
+# writer-reader pair contract.
 mkdir -p .iocane
 
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")

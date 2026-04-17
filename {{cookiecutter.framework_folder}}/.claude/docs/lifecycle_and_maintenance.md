@@ -191,7 +191,7 @@ When removing redundant or dead code, prove unused status before deletion.
    ```bash
    uv run rtk lint-imports       # broken internal references (requires import-linter; optional)
    uv run mypy .             # type signature drift
-   uv run rtk pytest             # behavioral regressions
+   uv run rtk test pytest             # behavioral regressions
    ```
 
 4. **Cleanup spec:** Remove the entry from the Interface Registry in `plans/project-spec.md`. Run `/doc-sync` to reconcile.

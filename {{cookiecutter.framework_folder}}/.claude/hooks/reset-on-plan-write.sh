@@ -27,7 +27,7 @@ try:
 except Exception:
     print('')
 ")
-    if echo "$NEW_CONTENT" | grep -qE "validated:\s*(true|True)"; then
+    if echo "$NEW_CONTENT" | grep -qE "^validated:[[:space:]]*(true|True)[[:space:]]*$"; then
         rm -f .iocane/validating
         # State derivation: validated stamp just set -> ready for batch generation
         TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
@@ -58,22 +58,28 @@ print('yes' if p.endswith('plans/plan.yaml') else 'no')
 ")
 
 if [ "$MATCH" = "yes" ] && [ -f "plans/plan.yaml" ]; then
-    uv run python -c "
+    # Single python invocation: mutate the plan file AND derive post-reset
+    # state. Raw yaml.safe_load (not Pydantic) per the header-comment
+    # performance guard; the state-derivation read is piggybacked on the
+    # mutation read, so there is no extra file open.
+    STATE=$(uv run python -c "
 import yaml
 path = 'plans/plan.yaml'
 with open(path, 'r', encoding='utf-8') as f:
-    data = yaml.safe_load(f)
-if data and data.get('validated') is True:
+    data = yaml.safe_load(f) or {}
+if data.get('validated') is True:
     data['validated'] = False
     data.pop('validated_date', None)
     data.pop('validated_note', None)
     with open(path, 'w', encoding='utf-8') as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
-"
-
-    # --- State derivation: determine next workflow step from plan content ---
-    VALIDATED=$(grep -o 'validated: *true' "plans/plan.yaml" 2>/dev/null)
-    HAS_COMPLETE=$(grep -o 'status: *complete' "plans/plan.yaml" 2>/dev/null)
+v = 'true' if data.get('validated') is True else ''
+cps = data.get('checkpoints') or []
+h = 'true' if any(cp.get('status') == 'complete' for cp in cps) else ''
+print(f'{v}|{h}')
+" 2>/dev/null || echo "|")
+    VALIDATED="${STATE%|*}"
+    HAS_COMPLETE="${STATE#*|}"
 
     if [ -n "$HAS_COMPLETE" ]; then
         # dispatch-agents.sh just merged a CP and updated status

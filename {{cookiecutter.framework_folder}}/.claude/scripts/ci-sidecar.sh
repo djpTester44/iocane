@@ -71,7 +71,7 @@ run_suite() {
     output_file=$(mktemp)
     local exit_code=0
 
-    timeout "$CI_TIMEOUT" uv run rtk pytest --tb=line -q --no-header 2>&1 > "$output_file" || exit_code=$?
+    timeout "$CI_TIMEOUT" uv run rtk test pytest --tb=line -q --no-header 2>&1 > "$output_file" || exit_code=$?
 
     SUITE_OUTPUT_FILE="$output_file"
     SUITE_EXIT_CODE="$exit_code"

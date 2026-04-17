@@ -95,7 +95,7 @@ Before proceeding:
 - Any DESIGN failure present --> `DESIGN_FAIL` (even if some failures are MECHANICAL)
 - Only MECHANICAL failures --> `MECHANICAL_FAIL` + populated `regen_hint`
 
-**`regen_hint` format:** Targeted, actionable text the regen agent receives as a negative constraint. Example: "Gate command `uv run rtk pytest tests/test_validator.py` fails: test_validate_empty_input asserts ValidationError but implementation returns None for empty input. Fix the validate() method to raise ValidationError when input is empty."
+**`regen_hint` format:** Targeted, actionable text the regen agent receives as a negative constraint. Example: "Gate command `uv run rtk test pytest tests/test_validator.py` fails: test_validate_empty_input asserts ValidationError but implementation returns None for empty input. Fix the validate() method to raise ValidationError when input is empty."
 
 **Action:** Write the eval JSON to the absolute path `$IOCANE_REPO_ROOT/plans/tasks/[CP-ID].eval.json`. Use the `IOCANE_REPO_ROOT` environment variable -- do NOT write to a relative path (you are in the worktree, the eval file must land in the parent repo).
 

@@ -7,7 +7,12 @@
 #         touch .iocane/architect-mode   # enter design phase
 #         rm .iocane/architect-mode      # exit design phase
 
-# Only active when the sentinel exists
+# Only active when the sentinel exists.
+# CWD-scoped intentionally: the primary architect-mode gate is the
+# dispatch-agents.sh preflight (parent CWD, pre-worktree). In sub-agent
+# worktree sessions the sentinel file never exists and this hook exits
+# 0 -- which is correct because the dispatcher already refused to start
+# if architect-mode was set. See worktree-shared-state-audit.md.
 if [ ! -f ".iocane/architect-mode" ]; then
     exit 0
 fi

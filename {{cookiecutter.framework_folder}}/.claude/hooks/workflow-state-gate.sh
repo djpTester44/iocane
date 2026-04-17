@@ -67,13 +67,20 @@ if [ "${IOCANE_ROLE:-}" = "ct_author" ] && [[ "$FILE_PATH" == tests/connectivity
 fi
 
 STATE_FILE=".iocane/workflow-state.json"
+# CWD-scoped intentionally. Worktree sub-agent sessions derive their own
+# workflow-state.json from the worktree's plan.yaml at session-start and
+# enforce against it; parent-scoping would overwrite the orchestrator's
+# state with sub-agent-local views. See worktree-shared-state-audit.md.
 if [ ! -f "$STATE_FILE" ]; then
     exit 0  # No state file = no enforcement (graceful degradation)
 fi
 
-# Bash-native JSON parse (no Python overhead on hot path)
-NEXT=$(grep -o '"next":"[^"]*"' "$STATE_FILE" | cut -d'"' -f4)
-ESCALATION=$(grep -o '"escalation":true' "$STATE_FILE")
+# Bash-native JSON parse (no Python overhead on hot path).
+# DO NOT add `set -e` to this file without first migrating these two
+# lines to python. Under `set -e`, a no-match grep exit-1 silently
+# kills the hook. See AGENTS.md 2026-04-17 entry (sites #15/#16).
+NEXT=$(grep -o '"next":"[^"]*"' "$STATE_FILE" | cut -d'"' -f4 || true)
+ESCALATION=$(grep -o '"escalation":true' "$STATE_FILE" || true)
 
 if [ -n "$ESCALATION" ]; then
     echo "BLOCKED: Escalation flag active. Resolve .iocane/escalation.log before writing implementation files." >&2
