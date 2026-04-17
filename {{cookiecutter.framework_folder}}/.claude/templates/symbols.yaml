@@ -1,0 +1,62 @@
+# Symbols registry -- machine-readable cross-CP identifier declarations
+# Schema: .claude/scripts/schemas.py (SymbolsFile, Symbol, SymbolKind)
+# Hook: .claude/hooks/validate-yaml.sh routes plans/symbols.yaml
+# Writer: .claude/scripts/symbols_parser.py (authored by /io-architect)
+# Reference: .claude/references/symbols-schema.md
+#
+# One entry per cross-CP identifier. If two CPs must agree on the exact
+# spelling/type/semantics of a name, declare it here. Downstream
+# generators look up the canonical form instead of inferring.
+
+symbols: {}
+
+# `used_by` is architect-authored (component names). `used_by_cps` is
+# checkpoint-backfilled (CP-IDs). Architect leaves used_by_cps empty;
+# /io-checkpoint populates it after plan.yaml is authored.
+#
+# Example -- every SymbolKind represented:
+# symbols:
+#   DatabaseUrl:
+#     kind: settings_field
+#     declared_in: src/core/config.py
+#     type_expr: str
+#     env_var: APP_DB_URL
+#     default: null
+#     used_by: [Settings, Repository]
+#     used_by_cps: [CP-02, CP-05]   # filled in by /io-checkpoint
+#
+#   RouteNotFound:
+#     kind: exception_class
+#     declared_in: src/domain/exceptions.py
+#     parent: LookupError
+#     used_by: [CP-03, CP-04]
+#
+#   RoutePayload:
+#     kind: shared_type
+#     declared_in: src/domain/types.py
+#     type_expr: "@dataclass(frozen=True) with fields: src:str, dst:str, hops:int"
+#     used_by: [CP-03, CP-05, CP-06]
+#
+#   fake_router:
+#     kind: fixture
+#     declared_in: tests/conftest.py
+#     fixture_scope: function
+#     used_by: [CP-03, CP-04]
+#
+#   RouteResolvedLog:
+#     kind: log_format
+#     declared_in: src/domain/router.py
+#     message_pattern: "route resolved src=%s dst=%s hops=%d"
+#     used_by: [CP-03]
+#
+#   RouteNotFoundMessage:
+#     kind: error_message
+#     declared_in: src/domain/router.py
+#     message_pattern: "route not found for destination={destination}"
+#     used_by: [CP-03]
+#
+#   route_args:
+#     kind: argument_convention
+#     declared_in: interfaces/router.pyi
+#     arg_order: [src, dst, hops]
+#     used_by: [CP-03, CP-05]

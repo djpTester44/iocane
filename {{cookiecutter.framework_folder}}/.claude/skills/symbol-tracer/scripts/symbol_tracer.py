@@ -101,6 +101,56 @@ class ImplementorFinder(ast.NodeVisitor):
         self.generic_visit(node)
 
 
+class ImportPrefixFinder(ast.NodeVisitor):
+    """AST visitor that finds imports whose module starts with a given prefix.
+
+    Matches ``from PREFIX import ...`` and ``from PREFIX.sub[.deeper] import ...``
+    for the supplied ``prefix``. Bare ``import PREFIX`` and
+    ``import PREFIX.sub`` forms also match. Used to answer "does this file
+    import anything from module namespace PREFIX?" without knowing the
+    specific symbol names in advance.
+    """
+
+    def __init__(self, prefix: str, file_path: str, context_lines: list[str]):
+        self.prefix = prefix
+        self.file_path = file_path
+        self.context_lines = context_lines
+        self.results: list[dict[str, Any]] = []
+
+    def _add_result(self, node: ast.AST, module: str) -> None:
+        lineno = getattr(node, "lineno", 0)
+        context = ""
+        if 0 < lineno <= len(self.context_lines):
+            context = self.context_lines[lineno - 1].strip()
+
+        self.results.append(
+            {
+                "file": self.file_path,
+                "line": lineno,
+                "type": "import",
+                "module": module,
+                "context": context,
+            }
+        )
+
+    def _matches(self, module: str | None) -> bool:
+        if not module:
+            return False
+        return module == self.prefix or module.startswith(self.prefix + ".")
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        if self._matches(node.module):
+            self._add_result(node, node.module or "")
+        self.generic_visit(node)
+
+    def visit_Import(self, node: ast.Import) -> None:
+        for alias in node.names:
+            if self._matches(alias.name):
+                self._add_result(node, alias.name)
+                break
+        self.generic_visit(node)
+
+
 def _extract_base_name(node: ast.expr) -> str | None:
     """Extract the terminal name from a base class expression."""
     if isinstance(node, ast.Name):
@@ -115,8 +165,17 @@ def search_file(
     symbol: str,
     *,
     find_implementors: bool = False,
+    imports_from_prefix: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Search a single file for symbol occurrences."""
+    """Search a single file for symbol occurrences or prefix-matched imports.
+
+    Modes:
+        imports_from_prefix: "does this file import anything from the
+            given module namespace?" -- uses ``symbol`` as an ignored
+            placeholder. Takes precedence over the other modes.
+        find_implementors: classes inheriting from ``symbol``.
+        default: definitions / imports / usages of ``symbol``.
+    """
     try:
         with open(file_path, encoding="utf-8") as f:
             content = f.read()
@@ -124,21 +183,34 @@ def search_file(
 
         tree = ast.parse(content, filename=str(file_path))
 
-        if find_implementors:
+        if imports_from_prefix is not None:
+            finder: ast.NodeVisitor = ImportPrefixFinder(
+                imports_from_prefix, str(file_path), lines,
+            )
+        elif find_implementors:
             finder = ImplementorFinder(symbol, str(file_path), lines)
         else:
             finder = SymbolFinder(symbol, str(file_path), lines)
 
         finder.visit(tree)
-        return finder.results
+        return finder.results  # type: ignore[attr-defined]
     except Exception:
         return []
 
 
 def _build_summary(
-    symbol: str, results: list[dict[str, Any]], *, implementor_mode: bool
+    symbol: str,
+    results: list[dict[str, Any]],
+    *,
+    implementor_mode: bool,
+    prefix_mode: bool = False,
 ) -> str:
     """Build a one-line summary string for a symbol's results."""
+    if prefix_mode:
+        count = len(results)
+        files = len({r["file"] for r in results})
+        return f"{symbol}: {count} import(s) across {files} file(s)"
+
     if implementor_mode:
         count = len(results)
         files = len({r["file"] for r in results})
@@ -216,14 +288,20 @@ def _run_for_symbol(
     *,
     find_implementors: bool,
     imports_only: bool,
+    imports_from_prefix: str | None = None,
 ) -> list[dict[str, Any]]:
     """Run the trace for a single symbol across all collected files."""
     all_results: list[dict[str, Any]] = []
     for f in py_files:
-        results = search_file(f, symbol, find_implementors=find_implementors)
+        results = search_file(
+            f,
+            symbol,
+            find_implementors=find_implementors,
+            imports_from_prefix=imports_from_prefix,
+        )
         all_results.extend(results)
 
-    if imports_only and not find_implementors:
+    if imports_only and not find_implementors and imports_from_prefix is None:
         all_results = [r for r in all_results if r["type"] == "import"]
 
     return all_results
@@ -236,8 +314,10 @@ def main() -> None:
     )
     parser.add_argument(
         "--symbol",
-        required=True,
-        help="Symbol name to trace. Comma-separated for multiple symbols.",
+        required=False,
+        default="",
+        help="Symbol name to trace. Comma-separated for multiple symbols. "
+             "Required unless --imports-from-prefix is given.",
     )
     parser.add_argument("--root", default=".", help="Root directory to search.")
     parser.add_argument(
@@ -261,6 +341,17 @@ def main() -> None:
         help="Find classes inheriting from the symbol instead of tracing usages.",
     )
     parser.add_argument(
+        "--imports-from-prefix",
+        default=None,
+        help=(
+            "Find any `from PREFIX[.sub] import ...` or `import PREFIX[.sub]` "
+            "statements. Answers 'does this file import anything from this "
+            "module namespace?' without naming the specific symbols. "
+            "Exit code 0 with empty JSON list means 'no matches'. When this "
+            "flag is set, --symbol is optional and ignored."
+        ),
+    )
+    parser.add_argument(
         "--format",
         choices=["json", "markdown"],
         default="json",
@@ -268,6 +359,10 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+
+    # Validate: at least one of --symbol or --imports-from-prefix must be set.
+    if not args.symbol and args.imports_from_prefix is None:
+        parser.error("either --symbol or --imports-from-prefix is required")
 
     root_path = Path(args.root)
     skip_dirs = {".git", "__pycache__", ".claude", "venv", ".venv", "node_modules"}
@@ -278,27 +373,44 @@ def main() -> None:
         skip_dirs=skip_dirs,
     )
 
-    symbols = [s.strip() for s in args.symbol.split(",")]
+    prefix = args.imports_from_prefix
+    is_prefix_mode = prefix is not None
+
+    # In prefix mode, --symbol is ignored; use the prefix as the single
+    # "label" so the output shape stays uniform with symbol-mode callers.
+    if is_prefix_mode:
+        symbols = [prefix]
+    else:
+        symbols = [s.strip() for s in args.symbol.split(",")]
+
     is_multiple = len(symbols) > 1
     is_implementor = args.find_implementors
+
+    def _run(sym: str) -> list[dict[str, Any]]:
+        return _run_for_symbol(
+            sym,
+            py_files,
+            find_implementors=is_implementor,
+            imports_only=args.imports_only,
+            imports_from_prefix=prefix,
+        )
+
+    def _summary(sym: str, results: list[dict[str, Any]]) -> str:
+        return _build_summary(
+            sym,
+            results,
+            implementor_mode=is_implementor,
+            prefix_mode=is_prefix_mode,
+        )
 
     if is_multiple:
         output: dict[str, Any] = {}
         md_parts: list[str] = []
 
         for sym in symbols:
-            results = _run_for_symbol(
-                sym,
-                py_files,
-                find_implementors=is_implementor,
-                imports_only=args.imports_only,
-            )
+            results = _run(sym)
             if args.format == "markdown":
-                summary_str = (
-                    _build_summary(sym, results, implementor_mode=is_implementor)
-                    if args.summary
-                    else None
-                )
+                summary_str = _summary(sym, results) if args.summary else None
                 md_parts.append(
                     _format_markdown(
                         results,
@@ -308,9 +420,7 @@ def main() -> None:
                 )
             elif args.summary:
                 output[sym] = {
-                    "summary": _build_summary(
-                        sym, results, implementor_mode=is_implementor
-                    ),
+                    "summary": _summary(sym, results),
                     "results": results,
                 }
             else:
@@ -322,27 +432,16 @@ def main() -> None:
             print(json.dumps(output, indent=2))
     else:
         sym = symbols[0]
-        results = _run_for_symbol(
-            sym,
-            py_files,
-            find_implementors=is_implementor,
-            imports_only=args.imports_only,
-        )
+        results = _run(sym)
 
         if args.format == "markdown":
-            summary_str = (
-                _build_summary(sym, results, implementor_mode=is_implementor)
-                if args.summary
-                else None
-            )
+            summary_str = _summary(sym, results) if args.summary else None
             print(_format_markdown(results, summary=summary_str))
         elif args.summary:
             print(
                 json.dumps(
                     {
-                        "summary": _build_summary(
-                            sym, results, implementor_mode=is_implementor
-                        ),
+                        "summary": _summary(sym, results),
                         "results": results,
                     },
                     indent=2,

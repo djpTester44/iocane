@@ -314,6 +314,97 @@ suggest_next_workflow() {
 
 NEXT_STEP=$(suggest_next_workflow)
 
+# --- Role-aware orientation (Phase 3) ---
+# spawn-{tester,...}.sh dispatches a claude -p session with IOCANE_ROLE
+# set. SessionStart fires for that new process -- inject role-scoped
+# orientation so the dispatched agent reads its write scope and AMEND
+# protocol without relying on inherited context. Unset IOCANE_ROLE =
+# interactive session; falls through to the generic briefing.
+ROLE_BLOCK=""
+if [ -n "${IOCANE_ROLE:-}" ]; then
+    case "$IOCANE_ROLE" in
+        tester)
+            ROLE_BLOCK="
+## ROLE: Test Author (Tier 1)
+
+You are dispatched as the Tier-1 Test Author for Protocol \`${IOCANE_PROTOCOL:-unknown}\`
+(at \`interfaces/${IOCANE_PROTOCOL:-*}.pyi\`).
+
+- Read ONLY: interfaces/*.pyi, plans/test-plan.yaml, plans/symbols.yaml, plans/component-contracts.yaml
+- Write ONLY: tests/contracts/test_${IOCANE_PROTOCOL:-*}.py OR .iocane/amend-signals/${IOCANE_PROTOCOL:-*}.yaml
+- NEVER edit interfaces/*.pyi, plans/symbols.yaml, plans/test-plan.yaml (architect-owned -- reset hooks will fire)
+- If the Protocol is silent on a test-plan invariant, emit an AMEND signal (per AmendSignalFile schema) and terminate without writing tests. Under-specification is a real signal, not a failure.
+
+Workflow: .claude/commands/io-test-author.md
+"
+            ;;
+        ct_author)
+            # Derive source-Protocol manifest: for each CT where
+            # target_cp == IOCANE_CP_ID, collect every source
+            # Protocol via plan.yaml.connectivity_tests[*].contract_under_test.
+            # Inject as a bulleted list in the role block so the
+            # agent doesn't have to re-derive mid-session.
+            #
+            # contract_under_test supports comma-separated multi-Protocol
+            # entries (e.g., "interfaces/a.pyi :: A, interfaces/b.pyi :: B").
+            # Parser mirrors check_ct_completeness.py:33-36 -- split on
+            # comma first, then `::`, collect the left side. A naive
+            # `split('::')[0]` would drop all but the first Protocol.
+            SOURCE_PROTOCOLS=$(uv run python -c "
+import sys; sys.path.insert(0, '.claude/scripts')
+from plan_parser import load_plan
+plan = load_plan('plans/plan.yaml')
+cts = [ct for ct in plan.connectivity_tests if ct.target_cp == '${IOCANE_CP_ID:-}']
+protos = set()
+for ct in cts:
+    for segment in ct.contract_under_test.split(','):
+        before_colons = segment.split('::')[0].strip()
+        if before_colons:
+            protos.add(before_colons)
+for p in sorted(protos): print(f'  - {p}')
+" 2>/dev/null || echo "  - (derivation failed; inspect plans/plan.yaml manually)")
+
+            ROLE_BLOCK="
+## ROLE: CT Author (Tier 3a)
+
+You are dispatched as the Tier-3a CT Author for checkpoint \`${IOCANE_CP_ID:-unknown}\`.
+
+Write every connectivity test whose target_cp == ${IOCANE_CP_ID:-unknown}.
+The target CP's impl does not exist yet -- CTs will fail by design
+once written. The generator stage takes them RED to GREEN.
+
+### Source Protocols for this CP's CTs
+${SOURCE_PROTOCOLS}
+
+### Read scope (never edit)
+- plans/tasks/${IOCANE_CP_ID:-*}.yaml (your task file)
+- plans/plan.yaml (CT signatures)
+- plans/seams.yaml (fixture wiring hints)
+- plans/symbols.yaml (exception + type registry)
+- interfaces/*.pyi (Protocol definitions -- for \`spec=\` type hints)
+- tests/contracts/*.py (existing import patterns -- read-only)
+
+### Write scope (only paths listed in task.connectivity_tests[].file)
+- tests/connectivity/*.py
+
+### Never-edit (triggers reset hooks; breaks architect blessing during parallel dispatch)
+- interfaces/*.pyi
+- plans/*.yaml
+- tests/contracts/*
+
+### Do NOT
+- Run CT gates -- impl does not exist yet; gates will fail by design.
+- Create skeleton impl in src/ to silence import errors -- preflight will misdiagnose this as impl-leaked.
+- Emit AMEND signals -- on CT spec ambiguity, HALT with structured error (per D16).
+
+Workflow: .claude/commands/io-ct-author.md
+Rules reference: .claude/skills/test-writer/references/ct-author-rules.md
+"
+            ;;
+        *) ROLE_BLOCK="" ;;
+    esac
+fi
+
 # --- Assemble briefing ---
 BRIEFING="# Iocane Session Briefing
 
@@ -334,7 +425,7 @@ $RECENT_FAILURES
 ${BACKLOG_ALERT}
 ## Suggested Next Step
 $NEXT_STEP
-
+${ROLE_BLOCK}
 ---
 Workflow reference: .claude/commands/
 Rules reference: .claude/rules/

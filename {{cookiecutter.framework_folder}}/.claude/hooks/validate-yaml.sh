@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
 # PostToolUse hook: validate YAML files against Pydantic schemas after Write/Edit.
 # Routes by file path to the correct parser. Exit 0 = pass, exit 2 = validation failure.
+#
+# Reads hook payload from stdin (matches every other Edit|Write hook in the
+# harness). Earlier revisions read CLAUDE_TOOL_INPUT from the env and
+# parsed `file_path` at the JSON root -- both wrong for the Claude Code
+# hook protocol, which delivers the payload on stdin with file_path
+# nested under tool_input.
 
-set -euo pipefail
+set -uo pipefail
 
-# Skip if hook runtime didn't inject the tool input variable
-TOOL_INPUT="${CLAUDE_TOOL_INPUT:-}"
-if [[ -z "$TOOL_INPUT" ]]; then
-  exit 0
-fi
+INPUT=$(cat)
 
-# Extract file_path from tool input JSON
-FILE_PATH=$(echo "$TOOL_INPUT" | uv run python -c "
+FILE_PATH=$(printf '%s' "$INPUT" | uv run python -c "
 import sys, json
-data = json.load(sys.stdin)
-print(data.get('file_path', ''))
+try:
+    d = json.load(sys.stdin)
+    print(d.get('tool_input', {}).get('file_path', ''))
+except Exception:
+    print('')
 ")
 
 # Skip if no file path extracted or not a YAML file
@@ -62,6 +66,22 @@ import sys
 sys.path.insert(0, '.claude/scripts')
 from contract_parser import load_contracts
 load_contracts('$FILE_PATH')
+" 2>&1 || { echo "YAML validation failed for $FILE_PATH" >&2; exit 2; }
+    ;;
+  */plans/symbols.yaml)
+    uv run python -c "
+import sys
+sys.path.insert(0, '.claude/scripts')
+from symbols_parser import load_symbols
+load_symbols('$FILE_PATH')
+" 2>&1 || { echo "YAML validation failed for $FILE_PATH" >&2; exit 2; }
+    ;;
+  */plans/test-plan.yaml)
+    uv run python -c "
+import sys
+sys.path.insert(0, '.claude/scripts')
+from test_plan_parser import load_test_plan
+load_test_plan('$FILE_PATH')
 " 2>&1 || { echo "YAML validation failed for $FILE_PATH" >&2; exit 2; }
     ;;
   *)

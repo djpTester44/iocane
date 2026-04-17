@@ -1,7 +1,10 @@
 ---
 paths:
-  - "plans/project-spec.md"
   - "plans/roadmap.md"
+  - "plans/component-contracts.yaml"
+  - "plans/seams.yaml"
+  - "plans/symbols.yaml"
+  - "plans/test-plan.yaml"
   - "plans/plan.yaml"
   - "interfaces/**"
 ---
@@ -10,7 +13,7 @@ paths:
 
 ## [HARD] State Management & Architecture
 
-1. **The Living Document**: `plans/project-spec.md` is the ultimate authority and the core of the project's state.
+1. **Canonical set**: The project's design state is the combined content of `plans/component-contracts.yaml` (CRC), `interfaces/*.pyi` (Protocols + shared types + exceptions), `plans/symbols.yaml` (cross-CP identifiers), `plans/test-plan.yaml` (per-method invariants), and `plans/seams.yaml` (DI graph). No single file is "the" authority -- they are mutually consistent by design, with the architect stamping `test-plan.yaml.validated: true` after the H-post-validate gates pass.
 2. **Atomic Scope**: Each Protocol represents a single responsibility, mapping to one CRC card.
 
 ## DESIGN PRINCIPLES

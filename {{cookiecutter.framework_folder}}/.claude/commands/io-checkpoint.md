@@ -10,11 +10,13 @@ description: Decompose roadmap features into atomic checkpoints with connectivit
 > **[CRITICAL] CONTEXT LOADING**
 >
 > 1. Load planning rules: `view_file .claude/rules/planning.md`
-> 2. Load the component registry: `view_file plans/component-contracts.yaml`
-> 3. Load the Roadmap: `view_file plans/roadmap.md`
-> 4. Load the Architecture Spec: `view_file plans/project-spec.md`
+> 2. Load CDD governance: `view_file .claude/rules/cdd.md`
+> 3. Load the component registry: `view_file plans/component-contracts.yaml`
+> 4. Load the Roadmap: `view_file plans/roadmap.md`
 > 5. Load all interfaces: `view_file interfaces/*.pyi`
-> 6. Load the Integration Seams reference via `seam_parser.load_seams('plans/seams.yaml')`. Use the `receives_di` graph (via `all_di_edges()`) to identify which component boundaries require connectivity tests: if CP-A builds a component and CP-B builds a component that injects it, a connectivity test is required at that seam. For components whose `component-contracts.yaml` entry has `composition_root: true`, also read `receives_di_protocols` -- Appendix A §A.3b populates that list with injected Protocol names, which drives the A.3c composition-root CT emission rule in Step D.
+> 6. Load the symbol registry: `symbols_parser.load_symbols('plans/symbols.yaml')`. Symbol names referenced by checkpoint scopes (component names) drive the `used_by_cps` backfill at Step G-symbols below.
+> 7. Load the test plan: `test_plan_parser.load_test_plan('plans/test-plan.yaml')`. Each entry binds a Protocol method to invariants the gate command must enforce. Checkpoints whose scope methods are not covered by test-plan.yaml have no contract acceptance criteria to verify -- HALT and route back to `/io-architect`.
+> 8. Load the Integration Seams reference via `seam_parser.load_seams('plans/seams.yaml')`. Use the `receives_di` graph (via `all_di_edges()`) to identify which component boundaries require connectivity tests: if CP-A builds a component and CP-B builds a component that injects it, a connectivity test is required at that seam. For components whose `component-contracts.yaml` entry has `composition_root: true`, also read `receives_di_protocols` -- Appendix A §A.3b populates that list with injected Protocol names, which drives the A.3c composition-root CT emission rule in Step D.
 
 # WORKFLOW: IO-CHECKPOINT
 
@@ -85,8 +87,13 @@ roadmap features), generate a remediation checkpoint (`CP-NNR`) for each item:
 
 ### Step A: [HARD GATE] CONTRACTS LOCKED
 
-- **Action:** Verify `plans/project-spec.md` exists and `interfaces/*.pyi` files are present.
-- **Rule:** If Interface Registry is empty or no `.pyi` files exist, HALT.
+- **Action:** Verify the canonical artifact set is on disk:
+  - `plans/component-contracts.yaml` (CRC + collaborators)
+  - `interfaces/*.pyi` (Protocol signatures with mandatory Raises)
+  - `plans/symbols.yaml` (cross-CP identifier registry)
+  - `plans/test-plan.yaml` (per-Protocol-method invariants)
+  - `plans/seams.yaml` (DI graph + external terminals)
+- **Rule:** If any artifact is missing, HALT.
 - **Output:** "HALT: Contracts not locked. Run `/io-architect` first."
 
 ---
@@ -188,7 +195,10 @@ Propose the full content of `plans/plan.yaml`. The output must be valid YAML con
 ```yaml
 generated_from:
   - plans/roadmap.md
-  - plans/project-spec.md
+  - plans/component-contracts.yaml
+  - plans/symbols.yaml
+  - plans/test-plan.yaml
+  - interfaces/
 validated: false
 checkpoints:
   - id: CP-01
@@ -206,7 +216,9 @@ checkpoints:
       - "tests/[path]/test_[module].py"
     context_files:
       - "interfaces/[protocol].pyi"
-      - "plans/project-spec.md (CRC card for [ComponentName] only)"
+      - "plans/component-contracts.yaml (CRC card for [ComponentName] only)"
+      - "plans/symbols.yaml (filtered to symbols whose used_by contains [ComponentName])"
+      - "plans/test-plan.yaml (entries whose protocol matches the contract)"
     gate_command: "pytest tests/[path]/test_[module].py"
     depends_on: []
     parallelizable_with: []
@@ -262,6 +274,66 @@ Reply with approval to write, or provide corrections."
 
 ---
 
+### Step G-symbols: BACKFILL `used_by_cps` IN `plans/symbols.yaml`
+
+After `plans/plan.yaml` is on disk, walk the plan and resolve component
+names in symbols.yaml `used_by` to CP-IDs. For each CP, iterate
+`scope[].component`; for each symbol whose `used_by` contains that
+component name, append the CP-ID to the symbol's `used_by_cps` list.
+The architect populates `used_by` (component-level intent); the
+checkpoint planner resolves to CP-level scope so Tier-3 generators
+filter symbols by CP-ID at dispatch time.
+
+The backfill is a value-preserving update to `used_by_cps` only -- it
+does not change any symbol's kind, type, env_var, message_pattern, or
+declared_in. Wrap it in the validating sentinel so the symbols-write
+reset hooks do not fire: the cascade would otherwise strip
+`test-plan.yaml.validated` (Phase 2 architecture: that stamp is owned
+by `/io-architect` Step H-post-validate and represents the architect's
+self-blessing of the canonical artifacts; a routine CP-ID backfill
+must not invalidate it).
+
+```bash
+mkdir -p .iocane && touch .iocane/validating
+
+uv run python -c "
+import sys; sys.path.insert(0, '.claude/scripts')
+from plan_parser import load_plan
+from symbols_parser import load_symbols, save_symbols
+from schemas import SymbolsFile
+
+plan = load_plan('plans/plan.yaml')
+registry = load_symbols('plans/symbols.yaml')
+
+cps_by_component: dict[str, list[str]] = {}
+for cp in plan.checkpoints:
+    for entry in cp.scope:
+        cps_by_component.setdefault(entry.component, []).append(cp.id)
+
+new_symbols = {}
+for name, sym in registry.symbols.items():
+    cps: list[str] = []
+    seen: set[str] = set()
+    for component in sym.used_by:
+        for cp_id in cps_by_component.get(component, []):
+            if cp_id not in seen:
+                cps.append(cp_id)
+                seen.add(cp_id)
+    new_symbols[name] = sym.model_copy(update={'used_by_cps': cps})
+
+save_symbols('plans/symbols.yaml', SymbolsFile(symbols=new_symbols))
+print('used_by_cps backfill complete')
+"
+
+rm -f .iocane/validating
+```
+
+`plan.yaml.validated` is already `false` from Step F (just written), so
+the suppressed reset on plan.yaml is a no-op either way. The sentinel
+exists specifically to protect `test-plan.yaml.validated`.
+
+---
+
 ### Step G: STAMP AND ROUTE
 
 After writing `plan.yaml`, output:
@@ -281,7 +353,7 @@ Next step: Run /validate-plan to approve plan.yaml, then /io-plan-batch.
 
 ## 3. CONSTRAINTS
 
-- This workflow produces ONLY `plans/plan.yaml`. No `.pyi` edits, no `project-spec.md` edits.
+- This workflow produces `plans/plan.yaml` AND backfills `used_by_cps` in `plans/symbols.yaml` (Step G-symbols). No `.pyi` edits, no component-contracts.yaml edits, no test-plan.yaml edits, no seams.yaml edits.
 - In remediation mode, also writes to `plans/backlog.yaml` via `route_backlog_item.py --prompt` (Routed annotation with prompt text).
 - Connectivity tests are signatures only — no test code is written here.
 - Write targets per checkpoint must be derived from the `file` fields in `plans/component-contracts.yaml`. A checkpoint may not write to a `src/` file whose component is not registered there.

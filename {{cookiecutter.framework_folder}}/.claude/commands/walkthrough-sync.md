@@ -80,7 +80,7 @@ After generating:
 
    ```bash
    // turbo
-   .claude/scripts/smart_search.sh -c "file:///" docs/current-state-walkthrough.md
+   grep -n "file:///" docs/current-state-walkthrough.md
    ```
 
 2. **Diff Review:** If updating an existing walkthrough, present the diff to the user before finalizing.

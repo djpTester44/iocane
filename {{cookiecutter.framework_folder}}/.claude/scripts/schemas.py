@@ -8,6 +8,7 @@ contract_parser.py, hooks, and scripts for validation and serialization.
 
 import re
 from enum import StrEnum
+from typing import ClassVar
 
 from pydantic import BaseModel, field_validator, model_validator
 
@@ -506,3 +507,277 @@ class ReviewStaging(BaseModel):
     """Top-level staging container for plans/review-output.yaml."""
 
     groups: list[StagingGroup] = []
+
+
+# ---------------------------------------------------------------------------
+# Symbols registry (plans/symbols.yaml)
+# ---------------------------------------------------------------------------
+
+_SYMBOL_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
+
+
+class SymbolKind(StrEnum):
+    """The declared kind of a cross-CP symbol.
+
+    Any identifier whose exact spelling, type, or semantics must be
+    consistent across more than one checkpoint is registered in
+    plans/symbols.yaml under one of these kinds. Downstream generators
+    read the registry instead of inferring.
+    """
+
+    SETTINGS_FIELD = "settings_field"
+    EXCEPTION_CLASS = "exception_class"
+    SHARED_TYPE = "shared_type"
+    FIXTURE = "fixture"
+    LOG_FORMAT = "log_format"
+    ERROR_MESSAGE = "error_message"
+    ARGUMENT_CONVENTION = "argument_convention"
+
+
+class Symbol(BaseModel, frozen=True):
+    """A single cross-CP symbol declaration.
+
+    Kind-specific fields are optional at the model level; the
+    ``check_kind_required_fields`` validator enforces which fields must
+    be populated for each ``SymbolKind`` so downstream readers never
+    encounter a half-declared symbol.
+    """
+
+    kind: SymbolKind
+    declared_in: str | None = None
+    type_expr: str | None = None
+    env_var: str | None = None
+    default: str | None = None
+    parent: str | None = None
+    message_pattern: str | None = None
+    fixture_scope: str | None = None
+    arg_order: list[str] | None = None
+    # Architect-authored: component names that reference this symbol.
+    # Populated at /io-architect Step H-6 from CRC collaboration analysis.
+    used_by: list[str] = []
+    # Checkpoint-backfilled: CP-IDs that touch this symbol. Populated at
+    # /io-checkpoint after plan.yaml is authored, by walking each CP's
+    # scope and matching component names against `used_by`. Stays empty
+    # until checkpoint runs; downstream Tier-3 generators read this slice
+    # to scope the symbol pack they receive.
+    used_by_cps: list[str] = []
+
+    @model_validator(mode="after")
+    def check_kind_required_fields(self) -> "Symbol":
+        """Enforce kind-appropriate field presence."""
+        required: dict[SymbolKind, tuple[str, ...]] = {
+            SymbolKind.SETTINGS_FIELD: ("type_expr", "env_var"),
+            SymbolKind.EXCEPTION_CLASS: ("parent",),
+            SymbolKind.SHARED_TYPE: ("type_expr",),
+            SymbolKind.FIXTURE: ("fixture_scope",),
+            SymbolKind.LOG_FORMAT: ("message_pattern",),
+            SymbolKind.ERROR_MESSAGE: ("message_pattern",),
+            SymbolKind.ARGUMENT_CONVENTION: ("arg_order",),
+        }
+        missing = [
+            field
+            for field in required[self.kind]
+            if getattr(self, field) in (None, [])
+        ]
+        if missing:
+            msg = (
+                f"Symbol of kind {self.kind.value} requires: "
+                f"{', '.join(missing)}"
+            )
+            raise ValueError(msg)
+        return self
+
+
+class SymbolsFile(BaseModel, frozen=True):
+    """Top-level container for plans/symbols.yaml.
+
+    Keyed by symbol name for O(1) lookup from downstream consumers.
+    """
+
+    symbols: dict[str, Symbol] = {}
+
+    @field_validator("symbols")
+    @classmethod
+    def validate_symbol_names(cls, v: dict[str, Symbol]) -> dict[str, Symbol]:
+        """Enforce identifier-safe symbol names."""
+        for name in v:
+            if not _SYMBOL_NAME_RE.fullmatch(name):
+                msg = f"symbol name must be identifier-safe, got '{name}'"
+                raise ValueError(msg)
+        return v
+
+
+# ---------------------------------------------------------------------------
+# Test plan (plans/test-plan.yaml)
+# ---------------------------------------------------------------------------
+
+_INV_ID_RE = re.compile(r"^INV-\d{3}$")
+
+
+class InvariantKind(StrEnum):
+    """Taxonomy of per-Protocol-method test invariants.
+
+    Tracks the same observable axes used by CT assertion validation but
+    at the Protocol-method layer rather than the seam layer.
+    """
+
+    CALL_BINDING = "call_binding"
+    CARDINALITY = "cardinality"
+    ERROR_PROPAGATION = "error_propagation"
+    STATE_TRANSITION = "state_transition"
+    PROPERTY = "property"
+    ADVERSARIAL = "adversarial"
+
+
+class TestInvariant(BaseModel, frozen=True):
+    """A single behavioral invariant on a Protocol method."""
+
+    __test__: ClassVar[bool] = False
+
+    id: str
+    kind: InvariantKind
+    description: str
+    pass_criteria: str
+
+    @field_validator("id")
+    @classmethod
+    def validate_inv_id(cls, v: str) -> str:
+        """Enforce INV-NNN format."""
+        if not _INV_ID_RE.fullmatch(v):
+            msg = f"id must match INV-NNN format, got '{v}'"
+            raise ValueError(msg)
+        return v
+
+
+class TestPlanEntry(BaseModel, frozen=True):
+    """Per-Protocol-method test authoring spec.
+
+    The Test Author reads this entry and produces one or more contract
+    tests covering each invariant. If any invariant cannot be enforced
+    because the Protocol is silent on it, the Test Author emits an
+    AmendSignal instead of writing the test.
+    """
+
+    __test__: ClassVar[bool] = False
+
+    protocol: str
+    method: str
+    invariants: list[TestInvariant]
+
+    @field_validator("protocol")
+    @classmethod
+    def validate_protocol_path(cls, v: str) -> str:
+        """Normalize and enforce a .pyi path anchored at interfaces/.
+
+        Accepts ``interfaces/router.pyi``, ``./interfaces/router.pyi``,
+        and Windows-style backslash paths; normalizes to a single
+        canonical form so downstream lookups are not foiled by
+        path-format drift between authoring environments.
+        """
+        v = v.replace("\\", "/")
+        while v.startswith("./"):
+            v = v[2:]
+        idx = v.rfind("interfaces/")
+        if idx >= 0:
+            v = v[idx:]
+        if not v.endswith(".pyi"):
+            msg = f"protocol must be a .pyi path, got '{v}'"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("invariants")
+    @classmethod
+    def validate_non_empty_invariants(
+        cls, v: list[TestInvariant]
+    ) -> list[TestInvariant]:
+        """Reject empty invariants list.
+
+        An entry with zero invariants silently bypasses the
+        completeness gate -- the entry exists, so the method counts as
+        covered, but no behavioral claim is asserted. The entry must
+        be either populated or removed (with a # noqa: TEST_PLAN
+        deferral on the .pyi method, which surfaces as an INFO line).
+        """
+        if not v:
+            msg = "invariants must contain at least one TestInvariant"
+            raise ValueError(msg)
+        return v
+
+
+class TestPlanFile(BaseModel):
+    """Top-level container for plans/test-plan.yaml."""
+
+    __test__: ClassVar[bool] = False
+
+    validated: bool = False
+    validated_date: str | None = None
+    validated_note: str | None = None
+    entries: list[TestPlanEntry] = []
+
+
+# ---------------------------------------------------------------------------
+# Amend signal (.iocane/amend-signals/<protocol>.yaml)
+# ---------------------------------------------------------------------------
+
+
+class AmendSignalKind(StrEnum):
+    """Categories of Protocol under-specification a Test Author may surface."""
+
+    MISSING_RAISES = "missing_raises"
+    SILENT_RETURN_SEMANTICS = "silent_return_semantics"
+    MISSING_PRECONDITION = "missing_precondition"
+    UNDECLARED_COLLABORATOR = "undeclared_collaborator"
+    SYMBOL_GAP = "symbol_gap"
+
+
+class AmendSignal(BaseModel, frozen=True):
+    """One under-specification the Test Author could not author tests for."""
+
+    method: str
+    invariant_id: str
+    kind: AmendSignalKind
+    description: str
+    suggested_amendment: str
+
+    @field_validator("invariant_id")
+    @classmethod
+    def validate_inv_id(cls, v: str) -> str:
+        """Enforce INV-NNN format when present; allow empty for impl-level gaps.
+
+        Tester signals always originate from a specific test-plan
+        invariant and carry a non-empty INV-NNN id. Generator
+        (io-execute) signals on impl-Protocol gaps may surface
+        contract insufficiencies that are not tied to any single
+        declared invariant -- e.g., a return shape the Protocol is
+        silent on that multiple invariants incidentally depend upon.
+        For those cases empty is the correct signal; inventing an
+        INV-NNN to satisfy the schema would mislead the architect
+        consumer into looking for a specific invariant that does
+        not exist.
+        """
+        if v and not _INV_ID_RE.fullmatch(v):
+            msg = f"invariant_id must match INV-NNN format or be empty, got '{v}'"
+            raise ValueError(msg)
+        return v
+
+
+class AmendSignalFile(BaseModel, frozen=True):
+    """Structured payload written by Test Author when it cannot proceed.
+
+    One file per Protocol, at ``.iocane/amend-signals/<protocol>.yaml``.
+    Consumed by ``handle_amend_signal.py`` which re-enters the architect
+    amend sub-loop until the attempt counter exceeds the configured cap.
+    """
+
+    protocol: str
+    attempt: int = 1
+    signals: list[AmendSignal]
+
+    @field_validator("protocol")
+    @classmethod
+    def validate_protocol_path(cls, v: str) -> str:
+        """Enforce a .pyi path inside interfaces/."""
+        if not v.endswith(".pyi"):
+            msg = f"protocol must be a .pyi path, got '{v}'"
+            raise ValueError(msg)
+        return v

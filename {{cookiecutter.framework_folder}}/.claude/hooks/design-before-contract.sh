@@ -6,8 +6,8 @@
 # exceptions.pyi) which are not component contracts.
 # Skip if .iocane/validating sentinel exists (automated spec validation workflows).
 
-# Skip during automated validation
-if [ -f ".iocane/validating" ]; then
+# Skip during automated validation (stale-sentinel safe).
+if bash .claude/scripts/check-validating-sentinel.sh; then
     exit 0
 fi
 
@@ -97,6 +97,42 @@ fi
 
 if [ "$FOUND" != "yes" ]; then
     echo "BLOCKED: No contract entry for $COMPONENT_NAME. Design the component in /io-architect before writing the .pyi contract." >&2
+    exit 2
+fi
+
+# Extended precondition (Phase 1 of harness rebuild): symbols.yaml must
+# exist and test-plan.yaml must cover this Protocol. The architect
+# workflow writes all four artifacts under the validating sentinel and
+# is already exempt (early return above). Manual .pyi edits outside the
+# workflow must find the upstream canonical artifacts in place.
+if [ ! -f "plans/symbols.yaml" ]; then
+    echo "BLOCKED: plans/symbols.yaml is missing. Run /io-architect so the cross-CP symbol registry is authored before editing .pyi contracts." >&2
+    exit 2
+fi
+
+# Protocol-specific test-plan coverage: find at least one entry whose
+# `protocol` field points at this .pyi path. The normalized relative
+# path is derived identically to how the architect would write it.
+HAS_TEST_PLAN_ENTRY=$(FILE_PATH="$FILE_PATH" uv run python -c "
+import os, sys
+sys.path.insert(0, '.claude/scripts')
+from pathlib import Path
+from test_plan_parser import load_test_plan, entries_for_protocol
+p = os.path.normpath(os.environ['FILE_PATH']).replace('\\\\', '/')
+# Strip any leading segments so the stored path is relative to the repo
+# root (e.g. 'interfaces/router.pyi').
+idx = p.rfind('interfaces/')
+protocol = p[idx:] if idx >= 0 else p
+tp_path = 'plans/test-plan.yaml'
+if not Path(tp_path).exists():
+    print('no')
+else:
+    plan = load_test_plan(tp_path)
+    print('yes' if entries_for_protocol(plan, protocol) else 'no')
+")
+
+if [ "$HAS_TEST_PLAN_ENTRY" != "yes" ]; then
+    echo "BLOCKED: plans/test-plan.yaml has no entry for $FILE_PATH. Run /io-architect so behavioral invariants are authored before editing the .pyi contract." >&2
     exit 2
 fi
 

@@ -2,10 +2,16 @@
 paths:
   - "plans/PRD.md"
   - "plans/roadmap.md"
-  - "plans/project-spec.md"
+  - "plans/component-contracts.yaml"
+  - "plans/seams.yaml"
+  - "plans/symbols.yaml"
+  - "plans/test-plan.yaml"
   - "plans/plan.yaml"
   - "plans/backlog.yaml"
   - "interfaces/**"
+  - "tests/contracts/**"
+  - "tests/connectivity/**"
+  - ".iocane/amend-signals/**"
 ---
 
 # WORKFLOW AWARENESS
@@ -22,10 +28,17 @@ The three-tier model ensures no generated code reaches the codebase without huma
 |----------|----------|-------|---------|
 | PRD | `plans/PRD.md` | Human | Requirements, user stories, stack decisions |
 | Roadmap | `plans/roadmap.md` | Human (via /io-specify) | Feature sequence, dependency order |
-| Architecture Spec | `plans/project-spec.md` | Human (via /io-architect) | Interface Registry -- current codebase state only |
-| CRC Contracts | `plans/component-contracts.yaml` | Human (via /io-architect) | CRC behavioral data (responsibilities, must_not, protocol) |
-| Contracts | `interfaces/*.pyi` | Human (via /io-architect) | Binding Protocol definitions |
-| Checkpoint Plan | `plans/plan.yaml` | Human (via /io-checkpoint) | Atomic checkpoints, connectivity test signatures |
+| CRC Contracts | `plans/component-contracts.yaml` | Human (via /io-architect) | CRC behavioral data (responsibilities, must_not, protocol, features) |
+| Integration Seams | `plans/seams.yaml` | Human (via /io-architect) | DI graph, external terminals, key failure modes |
+| Symbols Registry | `plans/symbols.yaml` | Human (via /io-architect Step H-6) | Cross-CP identifiers: Settings fields, exception classes, shared types, fixtures, log formats, error messages, argument conventions. `used_by_cps` is backfilled by /io-checkpoint. |
+| Test Plan | `plans/test-plan.yaml` | Human (via /io-architect Step H-7) | Per-Protocol-method behavioral invariants; stamped `validated: true` by architect Step H-post-validate |
+| Contracts | `interfaces/*.pyi` | Human (via /io-architect) | Binding Protocol definitions with mandatory Raises clauses |
+| Contract Tests | `tests/contracts/test_<stem>.py` | Test Author (via io-test-author dispatched by `spawn-tester.sh`) | Pytest tests exercising test-plan invariants against one Protocol |
+| Connectivity Tests | `tests/connectivity/*.py` | CT Author (via io-ct-author dispatched by `spawn-ct-writer.sh`) | Pytest tests exercising seam contracts (source Protocol spy-mocked); authored per CP before generator runs |
+| AMEND Signal (tester) | `.iocane/amend-signals/<protocol-stem>.yaml` | Test Author (emitted when Protocol is under-specified) | Structured `AmendSignalFile` payload; consumed by architect Forced-AMEND at Step 1; gate-exempt by contract |
+| AMEND Signal (generator) | `.iocane/amend-signals/<cp-id>.yaml` | Generator (emitted when Protocol is silent on a required precondition, return semantic, or collaborator) | Same schema + consumer as tester signals. CP-ID and Protocol-stem namespaces are disjoint by shape. |
+| AMEND Attempt Counter | `.iocane/amend-attempts.<stem>` | `handle_amend_signal.py` (sole writer) | Retry budget per Protocol; capped by `architect.amend_retries` (default 2); survives architect `rm -rf .iocane/amend-signals/` |
+| Checkpoint Plan | `plans/plan.yaml` | Human (via /io-checkpoint) | Atomic checkpoints, connectivity test signatures; stamped `validated: true` by /validate-plan Step 13 |
 | Task Files | `plans/tasks/[CP-ID].yaml` | Orchestrator | Per-checkpoint sub-agent work packages |
 | Dispatch Script | `plans/tasks/run.sh` | Orchestrator | Worktree setup and sub-agent invocation |
 | Status Files | `plans/tasks/[CP-ID].status` | Sub-agent | PASS/FAIL per checkpoint |
@@ -35,6 +48,12 @@ The three-tier model ensures no generated code reaches the codebase without huma
 | Plan Parser | `.claude/scripts/plan_parser.py` | Harness | Load/save/query `plans/plan.yaml` |
 | Task Parser | `.claude/scripts/task_parser.py` | Harness | Load/save/query `plans/tasks/CP-*.yaml` |
 | Seam Parser | `.claude/scripts/seam_parser.py` | Harness | Load/save/query `plans/seams.yaml` |
+| Symbols Parser | `.claude/scripts/symbols_parser.py` | Harness | Load/save/query `plans/symbols.yaml`; conflict detection (env_var + message_pattern) |
+| Test Plan Parser | `.claude/scripts/test_plan_parser.py` | Harness | Load/save/query `plans/test-plan.yaml` |
+| Contract Parser | `.claude/scripts/contract_parser.py` | Harness | Load/save/query `plans/component-contracts.yaml` |
+| Amend Signal Handler | `.claude/scripts/handle_amend_signal.py` | Harness | Sole writer of `.iocane/amend-attempts.<stem>`; consumes `.iocane/amend-signals/<stem>.yaml`; enforces `architect.amend_retries` cap; appends DESIGN backlog entry on escalation |
+| Test Author Dispatch | `.claude/scripts/spawn-tester.sh` | Harness | Dispatches `claude -p` for one Protocol with `IOCANE_ROLE=tester` + `IOCANE_PROTOCOL=<stem>`; preflights architect-mode sentinel, validated stamps, target `.pyi` existence |
+| CT Author Dispatch | `.claude/scripts/spawn-ct-writer.sh` | Harness (Phase 4) | Dispatches `claude -p` for one CP with `IOCANE_ROLE=ct_author` + `IOCANE_CP_ID=<CP-ID>`; preflights architect-mode sentinel, task-file validity, target_cp CT count. Invoked by `dispatch-agents.sh` before the generator stage. |
 | Workflow State | `.iocane/workflow-state.json` | Hook | Deterministic workflow state derived from artifact writes; consumed by `workflow-state-gate.sh` |
 | Escalation Flag | `.iocane/escalation.flag` | Hook | Sentinel written by `escalation-gate.sh`; blocks dispatch and implementation writes |
 | Review Pending | `.iocane/review-pending.json` | Command (`/io-review`) | Sentinel marking "reviewed but not approved"; consumed by `session-start.sh`, cleaned by `archive-approved.sh` |

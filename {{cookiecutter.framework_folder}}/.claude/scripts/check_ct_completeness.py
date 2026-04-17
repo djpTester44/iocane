@@ -42,6 +42,22 @@ def _extract_ct_target_cps(plan: Plan) -> set[str]:
     return {ct.target_cp for ct in plan.connectivity_tests}
 
 
+def _extract_ct_source_cps(plan: Plan) -> set[str]:
+    """Collect all CP IDs that appear in source_cps of any CT.
+
+    A CP whose ID appears as a source in at least one CT has its
+    seam exercised from the consumer side -- the downstream CT
+    verifies that the consumer correctly uses this CP's output.
+    Per CDD principles, a contract is a behavioral specification at
+    a module boundary; if a downstream CT exercises the boundary,
+    the source Protocol is covered.
+    """
+    source_cps: set[str] = set()
+    for ct in plan.connectivity_tests:
+        source_cps.update(ct.source_cps)
+    return source_cps
+
+
 def main() -> int:
     plan_path = Path("plans/plan.yaml")
     if not plan_path.exists():
@@ -52,6 +68,7 @@ def main() -> int:
 
     covered_protocols = _extract_covered_protocols(plan)
     ct_target_cps = _extract_ct_target_cps(plan)
+    ct_source_cps = _extract_ct_source_cps(plan)
 
     violations: list[tuple[str, list[str]]] = []
     info_messages: list[str] = []
@@ -64,6 +81,16 @@ def main() -> int:
         if not has_src_writes:
             info_messages.append(
                 f"INFO: {cp.id} — no src/ write targets (verification-only), exempt"
+            )
+            continue
+
+        # Source-side coverage: if this CP is a source in any CT, a
+        # downstream consumer already verifies the seam. The CP's own
+        # Protocol is exercised via the CT's contract_under_test on the
+        # consumer side.
+        if cp.id in ct_source_cps:
+            info_messages.append(
+                f"INFO: {cp.id} — covered as CT source (provider seam tested by consumer)"
             )
             continue
 

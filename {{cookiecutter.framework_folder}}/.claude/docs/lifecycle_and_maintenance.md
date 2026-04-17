@@ -15,14 +15,31 @@ Execution follows a strict chronology. Design is locked before any code is writt
   1. /io-clarify      -- resolve PRD ambiguities, stamp Clarified: True
   2. /io-init         -- bootstrap project structure and stub roadmap from clarified PRD
   3. /io-specify      -- PLAN MODE -- propose roadmap.md, human approves
-  4. /io-architect    -- PLAN MODE -- propose CRC + Protocols, human approves (contract lock)
-  5. /io-checkpoint   -- PLAN MODE -- propose plan.yaml + connectivity test signatures, human approves
-  6. /validate-plan   -- validate plan.yaml CDD compliance, stamp Plan Validated: PASS
+  4. /io-architect    -- PLAN MODE -- produce full canonical set (component-contracts.yaml,
+                        interfaces/*.pyi, symbols.yaml, test-plan.yaml, seams.yaml), human
+                        approves (contract lock). Step H-post-validate runs deterministic gates
+                        and stamps test-plan.yaml validated: true.
+  4b. io-test-author  -- Tier 1 sub-agent per Protocol (dispatched via spawn-tester.sh).
+                        Writes tests/contracts/test_<stem>.py OR emits
+                        .iocane/amend-signals/<stem>.yaml when the Protocol is under-specified
+                        for a declared test-plan invariant. AMEND signals re-enter io-architect
+                        (Forced AMEND at Step 1). Retry budget: architect.amend_retries (default 2).
+                        Parallel dispatch across Protocols lives in Phase 6b.
+  5. /io-checkpoint   -- PLAN MODE -- propose plan.yaml + CT signatures, human approves.
+                        Step G-symbols backfills symbols.yaml used_by_cps under the validating
+                        sentinel (protects test-plan.yaml.validated from spurious reset).
+  6. /validate-plan   -- validate plan.yaml CDD compliance, stamp plan.yaml validated: true.
+                        Does NOT touch test-plan.yaml.validated -- that stamp is architect-owned.
 
 [Tier 2 -- Harness Autonomous]
   7. /io-plan-batch   -- compose batch, score confidence rubric [HARD GATE], generate task files, human approves [HUMAN GATE]
   8. /validate-tasks  -- validate task files against plan.yaml before dispatch
-  9. bash .claude/scripts/dispatch-agents.sh  -- human executes; sub-agents run in git worktrees; ci-sidecar runs pre-wave and post-wave for regression detection
+  9. bash .claude/scripts/dispatch-agents.sh  -- human executes; per-CP pipeline runs three stages in each worktree:
+        a. spawn-ct-writer.sh (Tier 3a)  -- writes tests/connectivity/*.py for every CT whose target_cp == this CP
+                                           (Phase 4; skipped cleanly when the CP is target_cp of zero CTs)
+        b. io-execute (Tier 3)           -- writes src/ impl + emergent impl tests; CTs are read-only
+        c. io-evaluator-dispatch         -- grades impl against acceptance criteria
+     ci-sidecar runs pre-wave and post-wave for regression detection.
 
 [Tier 3 -- Post-Generation Evaluation]
   10. /io-evaluator-dispatch -- grades checkpoint output against acceptance criteria (per CP, in worktree)

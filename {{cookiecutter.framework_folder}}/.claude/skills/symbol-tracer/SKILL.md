@@ -39,6 +39,7 @@ Caller MAY provide:
    | Detect cross-references between symbols | `--symbol "<A>,<B>" --imports-only` |
    | Assess blast radius | `--symbol "<A>" --summary` |
    | Find Protocol implementors | `--symbol "<Protocol>" --find-implementors` |
+   | Detect namespace-level imports | `--imports-from-prefix "<module_prefix>"` |
 
 4. **Run the script**:
    ```bash
@@ -67,13 +68,26 @@ Do not add recommendations, next steps, or risk judgments ("safe to rename", "ca
 
 | Flag | Description |
 |------|-------------|
-| `--symbol "<name>"` | Symbol name to trace (required). Comma-separated for multiple. |
+| `--symbol "<name>"` | Symbol name to trace. Comma-separated for multiple. Required unless `--imports-from-prefix` is given. |
 | `--root <path>` | Search root directory (default: `.`) |
 | `--summary` | Prepend a one-line count summary to the output |
 | `--imports-only` | Filter results to import statements only |
 | `--include-tests` | Also scan `tests/` directory (even when `--root` is `src/`) |
 | `--find-implementors` | Find classes that inherit from the symbol instead of tracing usages |
+| `--imports-from-prefix "<prefix>"` | Find any `from PREFIX[.sub] import ...` or `import PREFIX[.sub]` statements. Answers "does this file import anything from this module namespace?" without naming specific symbols. Empty JSON list means "no matches." When this flag is set, `--symbol` is optional and ignored. |
 | `--format markdown` | Output as a markdown table instead of JSON |
+
+## Prefix Mode Notes
+
+`--imports-from-prefix` matches ModuleName exactly OR `ModuleName.sub[.deeper]`.
+It does NOT substring-match, so `--imports-from-prefix src` will not match
+`from source_utils import X`. Bare `import src` and `import src.domain` both
+match. Relative imports (`from . import x`) do not match any prefix because
+their `module` attribute is `None`.
+
+Primary use case: deterministic post-dispatch validation that test files
+import from the expected layer (e.g., connectivity tests must import from
+`src.*` to exercise the target impl, not only from `interfaces.*` mocks).
 
 ## Limitations
 

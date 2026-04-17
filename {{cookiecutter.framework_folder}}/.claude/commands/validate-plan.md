@@ -197,8 +197,10 @@ The script exits 0 regardless of findings.
 After running Steps 4, 7, 8, 9, 9B, 9C, 9D, and 9E:
 
 * If any Phase 1 check produced a **non-auto-remediable VIOLATION**: HALT immediately. Do not load Phase 2 context. Output findings and escalate to user.
-* If all Phase 1 violations are auto-remediable: apply auto-fixes, mark `[AUTO-AMENDED]`, and re-run Steps 4, 7, 8, 9, 9B only (no Phase 2 reload per self-heal iteration). Steps 9C, 9D, and 9E always emit OBSERVATION-severity findings -- never VIOLATION -- so they do not participate in the self-heal loop. See Step 12 for loop procedure.
+* If all Phase 1 violations are auto-remediable: apply auto-fixes, mark `[AUTO-AMENDED]`, and re-run Steps 4, 7, 8, 9, 9B only (no Phase 2 reload per self-heal iteration). Steps 9C, 9D, and 9E always emit OBSERVATION-severity findings -- never VIOLATION -- so they do not participate in the self-heal loop.
 * Only when Phase 1 is clean (zero Phase 1 VIOLATIONs): proceed to Phase 2.
+
+> **Note on symbol/test-plan coverage:** these checks live at `/io-architect` Step H-post-validate, NOT here. The architect is the authority that can act on a coverage failure cheaply (just amend the artifact being held in mind); re-checking here would only halt-and-route back to architect, which is the same round-trip the architect already closed. The reset-hook chain forces re-architect on any post-blessing mutation to `.pyi`, `symbols.yaml`, or `test-plan.yaml`, so by the time `/validate-plan` runs the architect's coverage stamp is current.
 
 ---
 
@@ -378,7 +380,9 @@ Write the stamp using the following strictly sequential steps. Do NOT paralleliz
 
   On **FAIL**, stamp with `validated: false` and a note listing blocking violations.
 
-The sentinel prevents `reset-on-plan-write.sh` from immediately reverting a PASS stamp back to FAIL. The hook auto-deletes the sentinel when it detects the `validated: true` stamp write — no explicit cleanup step required.
+* **Step 13-post:** `bash: rm -f .iocane/validating`
+
+The sentinel prevents `reset-on-plan-write.sh` from reverting the PASS stamp. Explicit cleanup at Step 13-post is required so the sentinel does not persist across the gate boundary. `plans/test-plan.yaml.validated` is owned by `/io-architect` Step H-post-validate -- this gate does NOT touch it.
 
 * `/io-plan-batch` **MUST** check for `validated: true` before composing the batch. If missing or false, halt and recommend `/validate-plan`.
 

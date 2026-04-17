@@ -12,23 +12,30 @@ from typing import Protocol, runtime_checkable
 class [ProtocolName](Protocol):
     """
     Contract for [Component Name].
-    
+
     CRC Trace:
-    - [Paste Responsibility 1 from project-spec.md]
-    - [Paste Responsibility 2 from project-spec.md]
+    - [Paste Responsibility 1 from component-contracts.yaml]
+    - [Paste Responsibility 2 from component-contracts.yaml]
     """
 
     def [method_name](self, [arg_name]: [Type]) -> [ReturnType]:
         """
         [Method description directly mapping to a CRC responsibility and Sequence Diagram execution step.]
-        
+
         Args:
             [arg_name]: [Strict type and constraint description]
-            
+
         Returns:
             [Strict return type description]
-            
+
         Raises:
-            [Explicitly list domain-specific exceptions defined in the PRD error handling states]
+            [MANDATORY. Declare every domain-specific exception type this
+            method can raise, with the trigger condition for each. If the
+            method is total (cannot raise), write exactly:
+                None. Total function -- no exceptions raised.
+            Leaving this block blank or omitting it is a contract-authoring
+            error; downstream Test Author will emit an ARCHITECT_AMEND
+            signal because error_propagation invariants cannot be enforced
+            against an unwritten Raises clause.]
         """
         ...
