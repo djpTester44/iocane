@@ -11,6 +11,24 @@ set -euo pipefail
 
 INPUT=$(cat)
 
+# --- gen_protocols role-leak guard ---
+# IOCANE_ROLE=gen_protocols is a single-subprocess scope set by
+# /io-gen-protocols when it invokes gen_protocols.py. It is NEVER a
+# spawned-session role (unlike tester / ct_author which ARE spawned via
+# spawn-*.sh scripts that set the var). Its presence at SessionStart
+# means the var leaked from the user's shell env (export, .envrc, or
+# a copy-pasted "debug" export from the command docs). Refusing here
+# closes the C8 adversarial bypass where an attacker exports the magic
+# string to disable interfaces-codegen-only.sh for the whole session.
+if [ "${IOCANE_ROLE:-}" = "gen_protocols" ]; then
+    echo "BLOCKED: IOCANE_ROLE=gen_protocols detected in session environment." >&2
+    echo "  This role scope is meant for a single subprocess invocation of gen_protocols.py" >&2
+    echo "  from within /io-gen-protocols -- never a session-level export." >&2
+    echo "  Fix: unset IOCANE_ROLE (or remove the export from your shell / .envrc / profile)," >&2
+    echo "  then restart the session." >&2
+    exit 1
+fi
+
 # Clear any stale validating sentinel left by a crashed session.
 # If present at session start, the reset hooks would be permanently disabled.
 rm -f .iocane/validating

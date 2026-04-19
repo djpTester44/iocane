@@ -350,6 +350,17 @@ class MissingCtSeam(BaseModel, frozen=True):
         return v
 
 
+ALLOWED_LAYERS: frozenset[int] = frozenset({1, 2, 3, 4})
+FOUNDATION_LAYER: int = 1
+COMPOSITION_ROOT_LAYER: int = 4
+# Layers counted toward the composition-root decomposition cap (A.1c):
+# excludes foundation (nothing below to wire) and composition roots
+# themselves (excluded per io-architect.md A.1c prose).
+CAP_COUNTED_LAYERS: frozenset[int] = (
+    ALLOWED_LAYERS - {FOUNDATION_LAYER, COMPOSITION_ROOT_LAYER}
+)
+
+
 class SeamComponent(SeamEntry, frozen=True):
     """Full seam component with layer and backlog references.
 
@@ -363,9 +374,9 @@ class SeamComponent(SeamEntry, frozen=True):
     @field_validator("layer")
     @classmethod
     def validate_layer(cls, v: int) -> int:
-        """Enforce layer is 1, 2, or 3."""
-        if v not in (1, 2, 3):
-            msg = f"layer must be 1, 2, or 3, got {v}"
+        """Enforce layer membership in ALLOWED_LAYERS."""
+        if v not in ALLOWED_LAYERS:
+            msg = f"layer must be one of {sorted(ALLOWED_LAYERS)}, got {v}"
             raise ValueError(msg)
         return v
 
@@ -391,6 +402,76 @@ class SeamsFile(BaseModel, frozen=True):
 # Component contracts (plans/component-contracts.yaml)
 # ---------------------------------------------------------------------------
 
+_PY_IDENT_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
+
+
+class ArgSpec(BaseModel, frozen=True):
+    """A positional argument on a Protocol method.
+
+    ``self`` is implicit; do not declare it. ``type_expr`` is a PEP 484
+    expression (e.g., ``"list[int]"``, ``"Mapping[str, Route]"``).
+    ``default``, when present, is the serialized literal rendered on
+    the right-hand side of ``=`` in the generated signature.
+    """
+
+    name: str
+    type_expr: str
+    default: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        """Enforce lowercase Python-identifier-safe arg name."""
+        if not _PY_IDENT_RE.fullmatch(v):
+            msg = f"arg name must be lowercase identifier-safe, got '{v}'"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("type_expr")
+    @classmethod
+    def validate_type_expr(cls, v: str) -> str:
+        """Reject empty type expression."""
+        if not v.strip():
+            msg = "type_expr must be non-empty"
+            raise ValueError(msg)
+        return v
+
+
+class MethodSpec(BaseModel, frozen=True):
+    """A Protocol method signature plus behavioral docstring.
+
+    Authored inside ``ComponentContract.methods``. Consumed by
+    ``gen_protocols.py`` to emit the ``.pyi`` Protocol body and the
+    docstring Raises block. ``raises`` carries bare exception class
+    names; each name must resolve to a Symbol of kind=exception_class
+    in ``plans/symbols.yaml`` (enforced by
+    ``validate_symbols_coverage.py``).
+    """
+
+    name: str
+    args: list[ArgSpec] = []
+    return_type: str = "None"
+    raises: list[str] = []
+    docstring: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        """Enforce lowercase Python-identifier-safe method name."""
+        if not _PY_IDENT_RE.fullmatch(v):
+            msg = f"method name must be lowercase identifier-safe, got '{v}'"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("return_type")
+    @classmethod
+    def validate_return_type(cls, v: str) -> str:
+        """Reject empty return_type."""
+        if not v.strip():
+            msg = "return_type must be non-empty"
+            raise ValueError(msg)
+        return v
+
 
 class ComponentContract(BaseModel, frozen=True):
     """A single component entry in plans/component-contracts.yaml."""
@@ -402,6 +483,7 @@ class ComponentContract(BaseModel, frozen=True):
     responsibilities: list[str] = []
     must_not: list[str] = []
     features: list[str] = []
+    methods: list[MethodSpec] = []
 
     @field_validator("file")
     @classmethod
@@ -529,9 +611,7 @@ class SymbolKind(StrEnum):
     EXCEPTION_CLASS = "exception_class"
     SHARED_TYPE = "shared_type"
     FIXTURE = "fixture"
-    LOG_FORMAT = "log_format"
     ERROR_MESSAGE = "error_message"
-    ARGUMENT_CONVENTION = "argument_convention"
 
 
 class Symbol(BaseModel, frozen=True):
@@ -551,7 +631,6 @@ class Symbol(BaseModel, frozen=True):
     parent: str | None = None
     message_pattern: str | None = None
     fixture_scope: str | None = None
-    arg_order: list[str] | None = None
     # Architect-authored: component names that reference this symbol.
     # Populated at /io-architect Step H-6 from CRC collaboration analysis.
     used_by: list[str] = []
@@ -567,12 +646,10 @@ class Symbol(BaseModel, frozen=True):
         """Enforce kind-appropriate field presence."""
         required: dict[SymbolKind, tuple[str, ...]] = {
             SymbolKind.SETTINGS_FIELD: ("type_expr", "env_var"),
-            SymbolKind.EXCEPTION_CLASS: ("parent",),
-            SymbolKind.SHARED_TYPE: ("type_expr",),
+            SymbolKind.EXCEPTION_CLASS: ("parent", "declared_in"),
+            SymbolKind.SHARED_TYPE: ("type_expr", "declared_in"),
             SymbolKind.FIXTURE: ("fixture_scope",),
-            SymbolKind.LOG_FORMAT: ("message_pattern",),
             SymbolKind.ERROR_MESSAGE: ("message_pattern",),
-            SymbolKind.ARGUMENT_CONVENTION: ("arg_order",),
         }
         missing = [
             field
@@ -583,6 +660,37 @@ class Symbol(BaseModel, frozen=True):
             msg = (
                 f"Symbol of kind {self.kind.value} requires: "
                 f"{', '.join(missing)}"
+            )
+            raise ValueError(msg)
+        return self
+
+    @model_validator(mode="after")
+    def check_declared_in_zone(self) -> "Symbol":
+        """Enforce runtime-symbol placement under src/.
+
+        exception_class and shared_type manifest as concrete Python
+        class bodies at runtime; they live under src/. Placing them in
+        interfaces/ conflates type-only Protocol stubs with runtime
+        implementations (the C8 drift). declared_in presence is enforced
+        by check_kind_required_fields; this validator constrains the
+        zone of any value that is set.
+        """
+        if self.kind not in (SymbolKind.EXCEPTION_CLASS, SymbolKind.SHARED_TYPE):
+            return self
+        declared = self.declared_in
+        if declared is None:
+            return self
+        if declared.startswith("interfaces/"):
+            msg = (
+                f"Symbol of kind {self.kind.value} must not declare_in "
+                f"interfaces/; runtime symbols live in src/, got "
+                f"'{declared}'"
+            )
+            raise ValueError(msg)
+        if not declared.startswith("src/"):
+            msg = (
+                f"Symbol of kind {self.kind.value} requires declared_in "
+                f"to start with 'src/', got '{declared}'"
             )
             raise ValueError(msg)
         return self
@@ -779,5 +887,131 @@ class AmendSignalFile(BaseModel, frozen=True):
         """Enforce a .pyi path inside interfaces/."""
         if not v.endswith(".pyi"):
             msg = f"protocol must be a .pyi path, got '{v}'"
+            raise ValueError(msg)
+        return v
+
+
+# ---------------------------------------------------------------------------
+# Findings (.iocane/findings/<role>-<timestamp>.yaml)
+# ---------------------------------------------------------------------------
+
+
+class FindingRole(StrEnum):
+    """The harness role emitting a finding."""
+
+    TEST_AUTHOR = "test_author"
+    GENERATOR = "generator"
+    EVALUATOR = "evaluator"
+    IO_GEN_PROTOCOLS = "io-gen-protocols"
+
+
+class RootCauseLayer(StrEnum):
+    """The layer whose defect produced the finding and owns the fix.
+
+    Remediation flows downward from the named layer: fixing
+    yaml_contract requires re-running gen_protocols, test author,
+    and downstream; fixing interfaces_codegen only requires
+    re-running codegen and downstream; and so on.
+    """
+
+    YAML_CONTRACT = "yaml_contract"
+    INTERFACES_CODEGEN = "interfaces_codegen"
+    TEST_AUTHORSHIP = "test_authorship"
+    IMPL = "impl"
+
+
+class FindingContext(BaseModel, frozen=True):
+    """Locator fields pointing to the subject of the finding.
+
+    At least one locator must be populated so the human remediator
+    can identify where the defect surfaced. A finding with no
+    locators is orphaned and cannot be routed.
+    """
+
+    protocol: str | None = None
+    cp_id: str | None = None
+    test_file: str | None = None
+
+    @model_validator(mode="after")
+    def check_at_least_one_locator(self) -> "FindingContext":
+        """Reject a context with no populated locator."""
+        if not any((self.protocol, self.cp_id, self.test_file)):
+            msg = (
+                "FindingContext requires at least one of "
+                "protocol, cp_id, test_file"
+            )
+            raise ValueError(msg)
+        return self
+
+
+class FindingDiagnosis(BaseModel, frozen=True):
+    """Structured reasoning: what is wrong, where, why."""
+
+    what: str
+    where: str
+    why: str
+
+
+class FindingRemediation(BaseModel, frozen=True):
+    """Actionable remediation path scoped to a root-cause layer."""
+
+    root_cause_layer: RootCauseLayer
+    fix_steps: list[str]
+    re_entry_commands: list[str]
+
+    @field_validator("fix_steps", "re_entry_commands")
+    @classmethod
+    def validate_non_empty(cls, v: list[str]) -> list[str]:
+        """Reject empty ordered lists.
+
+        An empty remediation list signals nothing actionable to the
+        human, leaving the finding orphaned at the halt point.
+        """
+        if not v:
+            msg = "must contain at least one entry"
+            raise ValueError(msg)
+        return v
+
+
+class Finding(BaseModel, frozen=True):
+    """A halt-to-human finding emitted by a harness role.
+
+    Replaces the AMEND signal / retry loop: the finding IS the
+    remediation workflow. A human reads remediation.fix_steps,
+    applies them, then runs remediation.re_entry_commands to
+    re-drive the pipeline from the root-cause layer downward.
+
+    defect_kind is a short slug (e.g., ``symbol_gap``,
+    ``contract_silent``). Enumeration deferred to Phase 6 when
+    emitters are wired up and the taxonomy solidifies.
+    """
+
+    role: FindingRole
+    context: FindingContext
+    defect_kind: str
+    affected_artifacts: list[str]
+    diagnosis: FindingDiagnosis
+    remediation: FindingRemediation
+
+
+class FindingFile(BaseModel, frozen=True):
+    """Container for .iocane/findings/<role>-<timestamp>.yaml.
+
+    One file per role emission; may carry multiple related findings
+    surfaced together (same precedent as AmendSignalFile.signals).
+    """
+
+    findings: list[Finding]
+
+    @field_validator("findings")
+    @classmethod
+    def validate_non_empty(cls, v: list[Finding]) -> list[Finding]:
+        """Reject zero-finding files.
+
+        A file with an empty findings list is indistinguishable from a
+        stale sentinel and provides no signal for the human remediator.
+        """
+        if not v:
+            msg = "FindingFile must contain at least one Finding"
             raise ValueError(msg)
         return v

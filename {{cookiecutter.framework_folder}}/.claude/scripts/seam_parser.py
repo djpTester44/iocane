@@ -79,7 +79,7 @@ def find_by_component(seams: SeamsFile, name: str) -> SeamComponent | None:
 
 
 def components_by_layer(
-    seams: SeamsFile, layer: Literal[1, 2, 3],
+    seams: SeamsFile, layer: Literal[1, 2, 3, 4],
 ) -> list[SeamComponent]:
     """Return all components in the given layer."""
     return [c for c in seams.components if c.layer == layer]

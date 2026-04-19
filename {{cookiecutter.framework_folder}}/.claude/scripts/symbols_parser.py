@@ -32,13 +32,11 @@ def load_symbols(path: str) -> SymbolsFile:
 def save_symbols(path: str, registry: SymbolsFile) -> None:
     """Serialize symbols registry to YAML and write to disk."""
     data = registry.model_dump(mode="json", exclude_none=True)
-    for name, sym in data.get("symbols", {}).items():
+    for _name, sym in data.get("symbols", {}).items():
         if not sym.get("used_by"):
             sym.pop("used_by", None)
         if not sym.get("used_by_cps"):
             sym.pop("used_by_cps", None)
-        if sym.get("arg_order") == []:
-            sym.pop("arg_order", None)
     output = yaml.dump(
         data, default_flow_style=False, sort_keys=False, allow_unicode=True
     )

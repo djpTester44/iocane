@@ -30,7 +30,7 @@ The three-tier model ensures no generated code reaches the codebase without huma
 | Roadmap | `plans/roadmap.md` | Human (via /io-specify) | Feature sequence, dependency order |
 | CRC Contracts | `plans/component-contracts.yaml` | Human (via /io-architect) | CRC behavioral data (responsibilities, must_not, protocol, features) |
 | Integration Seams | `plans/seams.yaml` | Human (via /io-architect) | DI graph, external terminals, key failure modes |
-| Symbols Registry | `plans/symbols.yaml` | Human (via /io-architect Step H-6) | Cross-CP identifiers: Settings fields, exception classes, shared types, fixtures, log formats, error messages, argument conventions. `used_by_cps` is backfilled by /io-checkpoint. |
+| Symbols Registry | `plans/symbols.yaml` | Human (via /io-architect Step H-6) | Cross-CP identifiers: Settings fields, exception classes, shared types, fixtures, error messages. `used_by_cps` is backfilled by /io-checkpoint. |
 | Test Plan | `plans/test-plan.yaml` | Human (via /io-architect Step H-7) | Per-Protocol-method behavioral invariants; stamped `validated: true` by architect Step H-post-validate |
 | Contracts | `interfaces/*.pyi` | Human (via /io-architect) | Binding Protocol definitions with mandatory Raises clauses |
 | Contract Tests | `tests/contracts/test_<stem>.py` | Test Author (via io-test-author dispatched by `spawn-tester.sh`) | Pytest tests exercising test-plan invariants against one Protocol |

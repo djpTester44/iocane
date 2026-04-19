@@ -103,20 +103,6 @@ fake_router:
   used_by: [CP-03, CP-04]
 ```
 
-### `log_format`
-A structured log message template whose exact form is relied upon by
-downstream log-parsing or observability tests.
-
-Required: `message_pattern` (format string literal)
-
-```yaml
-RouteResolvedLog:
-  kind: log_format
-  declared_in: src/domain/router.py
-  message_pattern: "route resolved src=%s dst=%s hops=%d"
-  used_by: [CP-03]
-```
-
 ### `error_message`
 A literal string passed to an exception constructor. Registered when the
 exact wording is verified by a test assertion or log-triage tool.
@@ -129,21 +115,6 @@ RouteNotFoundMessage:
   declared_in: src/domain/router.py
   message_pattern: "route not found for destination={destination}"
   used_by: [CP-03]
-```
-
-### `argument_convention`
-Named argument ordering that must be consistent across multiple call
-sites (e.g., positional order on a Protocol method consumed by several
-components).
-
-Required: `arg_order` (list of positional argument names)
-
-```yaml
-route_args:
-  kind: argument_convention
-  declared_in: interfaces/router.pyi
-  arg_order: [src, dst, hops]
-  used_by: [CP-03, CP-05]
 ```
 
 ## Conflict detection

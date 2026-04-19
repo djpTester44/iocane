@@ -27,7 +27,7 @@ description: Design CRC cards, Protocols, cross-CP symbols, and per-method behav
 - `plans/component-contracts.yaml` -- CRC, collaborators, file paths, feature mapping, protocol path
 - `interfaces/*.pyi` -- Protocol signatures, shared types, exceptions, per-method Raises/docstrings
 - `plans/seams.yaml` -- integration graph, external terminals, failure modes
-- `plans/symbols.yaml` -- every cross-CP identifier (Settings fields, exception classes, shared types, fixtures, log formats, error messages, argument conventions)
+- `plans/symbols.yaml` -- every cross-CP identifier (Settings fields, exception classes, shared types, fixtures, error messages)
 - `plans/test-plan.yaml` -- per-Protocol-method behavioral invariants
 
 Nothing is written to `plans/project-spec.md`. That artifact is a retired render target; no downstream agent reads it.
@@ -285,9 +285,7 @@ The sentinel prevents `reset-on-pyi-write.sh`, `reset-on-symbols-write.sh`, `res
 - **Exception classes:** every custom exception that crosses a Protocol boundary. `kind: exception_class`, `parent` (base class), `declared_in: interfaces/exceptions.pyi`.
 - **Shared types:** every dataclass / TypedDict / Pydantic model consumed by more than one CP. `kind: shared_type`, `type_expr` (shape summary).
 - **Fixtures:** every pytest fixture referenced by contract tests or integration tests across more than one CP. `kind: fixture`, `fixture_scope`.
-- **Log formats:** any structured log whose exact template is relied upon by observability or integration tests. `kind: log_format`, `message_pattern`.
 - **Error messages:** any literal exception message whose wording is asserted by tests. `kind: error_message`, `message_pattern`.
-- **Argument conventions:** any positional argument order that must be stable across multiple callers. `kind: argument_convention`, `arg_order`.
 - Populate `used_by:` with the COMPONENT NAMES (from CRC collaborator analysis) that reference each symbol. Do NOT populate `used_by_cps:` -- that field is checkpoint-backfilled at `/io-checkpoint` and stays empty until then.
 - Conflict detection (`detect_env_var_conflicts`, `detect_message_pattern_conflicts`) runs at Step I-3 and at `/validate-plan`.
 
@@ -383,7 +381,7 @@ seams = load_seams('plans/seams.yaml')
 - `receives_di_protocols`: **Appendix A §A.3b.** Required for every component whose `component-contracts.yaml` entry has `composition_root: true`. Enumerate every Protocol the component injects -- these are Protocol names (the `.pyi` class symbols), not collaborator component names. This list drives the composition-root CT emission in `/io-checkpoint` Step D. For non-composition components, leave empty.
 - `external_terminal`: derive from CRC card Responsibilities (any external system explicitly mentioned) and Must NOT constraints
 - `key_failure_modes`: derive from Protocol method docstrings (exception types documented)
-- `layer`: assign based on component placement (1=Foundation, 2=Utility, 3=Domain)
+- `layer`: assign based on component placement (1=Foundation, 2=Utility, 3=Domain, 4=Entrypoint). Components with `composition_root: true` belong at Layer 4.
 - `backlog_refs`: leave empty -- backlog is populated by `/io-review`, not `/io-architect`
 
 If `plans/seams.yaml` does not exist, create it from `.claude/templates/seams.yaml`.
@@ -398,7 +396,7 @@ uv run python .claude/scripts/sync_dir_claude.py
 ```
 
 **Rule:** These files are generated artifacts -- the script overwrites them.
-They must stay under 20 lines. If the script reports exit code 2 (line-count
+They must stay under 30 lines. If the script reports exit code 2 (line-count
 exceeded), flag the directory as a `[DESIGN]` finding.
 
 **Step I-3: [MECHANICAL POST-GATE] FILE-REFERENCE RESOLVABILITY + SYMBOL CONFLICTS.**
@@ -463,9 +461,11 @@ When `dispatch-testers.sh` reports that one or more `.iocane/amend-signals/<prot
 
 1. Read each signal file under `.iocane/amend-signals/`.
 2. **[HARD GATE] Consume each signal through the retry-counter authority.** For every signal stem, invoke:
+
    ```bash
    uv run python .claude/scripts/handle_amend_signal.py --consume <stem>
    ```
+
    The script is the sole writer of `.iocane/amend-attempts.<stem>`, the authoritative retry counter. On each call it increments the sidecar, rewrites the signal YAML's `attempt` field to match, and exits:
    - `0` -- increment succeeded, counter still within `architect.amend_retries`.
    - `2` -- counter exceeded cap; the script has already appended a `DESIGN` backlog entry with the full signal payload. **HALT AMEND mode immediately**, do NOT apply any amendments, do NOT set the validating sentinel. The Protocol is genuinely under-specified and needs human design input.

@@ -9,7 +9,7 @@ ci:
   timeout: 5m
 models:
   ct_author: claude-sonnet-4-6
-  tier1: claude-opus-4-6
+  tier1: claude-opus-4-7
   tier2: claude-sonnet-4-6
   tier3: claude-haiku-4-5
 parallel:

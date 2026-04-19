@@ -43,20 +43,8 @@ symbols: {}
 #     fixture_scope: function
 #     used_by: [CP-03, CP-04]
 #
-#   RouteResolvedLog:
-#     kind: log_format
-#     declared_in: src/domain/router.py
-#     message_pattern: "route resolved src=%s dst=%s hops=%d"
-#     used_by: [CP-03]
-#
 #   RouteNotFoundMessage:
 #     kind: error_message
 #     declared_in: src/domain/router.py
 #     message_pattern: "route not found for destination={destination}"
 #     used_by: [CP-03]
-#
-#   route_args:
-#     kind: argument_convention
-#     declared_in: interfaces/router.pyi
-#     arg_order: [src, dst, hops]
-#     used_by: [CP-03, CP-05]

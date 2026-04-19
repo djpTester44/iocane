@@ -45,7 +45,12 @@ import sys
 from pathlib import Path
 
 from contract_parser import load_contracts
-from schemas import ComponentContract, ComponentContractsFile, SeamsFile
+from schemas import (
+    CAP_COUNTED_LAYERS,
+    ComponentContract,
+    ComponentContractsFile,
+    SeamsFile,
+)
 from seam_parser import load_seams
 
 logger = logging.getLogger(__name__)
@@ -91,7 +96,7 @@ def _count_l23_collaborators(
     count = 0
     for collab in collaborators:
         layer = layer_by_component.get(collab)
-        if layer is None or layer in (2, 3):
+        if layer is None or layer in CAP_COUNTED_LAYERS:
             count += 1
     return count
 

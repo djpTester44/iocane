@@ -1,8 +1,11 @@
 """validate_symbols_coverage.py
 
-Verifies that every project-custom exception type referenced by
-`interfaces/*.pyi` Protocols is declared in `plans/symbols.yaml`, and
-that the symbol registry has no env_var or message_pattern conflicts.
+Verifies that every project-custom exception type referenced either
+by an `interfaces/*.pyi` Protocol docstring or by a
+`ComponentContract.methods[].raises` entry in
+`plans/component-contracts.yaml` is declared in `plans/symbols.yaml`,
+and that the symbol registry has no env_var or message_pattern
+conflicts.
 
 Builtin and stdlib-module exceptions (e.g., ValueError,
 subprocess.CalledProcessError, json.JSONDecodeError, socket.gaierror)
@@ -34,12 +37,13 @@ import re
 import sys
 from pathlib import Path
 
+from contract_parser import load_contracts
+from schemas import SymbolKind
 from symbols_parser import (
     detect_env_var_conflicts,
     detect_message_pattern_conflicts,
     load_symbols,
 )
-from schemas import SymbolKind
 
 RAISES_SECTION_RE = re.compile(r"^\s*Raises:\s*$")
 SECTION_HEADER_RE = re.compile(
@@ -139,54 +143,78 @@ def extract_raises_from_pyi(path: Path) -> set[str]:
     return raised
 
 
-def main(argv: list[str] | None = None) -> int:
-    """Entry point."""
-    parser = argparse.ArgumentParser(
-        description=(
-            "Verify project-custom Protocol Raises types are declared "
-            "in symbols.yaml and the registry has no conflicts."
-        )
-    )
-    parser.add_argument("--symbols", default="plans/symbols.yaml")
-    parser.add_argument("--interfaces", default="interfaces")
-    args = parser.parse_args(argv)
+def validate_from_objects(
+    registry,
+    contracts,
+    interfaces_dir: Path,
+    contracts_label: str = "component-contracts.yaml",
+) -> int:
+    """Run coverage + conflict validation on pre-loaded objects.
 
-    symbols_path = Path(args.symbols)
-    if not symbols_path.exists():
-        sys.stderr.write(f"FAIL: symbols file not found: {symbols_path}\n")
-        return 1
-    interfaces_dir = Path(args.interfaces)
-    if not interfaces_dir.exists():
-        sys.stderr.write(
-            f"FAIL: interfaces directory not found: {interfaces_dir}\n"
-        )
-        return 1
+    Callers that have already parsed ``symbols.yaml`` and
+    ``component-contracts.yaml`` (e.g., ``gen_protocols.main``) pass
+    the objects through so the validator operates on the SAME view
+    the downstream code will act on -- no re-reads, no TOCTOU.
+    ``main()`` below is a thin CLI wrapper that loads the files and
+    delegates here.
 
-    registry = load_symbols(str(symbols_path))
+    Returns exit code 0 (PASS), 1 (FAIL).
+    """
     declared: set[str] = {
         name
         for name, sym in registry.symbols.items()
         if sym.kind == SymbolKind.EXCEPTION_CLASS
     }
 
-    raised_in_pyi: dict[str, list[Path]] = {}
-    for pyi_path in interfaces_dir.glob("*.pyi"):
-        for full_name in extract_raises_from_pyi(pyi_path):
-            if is_stdlib_exception(full_name):
-                continue
-            base_name = full_name.rsplit(".", 1)[-1]
-            raised_in_pyi.setdefault(base_name, []).append(pyi_path)
+    raised_in_pyi: dict[str, list[str]] = {}
+    # v3: interfaces/ is /io-gen-protocols output, not a validator input.
+    # Cold-start absence is expected -- do not regress to FAIL-on-missing.
+    if interfaces_dir.exists():
+        for pyi_path in interfaces_dir.glob("*.pyi"):
+            for full_name in extract_raises_from_pyi(pyi_path):
+                if is_stdlib_exception(full_name):
+                    continue
+                base_name = full_name.rsplit(".", 1)[-1]
+                raised_in_pyi.setdefault(base_name, []).append(str(pyi_path))
 
-    uncovered = sorted(set(raised_in_pyi) - declared)
+    raised_in_contracts: dict[str, list[str]] = {}
+    methods_authored = 0
+    for comp_name, comp in contracts.components.items():
+        for method in comp.methods:
+            methods_authored += 1
+            for full_name in method.raises:
+                if is_stdlib_exception(full_name):
+                    continue
+                base_name = full_name.rsplit(".", 1)[-1]
+                raised_in_contracts.setdefault(base_name, []).append(
+                    f"{comp_name}.{method.name}"
+                )
+
+    pyi_files = (
+        list(interfaces_dir.glob("*.pyi")) if interfaces_dir.exists() else []
+    )
+    if methods_authored == 0 and not pyi_files:
+        sys.stderr.write(
+            "FAIL: nothing to validate -- no methods authored in "
+            f"{contracts_label} and no .pyi files in {interfaces_dir}. "
+            "Author ComponentContract.methods[] entries (and re-run "
+            "/io-gen-protocols) before validating symbol coverage.\n"
+        )
+        return 1
+
+    all_raised = set(raised_in_pyi) | set(raised_in_contracts)
+    uncovered = sorted(all_raised - declared)
     env_conflicts = detect_env_var_conflicts(registry)
     msg_conflicts = detect_message_pattern_conflicts(registry)
 
     failed = False
     for exc in uncovered:
-        files = ", ".join(str(p) for p in raised_in_pyi[exc])
+        sources: list[str] = []
+        sources.extend(raised_in_pyi.get(exc, []))
+        sources.extend(raised_in_contracts.get(exc, []))
         sys.stderr.write(
-            f"FAIL: exception '{exc}' raised in {files} but not declared "
-            f"in symbols.yaml as kind=exception_class\n"
+            f"FAIL: exception '{exc}' raised in {', '.join(sources)} but "
+            f"not declared in symbols.yaml as kind=exception_class\n"
         )
         failed = True
     for env_var, claimants in env_conflicts.items():
@@ -204,11 +232,55 @@ def main(argv: list[str] | None = None) -> int:
 
     if not failed:
         sys.stdout.write(
-            f"PASS: {len(raised_in_pyi)} project-custom exception type(s) "
+            f"PASS: {len(all_raised)} project-custom exception type(s) "
             f"declared; no env_var or message_pattern conflicts.\n"
         )
         return 0
     return 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI entry -- loads files from paths and delegates to validate_from_objects.
+
+    Script callers (``uv run python validate_symbols_coverage.py``)
+    reach this path. Library callers with pre-loaded objects should
+    call ``validate_from_objects`` directly to avoid a re-read that
+    diverges from their in-memory view.
+    """
+    parser = argparse.ArgumentParser(
+        description=(
+            "Verify project-custom Protocol Raises types are declared "
+            "in symbols.yaml and the registry has no conflicts."
+        )
+    )
+    parser.add_argument("--symbols", default="plans/symbols.yaml")
+    parser.add_argument("--interfaces", default="interfaces")
+    parser.add_argument(
+        "--contracts", default="plans/component-contracts.yaml"
+    )
+    args = parser.parse_args(argv)
+
+    symbols_path = Path(args.symbols)
+    if not symbols_path.exists():
+        sys.stderr.write(f"FAIL: symbols file not found: {symbols_path}\n")
+        return 1
+
+    from schemas import ComponentContractsFile
+
+    registry = load_symbols(str(symbols_path))
+    contracts_path = Path(args.contracts)
+    contracts = (
+        load_contracts(str(contracts_path))
+        if contracts_path.exists()
+        else ComponentContractsFile()
+    )
+
+    return validate_from_objects(
+        registry,
+        contracts,
+        Path(args.interfaces),
+        contracts_label=str(contracts_path),
+    )
 
 
 if __name__ == "__main__":

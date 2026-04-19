@@ -14,7 +14,7 @@ Data sources:
 Exit codes:
   0 -- success
   1 -- missing required inputs (component-contracts.yaml)
-  2 -- 20-line limit exceeded for one or more directories
+  2 -- 30-line limit exceeded for one or more directories
 
 Usage:
     uv run python .claude/scripts/sync_dir_claude.py                # all directories
@@ -29,15 +29,14 @@ import sys
 import tomllib
 from pathlib import Path
 
-from pydantic import ValidationError
-
 from contract_parser import load_contracts
+from pydantic import ValidationError
 from schemas import ComponentContract, SeamComponent
 from seam_parser import load_seams
 
 logger = logging.getLogger(__name__)
 
-MAX_LINES = 20
+MAX_LINES = 30
 
 
 def load_pyproject_contracts(path: Path) -> list[dict[str, object]]:
@@ -83,38 +82,18 @@ def build_dir_component_map(
 def get_layer(
     comp_names: list[str],
     seam_components: list[SeamComponent],
-    il_contracts: list[dict[str, object]],
-    dir_path: str,
 ) -> str:
-    """Derive layer label for a directory's components.
+    """Derive layer label for a directory's components from seams.yaml."""
+    layer_map = {
+        1: "1-Foundation",
+        2: "2-Utility",
+        3: "3-Domain",
+        4: "4-Entrypoint",
+    }
 
-    Priority: seams.yaml layer field, then import-linter contracts.
-    """
-    layer_map = {1: "1-Foundation", 2: "2-Utility", 3: "3-Domain"}
-
-    # Check seams.yaml first
     for seam in seam_components:
-        if seam.component in comp_names:
-            if seam.layer in layer_map:
-                return layer_map[seam.layer]
-
-    # Fallback: infer from import-linter layer contract ordering
-    # Match directory name against package path segments (e.g. "domain"
-    # matches "route_planner.domain"), not component class names.
-    dir_name = Path(dir_path).name.lower()
-    for contract in il_contracts:
-        if contract.get("type") != "layers":
-            continue
-        layers = contract.get("layers", [])
-        # layers are ordered top-to-bottom (entrypoint first)
-        for idx, layer_pkg in enumerate(layers):
-            pkg_segments = layer_pkg.lower().split(".")
-            if dir_name in pkg_segments:
-                # Map position to layer number (reversed: last = foundation)
-                total = len(layers)
-                layer_num = total - idx
-                if layer_num in layer_map:
-                    return layer_map[layer_num]
+        if seam.component in comp_names and seam.layer in layer_map:
+            return layer_map[seam.layer]
 
     return "[unknown]"
 
@@ -353,12 +332,15 @@ def sync_directory(
     dir_name = Path(dir_path).name
     interfaces_dir = project_root / "interfaces"
 
-    layer = get_layer(comp_names, seam_components, il_contracts, dir_path)
+    layer = get_layer(comp_names, seam_components)
     owns = get_owns(comp_names, components)
     public_via = get_public_via(comp_names, components, interfaces_dir)
     must_not = get_must_not(comp_names, components, il_contracts, dir_path)
     key_files = get_key_files(
-        dir_path, comp_names, components, project_root,
+        dir_path,
+        comp_names,
+        components,
+        project_root,
     )
 
     content = render_claude_md(dir_name, layer, owns, public_via, must_not, key_files)
@@ -368,7 +350,9 @@ def sync_directory(
     if line_count > MAX_LINES:
         logger.warning(
             "%s: %d lines exceeds %d-line limit (DESIGN finding)",
-            dir_path, line_count, MAX_LINES,
+            dir_path,
+            line_count,
+            MAX_LINES,
         )
         exit_code = 2
 
@@ -430,7 +414,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         seams = load_seams(seams_path)
     except (ValidationError, FileNotFoundError):
-        logger.warning("plans/seams.yaml not found or invalid -- layer data may be incomplete")
+        logger.warning(
+            "plans/seams.yaml not found or invalid -- layer data may be incomplete"
+        )
         seams = None
     seam_components = seams.components if seams else []
     if not seam_components:
@@ -439,10 +425,7 @@ def main(argv: list[str] | None = None) -> int:
     pyproject_path = project_root / "pyproject.toml"
     il_contracts = load_pyproject_contracts(pyproject_path)
 
-    if all(
-        not c.responsibilities
-        for c in contracts.components.values()
-    ):
+    if all(not c.responsibilities for c in contracts.components.values()):
         logger.warning(
             "No responsibilities in component-contracts.yaml -- "
             "run /io-architect to populate"

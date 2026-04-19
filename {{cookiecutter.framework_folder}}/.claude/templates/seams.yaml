@@ -5,6 +5,7 @@
 # Layer 1 -- Foundation
 # Layer 2 -- Utility
 # Layer 3 -- Domain (no external terminals; receives Layer 2 clients via DI)
+# Layer 4 -- Entrypoint (composition roots; wires Layer 2/3 collaborators via DI)
 
 components: []
 

@@ -136,6 +136,14 @@
           {
             "command": "bash .claude/hooks/design-before-contract.sh",
             "type": "command"
+          },
+          {
+            "command": "bash .claude/hooks/interfaces-pyi-only.sh",
+            "type": "command"
+          },
+          {
+            "command": "bash .claude/hooks/interfaces-codegen-only.sh",
+            "type": "command"
           }
         ],
         "matcher": "Edit|Write"
@@ -149,6 +157,10 @@
           {
             "command": "bash .claude/hooks/rtk-enforce.sh",
             "type": "command"
+          },
+          {
+            "command": "bash .claude/hooks/interfaces-bash-write.sh",
+            "type": "command"
           }
         ],
         "matcher": "Bash"
@@ -157,6 +169,10 @@
         "hooks": [
           {
             "command": "bash .claude/hooks/forbidden-tools.sh",
+            "type": "command"
+          },
+          {
+            "command": "bash .claude/hooks/interfaces-powershell-write.sh",
             "type": "command"
           }
         ],

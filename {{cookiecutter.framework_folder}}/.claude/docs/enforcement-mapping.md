@@ -4,6 +4,55 @@ Maps every harness constraint to its enforcement mechanism.
 
 ---
 
+## Trust Model (interfaces-zone guard family)
+
+The hooks below under "interfaces-*.sh" gate AGENT DRIFT UNDER CONTEXT
+PRESSURE, not deliberate adversarial bypass. Specifically:
+
+- `IOCANE_ROLE` is a caller-controlled string. An agent that reads
+  `interfaces-codegen-only.sh` can inline `IOCANE_ROLE=gen_protocols`
+  on any Bash tool call to obtain admission. The SessionStart role-leak
+  guard catches only the "inherited-from-shell" case (`export`,
+  `.envrc`, copy-pasted debug), not deliberate inline prefix.
+- The Bash/PowerShell write-verb pattern sets are blocklists, not
+  allowlists, and are non-exhaustive by design. Unlisted primitives
+  (`ln -s`, `install` before this pass, `python -c "pathlib.Path(...)"`,
+  `git checkout -- interfaces/foo.pyi`, etc.) bypass by construction.
+  Adding verbs raises the drift bar incrementally; it does not close
+  the structural admission gap.
+
+Accepted under v3's threat model. Cryptographic admission engineering
+(per-invocation tokens, parent-process verification, capability
+binding) is deferred as out-of-scope. The hooks are load-bearing for
+honest-agent drift; Phase 2.5 validation is drift-validation, not
+adversarial red-team.
+
+**No whack-a-mole.** New verbs enter the Bash/PowerShell matcher ONLY
+when a plausible honest-agent drift pattern uses them -- not from
+theoretical adversarial enumeration. `/challenge` rounds will surface
+theoretical bypasses indefinitely; resist adding coverage unless the
+verb is part of standard agent toolkit AND a reasoning-from-task-
+pressure agent would naturally reach for it. If the verb requires
+deliberate gate-evasion thinking to use, it is a structural bypass
+(Path A territory) -- accept and document it, do not extend the
+matcher. This rule exists because an unchecked verb-addition cycle
+is indistinguishable from piecemeal Path A engineering and would
+invalidate the v3 deferral decision by slow creep.
+
+**Known-accepted residuals (documented, not fixed):**
+
+- *Template whitelist TOCTOU.* `_validate_template_path` resolves via
+  `.resolve()` + `is_file()`; jinja2 reads the file on a separate
+  trip. Low-likelihood under the honest-agent threat (the agent
+  does not race itself); acceptable trade for code simplicity.
+- *Windows 8.3 short names / case sensitivity beyond `.lower()`.*
+  Edit|Write path hooks call `os.path.realpath`, catching 8.3
+  resolution; the Bash matcher does not re-resolve the command
+  string. Honest-drift agents do not produce 8.3 paths, so the
+  Windows-specific gap stays open.
+
+---
+
 ## Hook-Enforced (gate via exit code 2)
 
 | Constraint | Hook | Event | Async |
@@ -22,6 +71,12 @@ Maps every harness constraint to its enforcement mechanism.
 | No backslash paths in written files | `backslash-path.sh` | PreToolUse Edit/Write | |
 | No emoji in written files | `emoji-scan.sh` | PreToolUse Edit/Write | |
 | Design file required before .pyi contract | `design-before-contract.sh` | PreToolUse Edit/Write | |
+| interfaces/ is type-only (.pyi extension required) | `interfaces-pyi-only.sh` -> `interfaces_zone_check.py is_violation_pyi_only` | PreToolUse Edit/Write | |
+| interfaces/ writes require IOCANE_ROLE=gen_protocols | `interfaces-codegen-only.sh` -> `is_violation_codegen_only` | PreToolUse Edit/Write | |
+| Bash commands writing into interfaces/ must honor extension + role | `interfaces-bash-write.sh` -> `is_violation_bash_write` | PreToolUse Bash | |
+| PowerShell commands writing into interfaces/ must honor extension + role | `interfaces-powershell-write.sh` -> `is_violation_powershell_write` | PreToolUse PowerShell | |
+| Session refuses if IOCANE_ROLE=gen_protocols is inherited at session start | `session-start.sh` (role-leak guard near top) | SessionStart | |
+| Sub-agent warned if IOCANE_ROLE=gen_protocols is inherited at subagent start | `subagent-start.sh` (role-leak warning in additionalContext) | SubagentStart | |
 | Env vars filtered by phase (Phase A/B/C) | `environ-gate.sh` | PreToolUse Edit/Write | |
 | Plan mode required when flag set | `environ-gate.sh` | PreToolUse Edit/Write | |
 | .py file creation context injection | `py-create-context.sh` | PreToolUse Edit/Write | yes |

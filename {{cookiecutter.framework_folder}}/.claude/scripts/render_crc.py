@@ -30,9 +30,10 @@ from seam_parser import load_seams
 logger = logging.getLogger(__name__)
 
 _LAYER_NAMES: dict[int, str] = {
-    1: "entrypoint",
-    2: "domain",
-    3: "infrastructure",
+    1: "foundation",
+    2: "utility",
+    3: "domain",
+    4: "entrypoint",
 }
 
 _CRC_HEADING_RE = re.compile(r"^##\s+(?:\d+\.\s+)?CRC Cards")

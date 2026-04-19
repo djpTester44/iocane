@@ -9,6 +9,7 @@ description: Automated DESIGN/REFACTOR backlog resolution. Tier 1 -- plan mode r
 > (design-first). Quality is enforced by an Opus evaluator agent, not a human gate.
 
 > **[CONTEXT LOADING]**
+>
 > 1. Load planning rules: `view_file .claude/rules/planning.md`
 > 2. Load the Design Skill: `view_file .claude/skills/mini-spec/SKILL.md` (CRC card format -- Section 2)
 > 3. Load the PRD: `view_file plans/PRD.md`
@@ -105,6 +106,7 @@ For each item, in wave order:
 ### D.1: Dispatch Plan agent (model: Sonnet)
 
 Provide the agent with:
+
 - The routing prompt text from the BL item (`architect_prompt`)
 - `files` field (which files to read)
 - Current CRC card for the affected component (from project-spec.md)
@@ -116,6 +118,7 @@ Provide the agent with:
 ### D.2: Agent returns structured findings
 
 The agent explores code at the referenced files, reads current state, and returns:
+
 - Atomic CRC card changes (which responsibility lines to add/modify/remove)
 - Protocol signature changes if DESIGN (which methods/docstrings to update)
 - Component-contracts.yaml changes if collaborators changed
@@ -137,12 +140,13 @@ re-triage: REFACTOR item requires .pyi changes (should be DESIGN)."
 ## Step E: EVALUATOR GATE (Opus agent)
 
 Dispatch an Opus evaluator agent with:
+
 - The consolidated plan (per-item changes grouped by artifact)
 - Current project-spec.md, interfaces/*.pyi, component-contracts.yaml
 - CRC card format reference (mini-spec Section 2)
 - Planning rules (.claude/rules/planning.md)
 
-### Evaluator checks:
+### Evaluator checks
 
 1. CRC card changes follow mini-spec format (layer, responsibilities, collaborators, Must NOT)
 2. Protocol signature changes are additive or explicitly flagged as breaking
@@ -151,7 +155,7 @@ Dispatch an Opus evaluator agent with:
 5. file:line citations in CRC cards are valid (cited files/lines exist)
 6. Dependency map consistency (new edges don't violate layer rules)
 
-### Evaluator output:
+### Evaluator output
 
 - **PASS:** Proceed to execution.
 - **FAIL:** List specific findings per item. Remove failing items from batch.
@@ -172,13 +176,13 @@ uv run python .claude/scripts/validate_crc_budget.py \
   --contracts .iocane/crc-budget-staging.yaml
 ```
 
-4. On exit 1 (violations):
+1. On exit 1 (violations):
    - HALT before Step F. No real writes to `plans/` or `interfaces/` have happened.
    - Report violating components and the backlog items whose changes introduced the over-capacity state.
    - Instruct the user to either (a) narrow/split the offending items via `/io-backlog-triage`, or (b) decompose the affected components via `/io-architect`. `/auto-architect` cannot repair structural over-capacity on its own.
    - Leave failing items `[ ]` in backlog for the next run. Delete `.iocane/crc-budget-staging.yaml`.
-5. On exit 2 (load error): HALT and surface the error -- something is wrong with the staging serialization.
-6. On exit 0: delete `.iocane/crc-budget-staging.yaml` and proceed to Step F.
+2. On exit 2 (load error): HALT and surface the error -- something is wrong with the staging serialization.
+3. On exit 0: delete `.iocane/crc-budget-staging.yaml` and proceed to Step F.
 
 The staging path isolates the gate from `plans/component-contracts.yaml`, so a failed pre-gate does not leave partially-approved contracts on disk or perturb `hooks/design-before-contract.sh`.
 
@@ -234,7 +238,7 @@ uv run python .claude/scripts/sync_dir_claude.py
 ```
 
 **Rule:** These files are generated artifacts -- the script overwrites them.
-They must stay under 20 lines. If the script reports exit code 2 (line-count
+They must stay under 30 lines. If the script reports exit code 2 (line-count
 exceeded), flag the directory as a `[DESIGN]` finding.
 
 ### F.7: VALIDATE-SPEC GATE (Sonnet agent)
@@ -272,6 +276,7 @@ For each resolved item:
 ### G.1: Mark resolved in backlog
 
 Mark the BL item `[x]` in plans/backlog.yaml and add annotation:
+
 ```
   - Resolved: auto-architect (YYYY-MM-DD)
 ```
@@ -280,6 +285,7 @@ Mark the BL item `[x]` in plans/backlog.yaml and add annotation:
 
 Scan backlog for items with `Blocked: BL-NNN` referencing the resolved item.
 Replace the Blocked annotation with:
+
 ```
   - Unblocked: BL-NNN resolved by auto-architect (YYYY-MM-DD)
 ```
@@ -291,6 +297,7 @@ This unblocks dependent CLEANUP/TEST items for /auto-checkpoint pickup.
 ## Step H: SUMMARY
 
 Output:
+
 - Resolved count
 - Unblocked dependents count
 - Remaining blockers (if any)

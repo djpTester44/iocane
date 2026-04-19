@@ -46,6 +46,8 @@ def save_contracts(path: str, contracts: ComponentContractsFile) -> None:
             comp.pop("must_not", None)
         if not comp.get("features"):
             comp.pop("features", None)
+        if not comp.get("methods"):
+            comp.pop("methods", None)
     output = yaml.dump(
         data, default_flow_style=False, sort_keys=False, allow_unicode=True,
     )
