@@ -2,8 +2,8 @@
     "framework_folder": ".",
     "project_name": "my_project",
     "_copy_without_render": [
-        ".agent/scripts/*",
         ".claude/scripts/*",
-        ".claude/hooks/*"
+        ".claude/hooks/*",
+        ".claude/templates/interface.pyi.template"
     ]
 }
