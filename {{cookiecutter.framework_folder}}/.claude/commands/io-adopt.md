@@ -47,30 +47,16 @@ description: Apply Iocane framework to an existing codebase with intelligent con
 
 #### 1d. Write CLAUDE.md
 
+* **Assumption:** `CLAUDE.md` is absent at this point -- the cookiecutter `pre_gen_project.py` hook archives any pre-existing `CLAUDE.md` to `OLD_CLAUDE.md` before the template is copied.
 * **Action:** Read `.claude/templates/CLAUDE.md.template`.
 * **Action:** Substitute `__PROJECT_NAME__` with `PROJECT_NAME` and `__PROJECT_DESCRIPTION__` with `PROJECT_DESCRIPTION`.
-* **If `CLAUDE.md` already exists:** Replace only the `## System Context` section content (lines between the heading and the first `---`). Preserve everything else.
-* **If `CLAUDE.md` is absent:** Write the full template with substitutions applied.
+* **Action:** Write the substituted template to `CLAUDE.md`.
+* **Merge guidance:** If `OLD_CLAUDE.md` exists and contains project-specific content outside the `## System Context` section (custom rules, project-specific protocols, etc.), surface this in the Step 4 handoff for the user to manually merge. Do not attempt automated merging -- the judgment of what to preserve is the user's call.
 
 #### 1e. Bootstrap directories
 
 * **Action:** `mkdir -p .iocane plans plans/tasks`
 * **Note:** Do not overwrite `.iocane/session-start-payload.json` if it already exists.
-
-#### 1f. Migrate legacy plan artifacts
-
-* **Check:** For each of `plans/backlog.md`, `plans/plan.md`, `plans/seams.md`:
-  if the `.md` file exists AND the corresponding `.yaml` does not:
-* **Action:** Run the migration script:
-  ```bash
-  uv run python .claude/scripts/migrate_backlog.py plans/backlog.md
-  uv run python .claude/scripts/migrate_plan.py plans/plan.md
-  uv run python .claude/scripts/migrate_seams.py plans/seams.md
-  ```
-* **On failure:** Log the error and continue. Migration failures are non-blocking --
-  the user can fix the `.md` format and re-run `/io-adopt`.
-* **On success:** Log which files were migrated. Do NOT delete the `.md` originals
-  (user decides when to remove them).
 
 ---
 
@@ -93,21 +79,67 @@ description: Apply Iocane framework to an existing codebase with intelligent con
 * **Action:** Add a `## Wiring Snapshot` section to `plans/current-state.md`.
 * **Note:** This is descriptive inventory only — Protocols do not exist yet in brownfield repos.
 
-### 3. REFACTOR PRD GENERATION
+### 3. PRD SYNTHESIS
+
+Dual-source: if the brownfield repo already had a PRD (archived to `OLD_plans/PRD.md` by the `pre_gen_project.py` hook), it is the primary source of intent. Current-state findings augment it via a dedicated reconciliation section. If no archived PRD exists, the current-state analysis becomes the sole source.
+
+**Rule for both branches:** Set `**Clarified:** False` in the new PRD header. Any carryover clarification status from an archived PRD is stale; `/io-clarify` will re-validate.
+
+#### Branch A: `OLD_plans/PRD.md` present (carryover path)
+
+* **Action:** Copy `OLD_plans/PRD.md` verbatim to `plans/PRD.md` as the primary source of intent. Do not rewrite or reshape the user's prose.
+* **Action:** Force `**Clarified:** False` in the header (overwrite any existing value).
+* **Action:** Append a `## Current State Reconciliation` section at the end of `plans/PRD.md`. This section reports findings from `plans/current-state.md` that relate to the PRD's content -- specifically:
+  * Capabilities the PRD describes for which the code shows no evidence.
+  * Capabilities the code implements that the PRD is silent on.
+  * Domain models, data structures, or config sources observable in the code that the PRD does not reference.
+* **Scope:** Keep the reconciliation section gentle and observational. Do not edit or rewrite the carryover PRD content. `/io-clarify` is the correct workflow for resolving divergences with the human.
+* **Format note:** The carryover PRD may be in an older format or structure than `.claude/templates/PRD.md`. This is acceptable at this stage. `/io-clarify` normalizes against the current template as part of its work.
+
+#### Branch B: `OLD_plans/PRD.md` absent (reverse-engineer path)
 
 * **Action:** Read `.claude/templates/PRD.md`.
 * **Action:** Create `plans/PRD.md` by mapping `plans/current-state.md` into the Iocane-compliant PRD format.
-* **Goal:** Rephrase legacy capabilities as "Requirements" for the refactor.
 * **Guidance:**
   * Map "Capabilities" -> "User Stories"
   * Map "Data Structures" -> "Domain Models"
   * Map "File Inventory" -> "Constraints"
 * **Rule:** Set `**Clarified:** False` in the new PRD header.
 
+#### Future extension point
+
+Other archived plan artifacts (e.g., `OLD_plans/backlog.md`, `OLD_plans/plan.md`, `OLD_plans/seams.md`, `OLD_plans/roadmap.md`) are currently NOT consumed by `/io-adopt`. They remain in the archive for manual reference. If automated consumption of any such artifact is added later, the correct location is this step -- add a new sub-branch for each artifact alongside Branch A and Branch B.
+
 ### 4. HANDOFF
 
-* **Stop:** Explicitly ask user to review `plans/PRD.md`.
-* **Output:** "Harness configured and legacy extraction complete. Draft PRD created at `plans/PRD.md`. **REVIEW REQUIRED.** Do not proceed until this PRD is approved. Once approved, run `/io-clarify` to resolve ambiguities, followed by `/io-init` to generate the macro-architecture."
+* **Stop:** Explicitly ask the user to review `plans/PRD.md` AND the archived artifacts before running `/io-clarify`.
+
+* **Archive review (prescriptive, non-blocking):** List the archives created by the `pre_gen_project.py` hook that warrant human review. For each archive present in the repo, name it explicitly and propose how to merge:
+
+  * **`OLD_CLAUDE.md`** (if present) -- diff against the newly-written `CLAUDE.md`. Carry over anything outside the `## System Context` section that represents project-specific rules, protocols, or conventions the user wants to preserve. The System Context section itself should NOT be carried over -- it is replaced by the harness template.
+  * **`OLD_AGENTS.md`** (if present) -- review for lessons that are still relevant. Many entries may now be enforced by harness hooks (check `.claude/hooks/` and `.claude/rules/` before carrying forward). Append only lessons that remain undocumented in the harness to the new `AGENTS.md`.
+  * **`OLD_plans/`** (if present) -- at minimum check for files beyond `PRD.md` (e.g., `backlog.md`, `roadmap.md`, design notes, diagrams). `/io-adopt` currently only consumes `OLD_plans/PRD.md`; other files are candidates for manual migration if their content is still relevant.
+
+* **Output:**
+
+  ```
+  Harness configured and legacy extraction complete.
+
+  Draft PRD created at plans/PRD.md.
+    Source: [OLD_plans/PRD.md carryover + current-state reconciliation]  -- if Branch A
+            [reverse-engineered from plans/current-state.md]              -- if Branch B
+
+  Archived artifacts for review:
+    - OLD_CLAUDE.md    (diff against CLAUDE.md; preserve non-System-Context content)
+    - OLD_AGENTS.md    (review lessons; skip ones now enforced by hooks/rules)
+    - OLD_plans/       (check for files beyond PRD.md worth manual migration)
+
+  REVIEW REQUIRED. Do not proceed until:
+    1. plans/PRD.md is approved.
+    2. Archives have been reviewed and anything worth merging has been merged.
+
+  Next: /io-clarify to resolve ambiguities, then /io-init for macro-architecture.
+  ```
 
 **Safety Rules:**
 

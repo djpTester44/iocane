@@ -1,5 +1,40 @@
 # Workflow Usage Reference
 
+## Scaffolding a New Project
+
+Before any workflow runs, the harness files must be pulled into the target repo. The canonical scaffold command is a `cookiecutter` invocation against the iocane template repo. Add this helper to `~/.bashrc` so the flags are pinned and the template cache is always refreshed:
+
+```bash
+iocane-scaffold() {
+  rm -rf ~/.cookiecutters/iocane && \
+  uvx cookiecutter https://github.com/djpTester44/iocane.git \
+    --checkout claude-specific-harnessing -f --no-input "$@"
+}
+```
+
+Usage:
+
+```bash
+iocane-scaffold framework_folder=. project_name=my_project
+```
+
+Positional `key=value` pairs are forwarded as cookiecutter context. `rm -rf ~/.cookiecutters/iocane` ensures the template is re-cloned each run; `-f --no-input` makes the call non-interactive and safe to re-run.
+
+### Without the helper
+
+If you prefer not to define the function, run the underlying command directly:
+
+```bash
+rm -rf ~/.cookiecutters/iocane
+uvx cookiecutter https://github.com/djpTester44/iocane.git \
+  --checkout claude-specific-harnessing -f --no-input \
+  framework_folder=. project_name=my_project
+```
+
+Omit `-f --no-input` if you want cookiecutter to prompt for each variable interactively, and drop the `rm -rf` line if you want to reuse the cached template clone.
+
+---
+
 ## Orchestration Chain
 
 ```

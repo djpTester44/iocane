@@ -111,6 +111,25 @@ Do not create `plans/plan.yaml`. Checkpoint planning is handled by `/io-checkpoi
 
 ---
 
+### Step C3: MERGE .GITIGNORE ADDITIONS
+
+Covers both greenfield and brownfield: the canonical ignore patterns ship in `.claude/templates/gitignore-additions` and are merged into the repo-root `.gitignore` here. Idempotent -- safe to run on every `/io-init` invocation.
+
+- **Check:** Is `.claude/templates/gitignore-additions` present?
+- **If absent:** Skip this step. (Unexpected in a scaffolded repo, but non-blocking.)
+- **If `.gitignore` does not exist:** Copy `.claude/templates/gitignore-additions` to `.gitignore`:
+  ```bash
+  cp .claude/templates/gitignore-additions .gitignore
+  ```
+- **If `.gitignore` exists:** Append any lines from `.claude/templates/gitignore-additions` that are not already present in `.gitignore` (whole-line fixed-string match, preserving the user's ordering and comments):
+  ```bash
+  bash -c 'while IFS= read -r line; do grep -qxF -- "$line" .gitignore || printf "%s\n" "$line" >> .gitignore; done < .claude/templates/gitignore-additions'
+  ```
+- **Note:** Do NOT delete `.claude/templates/gitignore-additions` after merging. It is a persistent source for re-runs, not a transient staging file.
+- **On failure:** Log the error and continue. The step is non-blocking -- the user can merge the file by hand.
+
+---
+
 ### Step D: GENERATE STUB ROADMAP (`plans/roadmap.md`)
 
 - **Action:** Create `plans/roadmap.md` with the following stub structure.

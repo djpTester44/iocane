@@ -81,4 +81,4 @@ The human is NOT required during orchestration scoring, task file generation, or
 
 Full rules reference: `.claude/rules/`
 Lessons learned: `AGENTS.md`
-Workflow reference: `.claude/workflows/`
+Workflow reference: `.claude/commands/`
