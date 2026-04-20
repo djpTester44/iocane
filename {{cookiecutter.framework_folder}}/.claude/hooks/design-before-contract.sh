@@ -2,8 +2,7 @@
 # PreToolUse hook: Edit | Write
 # Blocks writing interfaces/*.pyi files unless a matching CRC card exists
 # in component-contracts.yaml (or project-spec.md fallback) for the Protocol
-# name derived from the filename. Exempts shared type files (models.pyi,
-# exceptions.pyi) which are not component contracts.
+# name derived from the filename.
 # Skip if .iocane/validating sentinel exists (automated spec validation workflows).
 
 # Skip during automated validation (stale-sentinel safe).
@@ -35,12 +34,6 @@ else:
 ")
 
 if [ "$IS_INTERFACE" != "yes" ]; then
-    exit 0
-fi
-
-# Shared type/exception definitions are not components -- skip contract check
-BASENAME=$(basename "$FILE_PATH")
-if [ "$BASENAME" = "models.pyi" ] || [ "$BASENAME" = "exceptions.pyi" ]; then
     exit 0
 fi
 

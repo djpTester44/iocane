@@ -39,10 +39,9 @@ Omit `-f --no-input` if you want cookiecutter to prompt for each variable intera
 
 ```
 Primary Path:
-/io-clarify -> /io-init -> /io-specify -> /io-architect -> [io-test-author per Protocol] -> /io-checkpoint -> /validate-plan -> /io-plan-batch -> /validate-tasks -> dispatch-agents.sh [per CP: spawn-ct-writer.sh -> io-execute (generator) -> evaluator] -> /io-review
+/io-clarify -> /io-init -> /io-specify -> /io-architect -> /io-gen-protocols -> [io-test-author per Protocol] -> /io-checkpoint -> /validate-plan -> /io-plan-batch -> /validate-tasks -> dispatch-agents.sh [per CP: spawn-ct-writer.sh -> io-execute (generator) -> evaluator] -> /io-review
 
-io-test-author: Tier-1 contract-test authoring step. For each Protocol, either writes tests/contracts/test_<stem>.py OR emits .iocane/amend-signals/<stem>.yaml when under-specified.
-AMEND signal -> architect re-enters Step H to amend; bounded by architect.amend_retries (default 2). Handled by .claude/scripts/handle_amend_signal.py and dispatched via .claude/scripts/spawn-tester.sh.
+io-test-author: Tier-1 contract-test authoring step. Per Protocol, writes tests/contracts/test_<stem>.py. Dispatched via .claude/scripts/spawn-tester.sh.
 
 CT-Writer stage (Tier 3a, per CP, Phase 4): spawn-ct-writer.sh dispatches io-ct-author.md for each CP whose task file lists at least one CT where target_cp == this CP. Writes tests/connectivity/*.py against spy-mocked source Protocols before impl exists. Generator stage inherits CTs as read-only. A CP with zero target_cp CTs skips the ct-writer stage cleanly.
 
@@ -88,7 +87,6 @@ These are operator-facing scripts. Run them directly when you need the behavior.
 - `bash .claude/scripts/dispatch-agents.sh [--resume CP-XX]`: dispatches pending checkpoint tasks. With `--resume`, re-enters the pipeline for a single preserved worktree.
 - `bash .claude/scripts/spawn-tester.sh --protocol <stem>`: dispatches a Tier-1 Test Author session for one Protocol. `--protocol` must be the bare stem (e.g., `idataflow`), not a path. Exports `IOCANE_ROLE=tester` + `IOCANE_PROTOCOL=<stem>`; session-start.sh injects role-scoped orientation. Reads `models.tier1` from `iocane.config.yaml` (defaults to `claude-opus-4-6`). Parallel dispatch across Protocols lives in Phase 6b (`dispatch-testers.sh`, not yet shipped).
 - `bash .claude/scripts/spawn-ct-writer.sh --cp-id <CP-ID>`: dispatches a Tier-3a CT Author session for one CP (Phase 4). `--cp-id` must match `^CP-\d+(R\d+)?$`. Writes all connectivity tests whose `target_cp == <CP-ID>` under `tests/connectivity/*.py`, spy-mocking the source-side Protocols. Exports `IOCANE_ROLE=ct_author` + `IOCANE_CP_ID=<CP-ID>`; session-start.sh injects role-scoped orientation including a derived source-Protocol manifest. Reads `models.ct_author` from `iocane.config.yaml` (defaults to `claude-sonnet-4-6`). Invoked automatically by `dispatch-agents.sh` before the generator stage; can also be run standalone for debugging. Exits 0 cleanly when the CP has zero target_cp CTs.
-- `uv run .claude/scripts/handle_amend_signal.py [--list | --consume <stem> | --clear <stem> | --reset-all]`: sole writer of the AMEND retry counter at `.iocane/amend-attempts.<stem>`. `--consume` increments the counter and rewrites the signal YAML with the new `attempt` field; exits 2 when the counter exceeds `architect.amend_retries` (default 2) and appends a DESIGN backlog entry. `--clear` deletes one sidecar; `--reset-all` deletes every sidecar. The counter is kept separate from `.iocane/amend-signals/` so the architect's `rm -rf .iocane/amend-signals/` does not reset the retry budget.
 - `bash .claude/scripts/ci-sidecar.sh`: full suite regression detection (advisory). Subcommands: `pre-wave`, `post-wave`, `diff`. Config: `ci.timeout` (default 5m), `ci.enabled` (default true). Env overrides: `CI_TIMEOUT`, `CI_ENABLED`. Called automatically by dispatch-agents.sh; can also be run standalone.
 - `bash .claude/scripts/reset-failed-checkpoints.sh`: resets failed checkpoints for re-queue.
 - `bash .claude/scripts/archive-approved.sh`: archives approved checkpoint artifacts from `plans/tasks/` into `plans/archive/` and updates `plans/plan.yaml` status from `[ ] pending` to `[x] complete`. For remediation CPs, resolves the source backlog item via `Source BL:` lookup.
@@ -173,13 +171,6 @@ Controls how many checkpoints `/io-plan-batch` may include in a single batch. `/
 - Default if config file is missing: `1`
 - Increase with caution -- parallelization safety is checked per batch, but higher limits increase the blast radius of a bad batch composition.
 
-### `architect.amend_retries`
-
-Caps how many times the architect's AMEND sub-loop may re-enter for a single Protocol before escalating. Each AMEND pass is an architect re-invocation consuming one `.iocane/amend-signals/<stem>.yaml` emitted by the Test Author. The counter is maintained at `.iocane/amend-attempts.<stem>` by `handle_amend_signal.py --consume`. When the counter exceeds this cap, `--consume` exits 2 and appends a `DESIGN` backlog entry -- the Protocol is genuinely under-specified and needs human design input.
-
-- Default when key is absent: `2` (in-code default; a warning is surfaced on stderr).
-- The counter sidecar is sole-owned by `handle_amend_signal.py`. The tester never writes it. The architect's `rm -rf .iocane/amend-signals/` wipes signals but not the sidecar; the counter is cleared via `--clear <stem>` after the tester re-runs cleanly.
-
 ### `agents.max_turns`
 
 Controls the maximum number of turns a sub-agent may take before the dispatcher terminates it. See `.claude/iocane.config.yaml` for the current value.
@@ -228,7 +219,7 @@ The sentinel must cover ALL writes in the approval step, not just the stamp itse
 
 **Explicit cleanup required:** `/io-architect` (Step H-5), `/io-checkpoint` (Step G-symbols), `/validate-plan` (Step 13-post), and `/doc-sync` all remove the sentinel explicitly. The architect-era Approved-stamp auto-detection was retired along with `project-spec.md`, so every workflow that sets the sentinel must now clean it up itself or risk a stale sentinel that silently bypasses gates.
 
-**Stale-sentinel guard:** `scripts/check-validating-sentinel.sh` adds a 30-minute TTL on top of explicit cleanup. Every bypass-aware hook calls this helper; if the sentinel is older than `IOCANE_SENTINEL_TTL_SEC` (default 1800), the helper removes it and the gate runs normally. Within-session leakage (workflow error between sentinel set and explicit cleanup) is bounded by this TTL.
+**Stale-sentinel guard:** `scripts/check-validating-sentinel.sh` adds a 60-minute TTL on top of explicit cleanup. Every bypass-aware hook calls this helper; if the sentinel is older than `IOCANE_SENTINEL_TTL_SEC` (default 3600), the helper removes it and the gate runs normally. Within-session leakage (workflow error between sentinel set and explicit cleanup) is bounded by this TTL.
 
 **Cross-session cleanup:** The sentinel is automatically cleared on session start and session end. If it is unexpectedly present at session start, it means a previous session crashed mid-stamp -- the session-start hook clears it.
 
@@ -243,7 +234,7 @@ The sentinel must cover ALL writes in the approval step, not just the stamp itse
 | `/io-init` | Bootstrap project structure and stub roadmap from clarified PRD | `plans/roadmap.md`, `plans/backlog.yaml` |
 | `/io-specify` | Propose feature roadmap from clarified PRD | `plans/roadmap.md` |
 | `/io-architect` | Design CRC cards, Protocols, Interface Registry | `plans/project-spec.md`, `interfaces/*.pyi`, `plans/seams.yaml`, `src/*/CLAUDE.md` |
-| `/io-test-author` | Tier 1 (per Protocol). Write contract tests for one Protocol OR emit AMEND signal when under-specified. Dispatched by `spawn-tester.sh`. | `tests/contracts/test_<stem>.py` OR `.iocane/amend-signals/<stem>.yaml` (mutually exclusive) |
+| `/io-test-author` | Tier 1 (per Protocol). Write contract tests for one Protocol. Dispatched by `spawn-tester.sh`. | `tests/contracts/test_<stem>.py` |
 | `/io-replan` | Propagate PRD deltas into roadmap/spec and route impacts | `plans/roadmap.md`, `plans/project-spec.md`, `plans/backlog.yaml` |
 | `/io-checkpoint` | Define atomic checkpoints and connectivity tests | `plans/plan.yaml`, `plans/backlog.yaml` (remediation: Routed annotation via script) |
 | `/auto-architect` | Resolve DESIGN/REFACTOR backlog items via sub-agent research + evaluator gate | `plans/project-spec.md`, `interfaces/*.pyi`, `plans/component-contracts.yaml`, `plans/seams.yaml`, `plans/backlog.yaml`, `src/*/CLAUDE.md` |

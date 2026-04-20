@@ -5,8 +5,8 @@ description: Design CRC cards, Protocols, cross-CP symbols, and per-method behav
 
 > **[CRITICAL] PLAN MODE**
 > This is the highest-value gate in the entire workflow.
-> Claude authors the full design as canonical YAML + `.pyi` artifacts for human review.
-> The `.pyi` files are written at Step H; the YAML artifacts are written before.
+> Claude authors the full design as canonical YAML artifacts for human review.
+> `interfaces/*.pyi` emission is handed off to `/io-gen-protocols` after Step G approval -- the architect does not hand-author Protocol stubs.
 > Human approval at Step G is the Tier 1 / Tier 2 boundary -- nothing executes until sign-off.
 
 > **[CRITICAL] CONTEXT LOADING**
@@ -24,50 +24,35 @@ description: Design CRC cards, Protocols, cross-CP symbols, and per-method behav
 
 **Objective:** Produce the full behavioral and structural design for all features in `roadmap.md`. Canonical outputs:
 
-- `plans/component-contracts.yaml` -- CRC, collaborators, file paths, feature mapping, protocol path
-- `interfaces/*.pyi` -- Protocol signatures, shared types, exceptions, per-method Raises/docstrings
+- `plans/component-contracts.yaml` -- CRC, collaborators, file paths, feature mapping, protocol path, **per-method `MethodSpec` signatures**
 - `plans/seams.yaml` -- integration graph, external terminals, failure modes
 - `plans/symbols.yaml` -- every cross-CP identifier (Settings fields, exception classes, shared types, fixtures, error messages)
 - `plans/test-plan.yaml` -- per-Protocol-method behavioral invariants
+
+YAML is the authority in v3: `interfaces/*.pyi` is downstream of these four files, emitted by `/io-gen-protocols` from `ComponentContract.methods` + `symbols.yaml` after Step G approval. The architect authors no `.pyi` files directly.
 
 Nothing is written to `plans/project-spec.md`. That artifact is a retired render target; no downstream agent reads it.
 
 **Position in chain:**
 
 ```
-/io-specify -> [/io-architect] -> dispatch-testers.sh (per Protocol)
-            -> [architect amend sub-loop if AMEND signals emitted]
+/io-specify -> [/io-architect] -> /io-gen-protocols (emits interfaces/*.pyi)
+            -> dispatch-testers.sh (per Protocol)
             -> /io-checkpoint -> /io-plan-batch -> /validate-tasks -> dispatch-agents.sh
 ```
 
-**This workflow is the contract lock.** After human approval, the canonical set is the binding source of truth. Sub-agents build against it. It is not modified during execution unless a formal replan is triggered OR the Test Author emits `ARCHITECT_AMEND` signals.
+**This workflow is the contract lock.** After human approval, the canonical YAML set is the binding source of truth. Sub-agents build against it. It is not modified during execution unless a formal replan is triggered.
 
 ---
 
 ## 1. STATE INITIALIZATION
 
-**[HARD] Forced AMEND detection.** Before classifying mode, run:
-
-```bash
-ls .iocane/amend-signals/ 2>/dev/null | head -n 1
-```
-
-If any signal file exists, **Mode is forced to Amend** for this run. You
-MUST proceed via Section 4 (AMEND MODE) and MUST NOT execute Greenfield
-or Incremental flow -- doing so silently overwrites in-flight amend
-state, drops the architect into a fresh design, and breaks the retry
-counter on the signal files. Forced AMEND is non-negotiable: the
-operator's only legitimate way to bypass it is to delete
-`.iocane/amend-signals/` themselves with a rationale (e.g., the signals
-were stale from a prior aborted run).
-
-After the forced-AMEND check, output the following metadata:
+Output the following metadata:
 
 - **Roadmap status:** [roadmap.md present and complete?]
 - **Existing canonical artifacts:** [list which of component-contracts/seams/symbols/test-plan exist]
-- **Existing interfaces/*.pyi:** [list existing contracts, if any]
-- **Amend signals present:** [yes (count, list protocols) | no]
-- **Mode:** [Greenfield | Incremental | Amend (FORCED if amend signals exist)]
+- **Existing interfaces/*.pyi:** [list existing contracts, if any -- informational; the architect does not modify these]
+- **Mode:** [Greenfield | Incremental]
 
 ---
 
@@ -90,7 +75,7 @@ After the forced-AMEND check, output the following metadata:
 - **Domain value types to identify separately:**
   - Value objects, DTOs, enums, and typed structures shared across components
   - These are contract vocabulary, not behavioral components -- they do NOT get CRC cards
-  - They will be defined in `interfaces/models.pyi` (Step E)
+  - They will be declared in `plans/symbols.yaml` as `kind: shared_type` entries with `declared_in: src/...` (Step H-6). Runtime type definitions live under `src/`; `/io-gen-protocols` re-exports them into `interfaces/*.pyi` when rendering Protocol surfaces.
 - **Component types (continued):**
   - Repositories / data access layer
   - Service / orchestration layer
@@ -132,50 +117,7 @@ For every component identified in Step B, design a CRC card using the format def
 - **Feature fan-out cap:** max 2 roadmap features per CRC. A component serving 3+ features from `plans/roadmap.md` must be split along feature boundaries. **Every component that carries feature logic MUST declare the feature IDs** (e.g., `F-01`, `F-02`) it supports -- they are written to the `features:` field in Step H-2c and are what the pre-gate reads. An empty `features:` is reserved for shared infrastructure that legitimately has no direct feature fan-out (e.g., `Settings`, loggers); the pre-gate emits a non-blocking warning if a behavioral component (has a Protocol or is a composition root) leaves `features:` empty, so A.1b cannot be silently bypassed by forgetting to declare.
 - **Composition-root decomposition:** a `composition_root: true` component with 3+ Layer-2/3 collaborators (domain + infrastructure, excluding other composition roots) must decompose into resource-scoped sub-components -- one router/handler/sub-app per resource, each wiring at most 2 Layer-2/3 collaborators.
 
-**Shared-type exemption:** `interfaces/models.pyi` and `interfaces/exceptions.pyi` hold contract vocabulary, not behavioral components -- they are not CRC cards and the caps do not apply. Mirrors the carve-out in `hooks/design-before-contract.sh`.
-
 These caps are mechanically enforced by `.claude/scripts/validate_crc_budget.py` at Step G-pre before the human approval gate. Thresholds are defined as constants in that script for per-project tuning.
-
----
-
-### Step E: DESIGN PROTOCOL SIGNATURES (reasoning)
-
-For every CRC card, design the corresponding Protocol interface as a reasoning artifact. Protocol files are NOT written yet -- Step H-3 writes them after approval.
-
-**First: define shared domain types.**
-
-Identify all domain types (value objects, DTOs, enums) referenced across Protocol method parameters and return types. Design these as `.pyi` stubs for `interfaces/models.pyi`.
-
-For brownfield projects: derive type definitions from the design in Steps B-D, not from existing `src/` code. The types in `interfaces/models.pyi` are the contract-level vocabulary -- they may differ from current runtime implementations.
-
-**Protocol template:**
-
-```python
-# interfaces/[protocol].pyi
-
-from typing import Protocol
-from interfaces.models import [RelevantTypes]
-
-class [ProtocolName](Protocol):
-    def [method_name](self, [params]: [Types]) -> [ReturnType]:
-        """
-        [Docstring: what this method does, not how]
-
-        Raises:
-            [Every domain exception this method can raise, with trigger
-            condition. If the method is total, write: "None. Total function."]
-        """
-        ...
-```
-
-**Rules for Protocol design:**
-
-- Every CRC responsibility maps to at least one method.
-- Parameters and return types must be concrete -- no `Any`, no `dict` without type params.
-- Methods must be testable in isolation -- no side-effectful signatures that cannot be mocked.
-- Protocols describe behavior at the boundary, not implementation details.
-- **[HARD] Raises clause is mandatory per method.** Either declare the raised types with their triggers, or explicitly declare "None. Total function." Leaving Raises blank is a contract-authoring error; Test Author will emit `ARCHITECT_AMEND` because error_propagation invariants cannot be enforced against an unwritten Raises clause.
-- **[HARD] Self-containment:** Protocol `.pyi` files must not import from `src/`. All domain types must be defined in `interfaces/models.pyi`. All custom exceptions in `interfaces/exceptions.pyi`. The `interfaces/` package is the complete contract surface with no dependencies beyond the standard library and `typing`.
 
 ---
 
@@ -205,7 +147,6 @@ The script enforces the Step D [HARD] budget caps mechanically:
 - **A.1a:** responsibilities <= 3 per CRC
 - **A.1b:** features <= 2 per CRC (skipped when `features` is empty)
 - **A.1c:** composition_root components with <= 2 Layer-2/3 collaborators. Until `plans/seams.yaml` is generated in Step I-0, the script falls back to counting every collaborator -- this is intentional and fail-safe.
-- **A.1e:** components whose protocol is `interfaces/models.pyi` or `interfaces/exceptions.pyi` are skipped.
 
 If the script exits non-zero, do NOT proceed to Step G. Revise the Step D design (decompose offending components, split feature fan-out, remove responsibilities) and re-run this step. The human never sees a design that has not cleared the pre-gate.
 
@@ -220,14 +161,15 @@ Print only this compact summary to the terminal:
 ```
 DESIGN PROPOSAL READY FOR REVIEW
 
-Canonical artifacts written:
-  plans/component-contracts.yaml ([N] components)
-  (pending Step H-3:   interfaces/*.pyi -- [N] Protocols, models, exceptions)
-  (pending Step H-6:   plans/symbols.yaml -- [N] cross-CP symbols)
-  (pending Step H-7:   plans/test-plan.yaml -- [N] Protocol-method invariants)
+Drafted for review:
+  plans/component-contracts.yaml ([N] components, [N] methods total)
 
 Open plans/component-contracts.yaml in your editor to inspect the CRC
-design. The remaining canonical artifacts write at Step H.
+design and per-method signatures. On approval, Step H writes the
+remaining canonical YAML artifacts (symbols.yaml, test-plan.yaml)
+and Step I generates seams.yaml + nav artifacts. `interfaces/*.pyi`
+emission is handled separately by `/io-gen-protocols` after this
+workflow exits.
 
 Incremental run: review git diff against the last approved state.
 
@@ -246,9 +188,11 @@ On approval, execute the following steps in strict sequence. Do NOT parallelize 
 
 **Step H-pre:** `bash: mkdir -p .iocane && touch .iocane/validating`
 
-The sentinel prevents `reset-on-pyi-write.sh`, `reset-on-symbols-write.sh`, `reset-on-test-plan-write.sh`, and `design-before-contract.sh` from firing during the canonical-artifact write sequence. It must be set before Step H-3. Step H-5 explicitly cleans it up.
+The sentinel prevents `reset-on-symbols-write.sh` and `reset-on-test-plan-write.sh` from firing during the canonical-YAML write sequence (Step H-6 and H-7). Step H-5 explicitly cleans it up. The architect no longer writes under `interfaces/` -- `reset-on-pyi-write.sh` and `design-before-contract.sh` are concerns of `/io-gen-protocols`, not this workflow.
 
 **Step H-2:** Append `[[tool.importlinter.contracts]]` to `pyproject.toml`:
+
+Derive contract structure from `component-contracts.yaml` (package file paths via `file: src/...`) + `seams.yaml` (layer assignments). `interfaces/*.pyi` contributes nothing to importlinter layer derivation -- it is Protocol stub surface, not runtime package structure.
 
 - One `[[tool.importlinter.contracts]]` block for the layer hierarchy, ordered top-to-bottom (entrypoint -> domain -> utility -> foundation)
 - Additional `[[tool.importlinter.contracts]]` blocks for any independence contracts between peer packages
@@ -263,27 +207,22 @@ The sentinel prevents `reset-on-pyi-write.sh`, `reset-on-symbols-write.sh`, `res
 
 **Step H-2c:** Write `plans/component-contracts.yaml` using `contract_parser.save_contracts()`:
 
-- Build a `ComponentContractsFile` with one `ComponentContract` per component. Include structural, behavioral, and roadmap fields:
+- Build a `ComponentContractsFile` with one `ComponentContract` per component. Include structural, behavioral, roadmap, and **method-signature** fields:
   - **Structural:** `file: src/...` (implementation path), `collaborators: [...]` (from the CRC card, `[]` if none), `composition_root: true` (Entrypoint Layer only; omit for others)
   - **Behavioral:** `responsibilities: [...]` (from CRC card design in Step D), `must_not: [...]` (from CRC card design in Step D), `protocol: interfaces/[name].pyi` (the .pyi path, omit for composition roots)
   - **Roadmap:** `features: [F-XX, ...]` (roadmap feature IDs from `plans/roadmap.md` this component supports). Required for every component that carries feature logic. Empty is reserved for shared infrastructure without direct feature fan-out; the pre-gate emits a warning (not a failure) if a behavioral component leaves this empty, so the A.1b cap cannot be bypassed by omission.
-- Call `save_contracts()` to write -- this validates the model before serialization
+  - **Method signatures** (`methods: list[MethodSpec]`): **[HARD]** every component with `protocol:` set MUST populate `methods` with at least one `MethodSpec`. Each entry carries `name` (lowercase identifier), `args: list[ArgSpec{name, type_expr, default?}]`, `return_type` (non-empty type expression), `raises: list[str]` (names referencing `exception_class` symbols in `symbols.yaml`), and `docstring`. The Raises list is the contract-authoritative record of every exception a Protocol method can propagate; `/io-gen-protocols` renders it into the `.pyi` docstring + `test-plan.yaml` `error_propagation` invariants must cover each name.
+    - **Structurally enforced:** `ComponentContract.check_protocol_requires_methods` (Pydantic `@model_validator`) rejects `protocol` set with `methods: []`. Construction (`ComponentContract(...)`) and load (`ComponentContractsFile.model_validate(...)`) both fire the validator; `save_contracts()` round-trips its dump through `model_validate()` to catch state that became invalid between construction and save. Step H-post-validate runs `validate_symbols_coverage.py` against the union of `methods[*].raises` and `symbols.yaml` to close the cross-YAML reference loop.
+    - **Concreteness:** parameter types and return types must be concrete -- no `Any`, no `dict` without type params. Consult `.claude/references/symbols-schema.md` for the identifier-safe rules that `ArgSpec`/`MethodSpec` validators enforce at parse time.
+- Call `save_contracts()` to write -- this validates the model before serialization.
 - Overwrite if the file already exists -- it is always regenerated from the current design. Note: Step G-pre may have already written a passing draft; this step re-writes so any corrections applied during the Step G human review are captured.
-
-**Step H-3:** Write `interfaces/*.pyi`:
-
-- `interfaces/models.pyi` -- domain type stubs, exactly as designed in Step E
-- `interfaces/exceptions.pyi` -- exception hierarchy (if any)
-- One `.pyi` file per Protocol, exactly as designed in Step E
-- **Every Protocol method must have a `Raises:` clause.** Either list the raised exception types with triggers, or write exactly "None. Total function." Blank Raises blocks are a contract-authoring error.
-- Include docstrings on every method in Protocol files
 
 **Step H-6:** Write `plans/symbols.yaml` using `symbols_parser.save_symbols()`:
 
 - For every cross-CP identifier that must be spelled and typed consistently across more than one checkpoint, add a `Symbol` entry. Consult `.claude/references/symbols-schema.md` for the `SymbolKind` catalogue.
 - **Settings fields:** every attribute on a Pydantic `Settings` model that a downstream component will read. `kind: settings_field`, `type_expr`, `env_var`, optional `default`.
-- **Exception classes:** every custom exception that crosses a Protocol boundary. `kind: exception_class`, `parent` (base class), `declared_in: interfaces/exceptions.pyi`.
-- **Shared types:** every dataclass / TypedDict / Pydantic model consumed by more than one CP. `kind: shared_type`, `type_expr` (shape summary).
+- **Exception classes:** every custom exception that crosses a Protocol boundary. `kind: exception_class`, `parent` (base class), `declared_in: src/...` (the runtime module that defines the class). The `check_declared_in_zone` validator rejects `interfaces/...` paths here -- runtime-bearing symbols live under `src/`; `/io-gen-protocols` re-exports them into `.pyi` stubs.
+- **Shared types:** every dataclass / TypedDict / Pydantic model consumed by more than one CP. `kind: shared_type`, `type_expr` (shape summary), `declared_in: src/...`. Same zone rule as exception classes.
 - **Fixtures:** every pytest fixture referenced by contract tests or integration tests across more than one CP. `kind: fixture`, `fixture_scope`.
 - **Error messages:** any literal exception message whose wording is asserted by tests. `kind: error_message`, `message_pattern`.
 - Populate `used_by:` with the COMPONENT NAMES (from CRC collaborator analysis) that reference each symbol. Do NOT populate `used_by_cps:` -- that field is checkpoint-backfilled at `/io-checkpoint` and stays empty until then.
@@ -291,13 +230,13 @@ The sentinel prevents `reset-on-pyi-write.sh`, `reset-on-symbols-write.sh`, `res
 
 **Step H-7:** Write `plans/test-plan.yaml` using `test_plan_parser.save_test_plan()`:
 
-- For every Protocol method in `interfaces/*.pyi` (including `__init__` where behavior is non-trivial), create a `TestPlanEntry`.
+- For every `ComponentContract.methods` entry authored in Step H-2c (including `__init__` where behavior is non-trivial), create a `TestPlanEntry` whose `protocol` is the owning component's `protocol: interfaces/<name>.pyi` path and whose `method` matches `MethodSpec.name`. YAML is the authority: the architect walks `component-contracts.yaml`, not any `.pyi` file on disk.
 - Each entry carries one or more `TestInvariant` items with:
   - `id` in `INV-NNN` format (zero-padded, project-unique)
   - `kind` chosen from the `InvariantKind` catalogue: `call_binding`, `cardinality`, `error_propagation`, `state_transition`, `property`, `adversarial`
   - `description` -- a one-line behavioral claim
   - `pass_criteria` -- enough detail for the Test Author to write the test without reading the implementation
-- **Rule:** every `Raises:` clause on a Protocol method MUST have at least one `error_propagation` invariant that names the raised type and the trigger. The Test Author emits `ARCHITECT_AMEND` if a declared Raises has no covering invariant.
+- **Rule:** every name in `ComponentContract.methods[*].raises` MUST have at least one `error_propagation` invariant under the owning Protocol's `test-plan.yaml` entry that names the raised type and the trigger. Gaps here are a contract-authoring error -- `validate_test_plan_completeness.py` catches them at Step H-post-validate.
 - **Rule:** every Protocol postcondition (observable side effect, return shape constraint, state transition) SHOULD have at least one invariant covering it. Gaps are non-blocking at authoring time but are surfaced by `validate_test_plan_completeness.py` at `/validate-plan`.
 - Consult `.claude/references/test-plan-schema.md` for the invariant taxonomy and worked examples.
 
@@ -305,13 +244,14 @@ The sentinel prevents `reset-on-pyi-write.sh`, `reset-on-symbols-write.sh`, `res
 
 ```bash
 uv run python .claude/scripts/validate_symbols_coverage.py
-uv run python .claude/scripts/validate_test_plan_completeness.py
+uv run python .claude/scripts/validate_test_plan_completeness.py \
+    --contracts plans/component-contracts.yaml
 ```
 
 Exit-code policy:
 
 - `validate_symbols_coverage.py` exits 1 on uncovered project-custom exceptions OR symbol conflicts. Stdlib and builtin exceptions are correctly skipped. On FAIL, return to Step H-6 and amend `plans/symbols.yaml` to declare the missing `exception_class` entries (or rename the conflicting env_var / message_pattern), then re-run this step.
-- `validate_test_plan_completeness.py` exits 1 on Protocol methods with no `TestPlanEntry`. On FAIL, return to Step H-7 and either author the missing entry OR add `# noqa: TEST_PLAN` to the offending method's `def` line in the .pyi (with a comment explaining the deferral), then re-run this step.
+- `validate_test_plan_completeness.py` exits 1 on Protocol methods with no `TestPlanEntry`. On FAIL, return to Step H-7 and author the missing entry, then re-run this step. No deferral mechanism exists at this stage: under v3 the architect has `ComponentContract.methods` in front of them when authoring `test-plan.yaml`, so every declared method is expected to receive at least one invariant.
 
 A semantic review pass (whether invariants are tautological, whether Raises descriptions are specific enough, whether symbol classifications make sense) is queued as a Phase 5 deliverable: a separate Opus subprocess invoked here via `spawn-design-evaluator.sh` will emit OBSERVATION findings the architect responds to before declaring contracts locked. Until that ships, surface those judgements via your own self-review while drafting H-2c through H-7.
 
@@ -341,20 +281,19 @@ Explicit sentinel cleanup. Remove whether or not the last write succeeded -- the
 ```
 CONTRACTS LOCKED.
 
-component-contracts.yaml: [N] components
-interfaces/*.pyi:         [N] Protocols + models + exceptions
+component-contracts.yaml: [N] components, [N] methods
 symbols.yaml:             [N] cross-CP symbols
 test-plan.yaml:           [N] entries, [N] invariants
 
 This is the Tier 1 / Tier 2 boundary.
-Test Author will now write contract tests in tests/contracts/
-against these Protocols. If any Protocol is silent on a declared
-invariant, Test Author emits ARCHITECT_AMEND and this workflow
-re-enters Step H to amend.
 
-Next: dispatch-testers.sh runs Test Author per Protocol in parallel
-(see Phase 6b orchestration). After tests are written cleanly,
-run /io-checkpoint.
+Next:
+  1. Run `/io-gen-protocols` to emit interfaces/*.pyi from
+     component-contracts.yaml + symbols.yaml (YAML -> .pyi codegen).
+  2. Run `dispatch-testers.sh` to run Test Author per Protocol in
+     parallel (see Phase 6b orchestration) for contract tests under
+     tests/contracts/.
+  3. After tests are written cleanly, run /io-checkpoint.
 ```
 
 ---
@@ -401,7 +340,7 @@ exceeded), flag the directory as a `[DESIGN]` finding.
 
 **Step I-3: [MECHANICAL POST-GATE] FILE-REFERENCE RESOLVABILITY + SYMBOL CONFLICTS.**
 
-**Appendix A §A.6c (architect stage).** After all canonical artifacts (component-contracts.yaml, seams.yaml, symbols.yaml, test-plan.yaml, interfaces/*.pyi) are on disk, scan them plus PRD/roadmap for path references that do not resolve:
+**Appendix A §A.6c (architect stage).** After all canonical YAML artifacts (component-contracts.yaml, seams.yaml, symbols.yaml, test-plan.yaml) are on disk, scan them plus PRD/roadmap for path references that do not resolve. `interfaces/*.pyi` does not exist yet at this stage (emitted post-workflow by `/io-gen-protocols`); path references to `interfaces/<name>.pyi` are expected to surface as OBSERVATION-severity `WARN:` lines on first run and resolve on the first `/io-gen-protocols` pass.
 
 ```bash
 uv run python .claude/scripts/validate_path_refs.py --stage architect
@@ -433,64 +372,22 @@ Surface the stderr output verbatim to the user. Any conflict is an authoring err
 
 If canonical artifacts already exist:
 
-- **Read existing canonical YAMLs and .pyi files before proposing anything.**
-- **Identify conflicts:** Does the proposed new design contradict any existing Protocol signature, symbol declaration, or test-plan invariant?
-- **Flag breaking changes explicitly** -- any modification to an existing `.pyi` signature, symbol kind, or invariant is a breaking change and requires separate human confirmation with explicit acknowledgment that downstream tests and implementations may need updating.
+- **Read existing canonical YAMLs before proposing anything.** `component-contracts.yaml` (with `methods[*]`), `symbols.yaml`, `test-plan.yaml`, and `seams.yaml` are the authoritative surface; any existing `interfaces/*.pyi` files on disk are rendered downstream output, not input.
+- **Identify conflicts:** Does the proposed new design contradict any existing `ComponentContract.methods` signature, symbol declaration, or test-plan invariant?
+- **Flag breaking changes explicitly** -- any modification to an existing `MethodSpec` (name, args, return_type, raises), symbol kind, or invariant is a breaking change and requires separate human confirmation with explicit acknowledgment that downstream tests and implementations may need updating.
 - **Additive changes** (new Protocols, new methods on existing Protocols, new symbols, new invariants) follow the standard plan mode flow above.
-- **Never silently modify** an existing `.pyi` signature, symbol, or invariant.
+- **Sentinel-wrap all post-approval YAML edits.** Any write to `plans/symbols.yaml` or `plans/test-plan.yaml` outside an active `.iocane/validating` sentinel window triggers `reset-on-symbols-write.sh` / `reset-on-test-plan-write.sh`, which silently flip `test-plan.yaml.validated` back to `false`. Re-run the full Step H-pre (sentinel set) + targeted Step H-6/H-7 write + Step H-post-validate (re-stamp) + Step H-5 (sentinel clear) sequence for incremental corrections; do not patch individual fields outside the sentinel window.
+- **Never silently modify** an existing `MethodSpec`, symbol, or invariant. Changes to `.pyi` surface come from re-running `/io-gen-protocols` after the YAML edit -- hand-editing the `.pyi` is blocked by `interfaces-codegen-only.sh` and reverts on the next codegen run regardless.
 
 ---
 
-## 4. AMEND MODE (re-entered from Test Author AMEND signals)
-
-When `dispatch-testers.sh` reports that one or more `.iocane/amend-signals/<protocol>.yaml` files exist, re-enter this workflow to amend. The re-entry is bounded by `architect.amend_retries` in `iocane.config.yaml` (default 2); exceeding the cap raises a `DESIGN` escalation instead of another pass.
-
-**Amend procedure:**
-
-> **[HARD] Additive-only assumption.** The five AMEND signal kinds
-> (`missing_raises`, `silent_return_semantics`, `missing_precondition`,
-> `undeclared_collaborator`, `symbol_gap`) are intentionally additive
-> -- they CLARIFY existing behavior, not redefine it. If your amend
-> changes the SHAPE of a `shared_type`, the SIGNATURE of an existing
-> Protocol method, or the WORDING of an `error_message` symbol, treat
-> it as a breaking change, not an amend: HALT the AMEND mode, surface
-> the divergence, and route through INCREMENTAL MODE (Section 3) so
-> dependent Protocols and tests are flagged for human review.
-> Re-dispatching only the amended Protocol when the change cascades
-> would silently invalidate sibling test files.
-
-1. Read each signal file under `.iocane/amend-signals/`.
-2. **[HARD GATE] Consume each signal through the retry-counter authority.** For every signal stem, invoke:
-
-   ```bash
-   uv run python .claude/scripts/handle_amend_signal.py --consume <stem>
-   ```
-
-   The script is the sole writer of `.iocane/amend-attempts.<stem>`, the authoritative retry counter. On each call it increments the sidecar, rewrites the signal YAML's `attempt` field to match, and exits:
-   - `0` -- increment succeeded, counter still within `architect.amend_retries`.
-   - `2` -- counter exceeded cap; the script has already appended a `DESIGN` backlog entry with the full signal payload. **HALT AMEND mode immediately**, do NOT apply any amendments, do NOT set the validating sentinel. The Protocol is genuinely under-specified and needs human design input.
-
-   Do not read the `attempt` field on the signal YAML directly -- it is informational, populated by `--consume` to surface current attempt count to humans. The counter authority lives in the sidecar, not the YAML. If any `--consume` call returns exit 2, record which stem(s) escalated and terminate this run.
-3. **Set the validating sentinel before any artifact write:** `bash: mkdir -p .iocane && touch .iocane/validating`
-   The sentinel is mandatory for AMEND writes for the same reason it is mandatory in Step H-pre: amend writes touch `interfaces/*.pyi`, `plans/symbols.yaml`, and `plans/test-plan.yaml`, and without the sentinel the reset hooks fire on every write and `design-before-contract.sh` blocks the first .pyi edit for any newly-introduced Protocol method (test-plan.yaml for the new method does not exist until step 4 below completes).
-4. For each signal, apply the `suggested_amendment` (or a design-equivalent one) to the specific artifact named:
-   - `missing_raises` -> amend the `Raises:` clause in the corresponding `interfaces/<protocol>.pyi` method (Step H-3 again, scoped to this file)
-   - `silent_return_semantics` -> amend the `Returns:` docstring or add a postcondition invariant (Step H-3 + H-7 for the covering invariant)
-   - `missing_precondition` -> amend Protocol docstring with the `@pre` clause (Step H-3) and add a corresponding invariant (Step H-7)
-   - `undeclared_collaborator` -> update `collaborators:` in `component-contracts.yaml` (Step H-2c) and add the missing `argument_convention` or related symbol (Step H-6)
-   - `symbol_gap` -> add the missing symbol to `plans/symbols.yaml` (Step H-6)
-5. **Clear the validating sentinel after the last write:** `bash: rm -f .iocane/validating`
-6. Delete the signal files after amend: `rm -rf .iocane/amend-signals/`. This wipes the signals but leaves the `.iocane/amend-attempts.*` sidecars intact -- the retry budget survives across amend passes until the tester re-runs cleanly (and the orchestrator calls `handle_amend_signal.py --clear <stem>`).
-7. Re-dispatch Test Author for only the amended Protocols via `dispatch-testers.sh --only <protocol>...` (Phase 6b). In the interim (Phase 3), re-dispatch manually via `bash .claude/scripts/spawn-tester.sh --protocol <stem>` per stem.
-
----
-
-## 5. CONSTRAINTS
+## 4. CONSTRAINTS
 
 - No implementation code in this workflow.
 - No task file, `plan.yaml`, or `roadmap.md` edits.
 - No writes to `plans/project-spec.md` -- that artifact is retired.
-- Protocol files are binding contracts. They are the source of truth for sub-agent execution.
+- No writes under `interfaces/` -- `interfaces-codegen-only.sh` will block them. `.pyi` emission is `/io-gen-protocols`' responsibility.
+- `plans/component-contracts.yaml` + `plans/symbols.yaml` + `plans/test-plan.yaml` are binding contracts. They are the source of truth for sub-agent execution; `.pyi` surface is rendered output.
 - The human's approval at Step G is the point of no return for Tier 2 delegation.
 - **Appendix A §A.6e -- Grep-verify paths before writing.** Before writing any file path into any canonical artifact, use the Grep tool to verify the path either (a) already exists on disk, (b) traces to an upstream artifact (PRD, roadmap), or (c) is a declared output of this architect run. Paths authored from memory are a recurring defect class. The Step I-3 mechanical gate catches unresolved references non-blockingly, but authoring discipline is the primary defense.
 

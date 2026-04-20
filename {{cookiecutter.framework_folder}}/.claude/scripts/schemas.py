@@ -494,6 +494,49 @@ class ComponentContract(BaseModel, frozen=True):
             raise ValueError(msg)
         return v
 
+    @field_validator("protocol")
+    @classmethod
+    def normalize_protocol_path(cls, v: str) -> str:
+        """Normalize the protocol path so key-matching is path-form-agnostic.
+
+        Empty string is allowed (composition roots have no Protocol).
+        Non-empty strings are normalized: Windows backslashes -> forward
+        slashes, leading ``./`` stripped, and (when the string contains
+        ``interfaces/``) anchored so only the canonical form remains.
+        Mirrors ``TestPlanEntry.validate_protocol_path`` minus the ``.pyi``
+        suffix check -- this field also accepts free-form Protocol names
+        used in display-only fixtures where no filesystem path exists.
+        """
+        if not v:
+            return v
+        v = v.replace("\\", "/")
+        while v.startswith("./"):
+            v = v[2:]
+        idx = v.rfind("interfaces/")
+        if idx >= 0:
+            v = v[idx:]
+        return v
+
+    @model_validator(mode="after")
+    def check_protocol_requires_methods(self) -> "ComponentContract":
+        """Protocol-bound components must declare at least one MethodSpec.
+
+        A contract with ``protocol:`` set but ``methods: []`` silently
+        breaks the downstream codegen + tester dispatch chain. Step H of
+        /io-architect requires MethodSpec coverage for every behavioral
+        component; this validator promotes that prose invariant to a
+        structural gate enforced at YAML parse time.
+        """
+        if self.protocol and not self.methods:
+            msg = (
+                f"ComponentContract with protocol={self.protocol!r} must "
+                "populate methods (non-empty list[MethodSpec]). "
+                "Protocol-bound components require method signatures "
+                "for codegen."
+            )
+            raise ValueError(msg)
+        return self
+
 
 class ComponentContractsFile(BaseModel, frozen=True):
     """Top-level container for plans/component-contracts.yaml."""

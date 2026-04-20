@@ -21,7 +21,7 @@
 # This script is a harness template artifact.
 
 SENTINEL=".iocane/validating"
-TTL_SEC="${IOCANE_SENTINEL_TTL_SEC:-1800}"
+TTL_SEC="${IOCANE_SENTINEL_TTL_SEC:-3600}"
 
 if [ ! -f "$SENTINEL" ]; then
     exit 1

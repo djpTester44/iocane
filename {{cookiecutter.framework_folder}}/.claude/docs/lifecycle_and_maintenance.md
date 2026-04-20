@@ -20,11 +20,9 @@ Execution follows a strict chronology. Design is locked before any code is writt
                         approves (contract lock). Step H-post-validate runs deterministic gates
                         and stamps test-plan.yaml validated: true.
   4b. io-test-author  -- Tier 1 sub-agent per Protocol (dispatched via spawn-tester.sh).
-                        Writes tests/contracts/test_<stem>.py OR emits
-                        .iocane/amend-signals/<stem>.yaml when the Protocol is under-specified
-                        for a declared test-plan invariant. AMEND signals re-enter io-architect
-                        (Forced AMEND at Step 1). Retry budget: architect.amend_retries (default 2).
-                        Parallel dispatch across Protocols lives in Phase 6b.
+                        Writes tests/contracts/test_<stem>.py exercising test-plan invariants
+                        against the Protocol. Parallel dispatch across Protocols lives in
+                        Phase 6b.
   5. /io-checkpoint   -- PLAN MODE -- propose plan.yaml + CT signatures, human approves.
                         Step G-symbols backfills symbols.yaml used_by_cps under the validating
                         sentinel (protects test-plan.yaml.validated from spurious reset).

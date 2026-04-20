@@ -37,28 +37,28 @@ import sys
 
 _PYI_ONLY_MSG = (
     "BLOCKED: interfaces/ is type-only; non-.pyi writes rejected "
-    "({file_path}). See harness/rules/interfaces-zone.md."
+    "({file_path}). See .claude/rules/interfaces-zone.md."
 )
 
 _CODEGEN_ONLY_MSG = (
     "BLOCKED: interfaces/ is codegen-only; hand-authored writes rejected "
     "({file_path}). Run /io-gen-protocols to regenerate from YAML, or "
     "edit plans/*.yaml then re-run codegen. See "
-    "harness/rules/interfaces-zone.md."
+    ".claude/rules/interfaces-zone.md."
 )
 
 _BASH_WRITE_MSG_BASE = (
     "BLOCKED: command writes into interfaces/ outside the codegen "
     "scope. interfaces/ is codegen-only; shell redirection / file "
     "manipulators cannot route around /io-gen-protocols. Offending "
-    "command: {command!r}. See harness/rules/interfaces-zone.md."
+    "command: {command!r}. See /claude/rules/interfaces-zone.md."
 )
 
 _BASH_PYI_ONLY_MSG = (
     "BLOCKED: command writes a non-.pyi file into interfaces/. "
     "interfaces/ is type-only; even under IOCANE_ROLE=gen_protocols "
     "only .pyi files may be written. Offending command: {command!r}. "
-    "See harness/rules/interfaces-zone.md."
+    "See .claude/rules/interfaces-zone.md."
 )
 
 # Bash write-verb patterns targeting top-level interfaces/ only. Each
@@ -175,9 +175,9 @@ def _in_interfaces_zone(file_path: str) -> bool:
     under top-level interfaces/."""
     if not file_path:
         return False
-    return _literal_in_interfaces_zone(
+    return _literal_in_interfaces_zone(file_path) or _resolved_in_interfaces_zone(
         file_path
-    ) or _resolved_in_interfaces_zone(file_path)
+    )
 
 
 def is_violation_pyi_only(file_path: str) -> str | None:
@@ -195,9 +195,7 @@ def is_violation_pyi_only(file_path: str) -> str | None:
     return _PYI_ONLY_MSG.format(file_path=file_path)
 
 
-def is_violation_codegen_only(
-    file_path: str, role: str | None
-) -> str | None:
+def is_violation_codegen_only(file_path: str, role: str | None) -> str | None:
     """Return an error message if a write under interfaces/ lacks the role."""
     if not file_path:
         return None
@@ -234,9 +232,7 @@ def _bash_or_shell_violation(
     return _BASH_WRITE_MSG_BASE.format(command=command[:300])
 
 
-def is_violation_bash_write(
-    command: str, role: str | None
-) -> str | None:
+def is_violation_bash_write(command: str, role: str | None) -> str | None:
     """Return an error message if a Bash command writes into interfaces/.
 
     Closes the common drift vectors for shell redirection and file
@@ -247,9 +243,7 @@ def is_violation_bash_write(
     return _bash_or_shell_violation(command, role, _BASH_WRITE_PATTERNS)
 
 
-def is_violation_powershell_write(
-    command: str, role: str | None
-) -> str | None:
+def is_violation_powershell_write(command: str, role: str | None) -> str | None:
     """Return an error message if a PowerShell command writes into interfaces/.
 
     Windows parity for the Bash-write class. Covers Out-File,

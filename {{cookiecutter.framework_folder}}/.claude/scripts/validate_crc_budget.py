@@ -16,11 +16,6 @@ Checks applied to every component in plans/component-contracts.yaml:
         counting every collaborator -- fail-safe so that missing layer
         data cannot silently bypass the cap.
 
-Shared-type exemption (A.1e): components whose protocol path matches
-interfaces/models.pyi or interfaces/exceptions.pyi are skipped. These
-files hold shared vocabulary, not behavioral components, and mirror the
-carve-out in hooks/design-before-contract.sh.
-
 In addition, non-blocking warnings are emitted for behavioral components
 (those with a Protocol or marked composition_root) that have
 responsibilities but no declared features. A.1b can only evaluate
@@ -47,7 +42,6 @@ from pathlib import Path
 from contract_parser import load_contracts
 from schemas import (
     CAP_COUNTED_LAYERS,
-    ComponentContract,
     ComponentContractsFile,
     SeamsFile,
 )
@@ -59,16 +53,6 @@ logger = logging.getLogger(__name__)
 MAX_RESPONSIBILITIES: int = 3
 MAX_FEATURES: int = 2
 MAX_COMP_ROOT_L23_COLLABORATORS: int = 2  # threshold is > cap (i.e. >= 3 fails)
-
-# Shared-type exemption -- mirrors hooks/design-before-contract.sh carve-out.
-_SHARED_TYPE_PROTOCOLS: frozenset[str] = frozenset(
-    {"interfaces/models.pyi", "interfaces/exceptions.pyi"},
-)
-
-
-def _is_exempt(contract: ComponentContract) -> bool:
-    """Return True if the contract describes a shared-type file."""
-    return contract.protocol in _SHARED_TYPE_PROTOCOLS
 
 
 def _build_layer_lookup(seams: SeamsFile | None) -> dict[str, int]:
@@ -106,8 +90,8 @@ def check_warnings(contracts: ComponentContractsFile) -> list[str]:
 
     A component is flagged when it is clearly behavioral (has a Protocol
     or is a composition root) and has responsibilities, but its
-    ``features`` list is empty. Shared-type files and leaf infrastructure
-    components (no Protocol, no composition_root) are silent.
+    ``features`` list is empty. Leaf infrastructure components (no
+    Protocol, no composition_root) are silent.
 
     Warnings never affect exit codes -- they only surface the
     "did-you-forget-to-declare-features" case to the architect.
@@ -115,8 +99,6 @@ def check_warnings(contracts: ComponentContractsFile) -> list[str]:
     warnings: list[str] = []
     for name in sorted(contracts.components):
         contract = contracts.components[name]
-        if _is_exempt(contract):
-            continue
         if contract.features:
             continue
         if not contract.responsibilities:
@@ -150,10 +132,6 @@ def check_budget(
 
     for name in sorted(contracts.components):
         contract = contracts.components[name]
-        if _is_exempt(contract):
-            logger.info("skip %s: shared-type exemption", name)
-            continue
-
         resp_count = len(contract.responsibilities)
         if resp_count > MAX_RESPONSIBILITIES:
             violations.append(
