@@ -11,7 +11,7 @@ discovering role emits a structured finding at
 """
 
 from typing import Protocol
-{% for module, names in imports|dictsort %}
+{% for module, names in imports %}
 from {{ module }} import {{ names | join(", ") }}
 {% endfor %}
 

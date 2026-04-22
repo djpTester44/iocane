@@ -709,14 +709,30 @@ class Symbol(BaseModel, frozen=True):
 
     @model_validator(mode="after")
     def check_declared_in_zone(self) -> "Symbol":
-        """Enforce runtime-symbol placement under src/.
+        """Enforce runtime-symbol placement in a legitimate import zone.
 
-        exception_class and shared_type manifest as concrete Python
-        class bodies at runtime; they live under src/. Placing them in
-        interfaces/ conflates type-only Protocol stubs with runtime
-        implementations (the C8 drift). declared_in presence is enforced
-        by check_kind_required_fields; this validator constrains the
+        exception_class and shared_type manifest as concrete Python class
+        bodies at runtime. They live either under the project's ``src/``
+        tree OR in an external installable package (``pydantic``,
+        ``sqlalchemy.orm``, etc.). Placing them in ``interfaces/``
+        conflates type-only Protocol stubs with runtime implementations
+        (the C8 drift). ``declared_in`` presence is enforced by
+        ``check_kind_required_fields``; this validator constrains the
         zone of any value that is set.
+
+        Accepted shapes:
+          * ``src/...`` -- project filesystem path.
+          * bare module name without slashes (``pydantic``,
+            ``sqlalchemy.orm``) -- external package.
+
+        Rejected shapes:
+          * ``interfaces/...`` -- type-only zone; runtime identity
+            cannot live there.
+          * path-shaped without ``src/`` prefix (``domain/types.py``,
+            ``../escape``, absolute paths) -- catches typos and escapes.
+          * dotted-src forms (``src.domain.types``) -- the most likely
+            intuitive authoring mistake; rejected with guidance toward
+            the filesystem form.
         """
         if self.kind not in (SymbolKind.EXCEPTION_CLASS, SymbolKind.SHARED_TYPE):
             return self
@@ -726,14 +742,26 @@ class Symbol(BaseModel, frozen=True):
         if declared.startswith("interfaces/"):
             msg = (
                 f"Symbol of kind {self.kind.value} must not declare_in "
-                f"interfaces/; runtime symbols live in src/, got "
-                f"'{declared}'"
+                f"interfaces/; runtime symbols live in src/ or in an "
+                f"external module (e.g., 'pydantic'), got '{declared}'"
             )
             raise ValueError(msg)
-        if not declared.startswith("src/"):
+        normalized = declared.replace("\\", "/")
+        has_slash = "/" in normalized
+        if has_slash and not declared.startswith("src/"):
             msg = (
-                f"Symbol of kind {self.kind.value} requires declared_in "
-                f"to start with 'src/', got '{declared}'"
+                f"Symbol of kind {self.kind.value} with path-shaped "
+                f"declared_in must start with 'src/'; for external "
+                f"packages use a bare module name (e.g., 'pydantic', "
+                f"'sqlalchemy.orm'), got '{declared}'"
+            )
+            raise ValueError(msg)
+        if not has_slash and declared.startswith(("src.", "tests.")):
+            msg = (
+                f"Symbol of kind {self.kind.value} has dotted-path-style "
+                f"declared_in ('{declared}'); project symbols use the "
+                f"filesystem form ('src/.../file.py'), external packages "
+                f"use a bare module name (no 'src.' prefix)"
             )
             raise ValueError(msg)
         return self

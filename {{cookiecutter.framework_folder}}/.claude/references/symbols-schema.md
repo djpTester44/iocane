@@ -117,6 +117,65 @@ RouteNotFoundMessage:
   used_by: [CP-03]
 ```
 
+## External-package declarations
+
+For `exception_class` and `shared_type` symbols that live in a
+third-party installed package (pydantic, sqlalchemy, httpx, ...) rather
+than in the project's `src/` tree, set `declared_in` to the **bare
+Python module path** (no slashes, no `.py` suffix):
+
+```yaml
+BaseModel:
+  kind: shared_type
+  declared_in: pydantic
+  type_expr: "class pydantic.BaseModel"
+  used_by: [ConnectorRegistry]
+
+ValidationError:
+  kind: exception_class
+  declared_in: pydantic
+  parent: ValueError
+  used_by: [ConfigLoader]
+
+Session:
+  kind: shared_type
+  declared_in: sqlalchemy.orm
+  type_expr: "class sqlalchemy.orm.Session"
+  used_by: [PipelineRepository]
+```
+
+`gen_protocols.py` emits `from <module> import <Name>` for these --
+the consumer's `pyproject.toml` is responsible for ensuring the
+package is installable.
+
+### `declared_in` shape rules (zone check)
+
+| Input | Interpreted as | Emitted import |
+|---|---|---|
+| `src/foo/bar.py` | Project filesystem path | `from src.foo.bar import X` |
+| `tests/conftest.py` | Tests zone (fixtures only) | `from tests.conftest import X` |
+| `pydantic` | External bare module | `from pydantic import X` |
+| `sqlalchemy.orm` | External dotted module | `from sqlalchemy.orm import X` |
+| `interfaces/foo.pyi` | **Rejected** -- type-only zone | -- |
+| `src.domain.types` | **Rejected** -- dotted-src is a Pythonic mistake; use filesystem form | -- |
+| `sorce/foo.py` | **Rejected** -- path-shaped values must start with `src/` | -- |
+
+The validator rejects the common authoring mistakes (dotted-src
+Pythonic form, wrong prefix, `interfaces/` placement) at schema load
+so typos surface near the authoring site rather than downstream at
+type-check time.
+
+### Residual authoring risks
+
+- **Typo in a bare-module name** (`declared_in: pydantik`) cannot be
+  caught at codegen time without importing the package. Surfaces at
+  pyright/mypy when the `.pyi` is consumed.
+- **Single-segment name collision** (`declared_in: core` where both a
+  project `src/core/__init__.py` and an installed `core` package
+  exist) resolves to whichever Python finds first on `sys.path`.
+  Choose names that don't collide; when ambiguous, use the
+  `src/core/__init__.py` filesystem form to anchor.
+
 ## Conflict detection
 
 `symbols_parser.py` surfaces two hard conflicts:

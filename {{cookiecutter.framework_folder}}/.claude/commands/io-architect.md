@@ -75,7 +75,7 @@ Output the following metadata:
 - **Domain value types to identify separately:**
   - Value objects, DTOs, enums, and typed structures shared across components
   - These are contract vocabulary, not behavioral components -- they do NOT get CRC cards
-  - They will be declared in `plans/symbols.yaml` as `kind: shared_type` entries with `declared_in: src/...` (Step H-6). Runtime type definitions live under `src/`; `/io-gen-protocols` re-exports them into `interfaces/*.pyi` when rendering Protocol surfaces.
+  - They will be declared in `plans/symbols.yaml` as `kind: shared_type` entries (Step H-6) with `declared_in` pointing at either `src/...` (project-defined) or a bare module path for third-party types. Runtime type definitions live under `src/` or in an installed package; `/io-gen-protocols` re-exports them into `interfaces/*.pyi` when rendering Protocol surfaces.
 - **Component types (continued):**
   - Repositories / data access layer
   - Service / orchestration layer
@@ -221,8 +221,8 @@ Derive contract structure from `component-contracts.yaml` (package file paths vi
 
 - For every cross-CP identifier that must be spelled and typed consistently across more than one checkpoint, add a `Symbol` entry. Consult `.claude/references/symbols-schema.md` for the `SymbolKind` catalogue.
 - **Settings fields:** every attribute on a Pydantic `Settings` model that a downstream component will read. `kind: settings_field`, `type_expr`, `env_var`, optional `default`.
-- **Exception classes:** every custom exception that crosses a Protocol boundary. `kind: exception_class`, `parent` (base class), `declared_in: src/...` (the runtime module that defines the class). The `check_declared_in_zone` validator rejects `interfaces/...` paths here -- runtime-bearing symbols live under `src/`; `/io-gen-protocols` re-exports them into `.pyi` stubs.
-- **Shared types:** every dataclass / TypedDict / Pydantic model consumed by more than one CP. `kind: shared_type`, `type_expr` (shape summary), `declared_in: src/...`. Same zone rule as exception classes.
+- **Exception classes:** every custom exception that crosses a Protocol boundary. `kind: exception_class`, `parent` (base class), `declared_in` (either a project filesystem path `src/...` for project-defined exceptions, or a bare Python module path like `pydantic` for third-party exceptions). The `check_declared_in_zone` validator rejects `interfaces/...` placements and dotted-src Pythonic form (`src.foo.bar`) at schema load; `/io-gen-protocols` re-exports the declaration into `.pyi` stubs as a runtime import.
+- **Shared types:** every dataclass / TypedDict / Pydantic model consumed by more than one CP. `kind: shared_type`, `type_expr` (shape summary), `declared_in` (project path `src/...` or bare module name for third-party types -- see `.claude/references/symbols-schema.md §External-package declarations`). Same zone rules as exception classes.
 - **Fixtures:** every pytest fixture referenced by contract tests or integration tests across more than one CP. `kind: fixture`, `fixture_scope`.
 - **Error messages:** any literal exception message whose wording is asserted by tests. `kind: error_message`, `message_pattern`.
 - Populate `used_by:` with the COMPONENT NAMES (from CRC collaborator analysis) that reference each symbol. Do NOT populate `used_by_cps:` -- that field is checkpoint-backfilled at `/io-checkpoint` and stays empty until then.

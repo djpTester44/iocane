@@ -48,3 +48,17 @@ symbols: {}
 #     declared_in: src/domain/router.py
 #     message_pattern: "route not found for destination={destination}"
 #     used_by: [CP-03]
+#
+#   # External-package symbols (third-party exception/shared-type):
+#   # declared_in is a bare Python module path, not a filesystem path.
+#   BaseModel:
+#     kind: shared_type
+#     declared_in: pydantic
+#     type_expr: "class pydantic.BaseModel"
+#     used_by: [ConnectorRegistry]
+#
+#   ValidationError:
+#     kind: exception_class
+#     declared_in: pydantic
+#     parent: ValueError
+#     used_by: [ConfigLoader]

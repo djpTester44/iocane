@@ -8,6 +8,21 @@ method signatures + CRC responsibilities), ``plans/symbols.yaml``
 (per-method error_propagation invariants -> docstring Raises
 trigger descriptions).
 
+Import resolution for a type name referenced in a ``MethodSpec``
+signature walks three tables in order:
+
+1. Python builtins (``_BUILTIN_TYPES``) -- no import emitted.
+2. Project symbols (``symbols.yaml`` with ``declared_in: src/...``) --
+   ``from <module> import <name>``.
+3. Known stdlib / typing / ``collections.abc`` types
+   (``_STDLIB_IMPORTS``) -- ``from <module> import <name>``.
+4. Unknown -- stderr ``WARN:``; the operator either declares the name
+   in ``symbols.yaml`` or extends the stdlib table.
+
+Emitted imports are ordered stdlib-first then project, alphabetical
+within each group, matching the style the YAML-authored interfaces
+carry through consumer tooling (pyright, mypy strict).
+
 Idempotent: same YAML input produces byte-identical output.
 
 Invocation: ``uv run python harness/scripts/gen_protocols.py``. Driven
@@ -21,6 +36,7 @@ Exit codes:
 """
 
 import argparse
+import ast
 import re
 import sys
 from pathlib import Path
@@ -39,9 +55,118 @@ from symbols_parser import load_symbols
 from test_plan_parser import invariants_for_method, load_test_plan
 
 _PASCAL_SPLIT_RE = re.compile(r"[_\-\s]+")
-_TYPE_NAME_RE = re.compile(r"\b([A-Z][A-Za-z0-9_]*)\b")
+_IDENTIFIER_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\b")
 _PROTOCOL_SUFFIX = "Protocol"
 _MISSING_TRIGGER = "[trigger condition -- see test-plan invariant]"
+
+# Python builtin types / type-expression tokens that never need import.
+_BUILTIN_TYPES: frozenset[str] = frozenset(
+    {
+        "list",
+        "dict",
+        "tuple",
+        "set",
+        "frozenset",
+        "int",
+        "float",
+        "str",
+        "bool",
+        "bytes",
+        "bytearray",
+        "complex",
+        "type",
+        "None",
+        "object",
+        "NotImplemented",
+        "Ellipsis",
+        "True",
+        "False",
+        "range",
+        "slice",
+        "memoryview",
+        "property",
+    }
+)
+
+# Known stdlib / typing / collections.abc type names -> import module.
+# Generics migrated to collections.abc in PEP 585 are routed there rather
+# than to the deprecated typing aliases.
+_STDLIB_IMPORTS: dict[str, str] = {
+    # datetime
+    "datetime": "datetime",
+    "date": "datetime",
+    "time": "datetime",
+    "timedelta": "datetime",
+    "timezone": "datetime",
+    "tzinfo": "datetime",
+    # collections.abc (modern generic ABCs; preferred over typing aliases)
+    "Callable": "collections.abc",
+    "Mapping": "collections.abc",
+    "MutableMapping": "collections.abc",
+    "Sequence": "collections.abc",
+    "MutableSequence": "collections.abc",
+    "Iterable": "collections.abc",
+    "Iterator": "collections.abc",
+    "AsyncIterable": "collections.abc",
+    "AsyncIterator": "collections.abc",
+    "Awaitable": "collections.abc",
+    "Coroutine": "collections.abc",
+    "Set": "collections.abc",
+    "MutableSet": "collections.abc",
+    "Container": "collections.abc",
+    "Collection": "collections.abc",
+    "Hashable": "collections.abc",
+    "Sized": "collections.abc",
+    "Reversible": "collections.abc",
+    "Generator": "collections.abc",
+    "AsyncGenerator": "collections.abc",
+    "ItemsView": "collections.abc",
+    "KeysView": "collections.abc",
+    "ValuesView": "collections.abc",
+    # typing (non-ABC utilities)
+    "Any": "typing",
+    "Optional": "typing",
+    "Union": "typing",
+    "Literal": "typing",
+    "TypeVar": "typing",
+    "Generic": "typing",
+    "ClassVar": "typing",
+    "Final": "typing",
+    "Annotated": "typing",
+    "NewType": "typing",
+    "Protocol": "typing",
+    "runtime_checkable": "typing",
+    "cast": "typing",
+    "overload": "typing",
+    "TypedDict": "typing",
+    "NamedTuple": "typing",
+    "TypeAlias": "typing",
+    "ParamSpec": "typing",
+    "Concatenate": "typing",
+    "Self": "typing",
+    "Never": "typing",
+    "LiteralString": "typing",
+    "TYPE_CHECKING": "typing",
+    # pathlib
+    "Path": "pathlib",
+    "PurePath": "pathlib",
+    "PurePosixPath": "pathlib",
+    "PureWindowsPath": "pathlib",
+    "PosixPath": "pathlib",
+    "WindowsPath": "pathlib",
+    # uuid
+    "UUID": "uuid",
+    # decimal
+    "Decimal": "decimal",
+    # enum
+    "Enum": "enum",
+    "IntEnum": "enum",
+    "Flag": "enum",
+    "IntFlag": "enum",
+    "StrEnum": "enum",
+    # fractions
+    "Fraction": "fractions",
+}
 
 
 def _pascal_case(name: str) -> str:
@@ -63,47 +188,132 @@ def _protocol_class_name(component_name: str, protocol_path: str) -> str:
 
 
 def _py_module_path(declared_in: str) -> str:
-    """Translate ``src/foo/bar.py`` to ``src.foo.bar`` for import lines."""
-    stripped = Path(declared_in).with_suffix("")
-    return ".".join(stripped.parts)
+    """Translate ``declared_in`` to a Python import path.
+
+    Path-shaped inputs (``src/foo/bar.py``, ``tests/conftest.py``)
+    are converted dot-separated by stripping the ``.py`` suffix and
+    joining path parts. Bare module names (``pydantic``,
+    ``sqlalchemy.orm``) are used verbatim for external-package
+    imports -- a consumer declares ``declared_in: pydantic`` for a
+    third-party type and the codegen emits ``from pydantic import
+    <Name>``.
+
+    The disambiguation is carried by the presence of ``/`` (after
+    separator normalization) or a ``.py`` suffix; the
+    ``check_declared_in_zone`` validator rejects the most likely
+    ambiguous input (``src.foo.bar`` dotted-path) at schema load so
+    this function does not see it.
+    """
+    normalized = declared_in.replace("\\", "/")
+    if "/" in normalized or declared_in.endswith(".py"):
+        stripped = Path(declared_in).with_suffix("")
+        return ".".join(stripped.parts)
+    return declared_in
+
+
+def _extract_type_names(type_expr: str) -> set[str]:
+    """Return every bare identifier used in a type annotation string.
+
+    Parses ``type_expr`` as a Python expression and walks ``ast.Name``
+    nodes -- robust to subscripts (``list[int]``), unions (``str | None``),
+    callables (``Callable[[int], str]``), and nested generics. Falls back
+    to a permissive identifier regex when the string does not parse as
+    Python; unknown names surface as a stderr warning in
+    ``_build_imports`` rather than being silently dropped.
+    """
+    if not type_expr:
+        return set()
+    try:
+        tree = ast.parse(type_expr, mode="eval")
+    except SyntaxError:
+        return set(_IDENTIFIER_RE.findall(type_expr))
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            names.add(node.id)
+    return names
 
 
 def _collect_referenced_names(method: MethodSpec) -> set[str]:
-    """Return PascalCase identifiers appearing in a method's signature.
+    """Return every identifier referenced in a method's signature.
 
     Walks ``args[].type_expr``, ``return_type``, and ``raises``. Callers
-    filter against symbols.yaml to determine which names require imports.
+    filter against symbols.yaml + the stdlib resolution table to decide
+    which names require imports.
     """
     names: set[str] = set()
     for arg in method.args:
-        names.update(_TYPE_NAME_RE.findall(arg.type_expr))
-    names.update(_TYPE_NAME_RE.findall(method.return_type))
+        names.update(_extract_type_names(arg.type_expr))
+    names.update(_extract_type_names(method.return_type))
     names.update(method.raises)
     return names
 
 
 def _build_imports(
     methods: list[MethodSpec], symbols: dict[str, Symbol]
-) -> dict[str, list[str]]:
-    """Return ``{module_path: [sorted names]}`` for needed imports.
+) -> list[tuple[str, list[str]]]:
+    """Return the imports to emit, ordered deterministically.
 
-    A name is imported only if it appears in a method signature AND is a
-    declared ``shared_type`` or ``exception_class`` in ``symbols.yaml``
-    with a non-empty ``declared_in``. Names outside those kinds are
-    assumed to be resolvable by Python or the consumer's own imports.
+    Resolution order for each referenced name:
+
+    1. Python builtin (``list``, ``int``, ``None`` ...) -- no import.
+    2. Project symbol declared in ``symbols.yaml`` as ``shared_type``
+       or ``exception_class`` with a non-empty ``declared_in`` -- emit
+       ``from <module> import <name>``.
+    3. Known stdlib / typing / ``collections.abc`` type (see
+       ``_STDLIB_IMPORTS``) -- emit the mapped ``from <module> import
+       <name>``.
+    4. Unknown -- stderr warning; skip. The operator must either
+       declare the name in ``symbols.yaml`` or extend ``_STDLIB_IMPORTS``.
+
+    Module-block ordering: stdlib modules first (alphabetical), then
+    project modules (alphabetical). Names within each module sorted
+    alphabetically. The returned ``list[tuple[str, list[str]]]`` is
+    rendered verbatim by the template in this order.
     """
     referenced: set[str] = set()
     for method in methods:
         referenced.update(_collect_referenced_names(method))
+
     importable = {SymbolKind.SHARED_TYPE, SymbolKind.EXCEPTION_CLASS}
-    by_module: dict[str, set[str]] = {}
+    stdlib_by_module: dict[str, set[str]] = {}
+    project_by_module: dict[str, set[str]] = {}
+    unknown: set[str] = set()
+
     for name in referenced:
-        sym = symbols.get(name)
-        if sym is None or sym.kind not in importable or not sym.declared_in:
+        if name in _BUILTIN_TYPES:
             continue
-        module = _py_module_path(sym.declared_in)
-        by_module.setdefault(module, set()).add(name)
-    return {mod: sorted(names) for mod, names in by_module.items()}
+        sym = symbols.get(name)
+        if (
+            sym is not None
+            and sym.kind in importable
+            and sym.declared_in
+        ):
+            module = _py_module_path(sym.declared_in)
+            project_by_module.setdefault(module, set()).add(name)
+            continue
+        if name in _STDLIB_IMPORTS:
+            stdlib_by_module.setdefault(
+                _STDLIB_IMPORTS[name], set()
+            ).add(name)
+            continue
+        unknown.add(name)
+
+    for name in sorted(unknown):
+        sys.stderr.write(
+            f"WARN: gen_protocols: referenced name {name!r} is neither "
+            "a Python builtin, a declared symbols.yaml entry, nor a "
+            "known stdlib type. Declare it in plans/symbols.yaml or "
+            "extend _STDLIB_IMPORTS in "
+            "harness/scripts/gen_protocols.py.\n"
+        )
+
+    ordered: list[tuple[str, list[str]]] = []
+    for module in sorted(stdlib_by_module):
+        ordered.append((module, sorted(stdlib_by_module[module])))
+    for module in sorted(project_by_module):
+        ordered.append((module, sorted(project_by_module[module])))
+    return ordered
 
 
 def _raises_with_triggers(
