@@ -1,0 +1,23 @@
+# io-design-evaluator runs as a single-bracket subprocess: the entire
+# workflow (Steps A-D) operates under one capability grant. The grant
+# fires at Step A-pre and is revoked automatically by session-end.sh
+# when the subprocess exits.
+#
+# Granted writes: .iocane/findings/*.yaml. The design-evaluator never
+# writes anywhere else; canonical artifacts (component-contracts /
+# seams / symbols / test-plan) are read-only inside this subprocess.
+#
+# Same shape will repeat in A5 (io-cdt-evaluator.A.yaml) and A6
+# (io-ct-evaluator.A.yaml). All three roles share the
+# .iocane/findings/ directory; multiple templates granting the same
+# write pattern is idempotent.
+
+workflow: io-design-evaluator
+step: A
+ttl_seconds: 1800
+grants:
+  write:
+    - .iocane/findings/*.yaml
+  rm: []
+keywords: [evaluator, semantic, findings-emit, design-rubric]
+context: "io-design-evaluator: emit OBSERVATION findings to .iocane/findings/."

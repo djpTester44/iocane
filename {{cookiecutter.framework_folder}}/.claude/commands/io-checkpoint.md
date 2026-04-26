@@ -13,10 +13,9 @@ description: Decompose roadmap features into atomic checkpoints with connectivit
 > 2. Load CDD governance: `view_file .claude/rules/cdd.md`
 > 3. Load the component registry: `view_file plans/component-contracts.yaml`
 > 4. Load the Roadmap: `view_file plans/roadmap.md`
-> 5. Load all interfaces: `view_file interfaces/*.pyi`
-> 6. Load the symbol registry: `symbols_parser.load_symbols('plans/symbols.yaml')`. Symbol names referenced by checkpoint scopes (component names) drive the `used_by_cps` backfill at Step G-symbols below.
-> 7. Load the test plan: `test_plan_parser.load_test_plan('plans/test-plan.yaml')`. Each entry binds a Protocol method to invariants the gate command must enforce. Checkpoints whose scope methods are not covered by test-plan.yaml have no contract acceptance criteria to verify -- HALT and route back to `/io-architect`.
-> 8. Load the Integration Seams reference via `seam_parser.load_seams('plans/seams.yaml')`. Use the `receives_di` graph (via `all_di_edges()`) to identify which component boundaries require connectivity tests: if CP-A builds a component and CP-B builds a component that injects it, a connectivity test is required at that seam. For components whose `component-contracts.yaml` entry has `composition_root: true`, also read `receives_di_protocols` -- Appendix A §A.3b populates that list with injected Protocol names, which drives the A.3c composition-root CT emission rule in Step D.
+> 5. Load the symbol registry: `symbols_parser.load_symbols('plans/symbols.yaml')`. Symbol names referenced by checkpoint scopes (component names) drive the `used_by_cps` backfill at Step G-symbols below.
+> 6. Load the test plan: `test_plan_parser.load_test_plan('plans/test-plan.yaml')`. Each entry binds a component's contract surface to invariants the gate command must enforce. Checkpoints whose scope's behavioral units are not covered by test-plan.yaml have no contract acceptance criteria to verify -- HALT and route back to `/io-architect`.
+> 7. Load the Integration Seams reference via `seam_parser.load_seams('plans/seams.yaml')`. Use the `receives_di` graph (via `all_di_edges()`) to identify which component boundaries require connectivity tests: if CP-A builds a component and CP-B builds a component that injects it, a connectivity test is required at that seam. For components whose `component-contracts.yaml` entry has `composition_root: true`, also read `injected_contracts` -- Appendix A §A.3b populates that list with injected contract names, which drives the A.3c composition-root CT emission rule in Step D.
 
 # WORKFLOW: IO-CHECKPOINT
 
@@ -31,7 +30,7 @@ description: Decompose roadmap features into atomic checkpoints with connectivit
 **Definition of an atomic checkpoint:**
 A unit of functionality that:
 
-- Maps to one or more methods in an `interfaces/*.pyi` contract
+- Maps to one or more behavioral units of a component contract
 - Can pass its own tests independently, without requiring other checkpoints to be complete
 - Is small enough to be executed by a single sub-agent session without context pressure
 - Has a clear, verifiable gate command
@@ -43,7 +42,7 @@ A unit of functionality that:
 Before proceeding, output the following metadata:
 
 - **Roadmap features:** [N features identified]
-- **Interface Registry entries:** [N contracts in project-spec.md]
+- **Component contracts:** [N entries in component-contracts.yaml]
 - **Existing plan.yaml:** [Present / Not present]
 - **Mode:** [Greenfield | Extending existing plan]
 
@@ -89,9 +88,8 @@ roadmap features), generate a remediation checkpoint (`CP-NNR`) for each item:
 
 - **Action:** Verify the canonical artifact set is on disk:
   - `plans/component-contracts.yaml` (CRC + collaborators)
-  - `interfaces/*.pyi` (Protocol signatures with mandatory Raises)
   - `plans/symbols.yaml` (cross-CP identifier registry)
-  - `plans/test-plan.yaml` (per-Protocol-method invariants)
+  - `plans/test-plan.yaml` (per-component behavioral invariants)
   - `plans/seams.yaml` (DI graph + external terminals)
 - **Rule:** If any artifact is missing, HALT.
 - **Output:** "HALT: Contracts not locked. Run `/io-architect` first."
@@ -104,12 +102,12 @@ For each feature in `roadmap.md`:
 
 - **Read** the feature's acceptance criteria and `depends_on` list.
 - **Read** the CRC entries in `plans/component-contracts.yaml` for all components involved in this feature.
-- **Identify** the function-level units of work implied by the CRC responsibilities.
+- **Identify** the behavioral units of work implied by the CRC responsibilities.
 - **Group** related functions into the smallest independently-testable unit.
 
 **Acceptance criteria:** Each checkpoint must include 2-4 observable, testable assertions as `acceptance_criteria`. These are design-time decisions -- they flow directly into the task file and must not be synthesized at batching time. The `contract` field is the primary `.pyi` file from the checkpoint's scope.
 
-**[HARD] Protocol Raises coverage:** For each Protocol method in the checkpoint's scope, every `Raises:` declaration in the `.pyi` docstring must appear as an acceptance criterion, or be explicitly annotated as `[DEFERRED: justification]` in the acceptance criteria list. The agent loads all `.pyi` files (instruction 5) and has `seams.yaml` available (instruction 6) -- cross-reference both. A `key_failure_modes` entry in `seams.yaml` that maps to a Protocol `Raises:` declaration reinforces the requirement. Missing coverage is a gap the evaluator cannot catch downstream because it grades only against the criteria authored here.
+**[HARD] Raises coverage:** For each component contract in the checkpoint's scope, every exception in the contract's raises list must appear as an acceptance criterion, or be explicitly annotated as `[DEFERRED: justification]` in the acceptance criteria list. The agent loads `plans/component-contracts.yaml` (instruction 3) and has `seams.yaml` available (instruction 7) -- cross-reference both. A `key_failure_modes` entry in `seams.yaml` that names an exception in the contract's raises list reinforces the requirement. Missing coverage is a gap the evaluator cannot catch downstream because it grades only against the criteria authored here.
 
 **Appendix A §A.6d `relies_on_existing`:** When an acceptance criterion names a path that already exists on disk (e.g., a golden fixture the CP must not regress, a baseline test file that must continue to pass, a vendored dataset under `data/`), add that path to the checkpoint's `relies_on_existing: list[str]` field. Before writing, **use the Grep tool** to verify the path exists -- do not author paths from memory. `relies_on_existing` suppresses A.6 orphan warnings in `/validate-plan` Step 9D for artifacts the CP depends on but does not produce. A path that belongs in `write_targets` (the CP produces it) must not appear in `relies_on_existing`.
 
@@ -117,8 +115,8 @@ For each feature in `roadmap.md`:
 
 - One checkpoint = one component's core behavior, OR one well-defined integration seam
 - A checkpoint must not span multiple architectural layers unless the seam between them is exactly what's being tested
-- If a component has 5 methods and they can all be built and tested as a unit → one checkpoint
-- If methods A and B must exist before method C can be meaningfully tested → separate checkpoints
+- If a component has 5 behavioral units and they can all be built and tested as a unit → one checkpoint
+- If behavioral units A and B must exist before unit C can be meaningfully tested → separate checkpoints
 
 **Output:** Flat checkpoint inventory with feature mapping. Present before continuing.
 
@@ -162,7 +160,7 @@ assertion: [Three observables, each phrased against the seam:
      (keywords: once, exactly, per, times, each, for every).
   3. Error propagation -- behaviour when the upstream raises each declared
      exception (keywords: raises, propagates, re-raises, error, exception).
-  Every Protocol ``Raises:`` on the source side of the seam must be named
+  Every declared exception on the source side of the seam must be named
   here OR annotated ``[DEFERRED: <reason>]`` inline. No implementation detail.]
 gate: pytest tests/connectivity/test_[cp_a]_[cp_b].py::[function_name]
 ```
@@ -173,12 +171,12 @@ gate: pytest tests/connectivity/test_[cp_a]_[cp_b].py::[function_name]
 
 - The assertion must be precise enough that `/io-execute` can build the test without ambiguity
 - The assertion describes the observable contract boundary — return type, key invariants, no ORM types leaking through domain layer, etc.
-- **[HARD] Three-observable assertion (A.4a).** Every assertion must name all three seam-level observables: (1) **call binding** -- which upstream method the downstream invokes and with what argument(s); (2) **call cardinality** -- how many times the upstream is called per downstream operation; (3) **error propagation** -- what the downstream does when the upstream raises each of its declared exceptions. Each Protocol `Raises:` on the source side of the seam must be named in the assertion OR explicitly annotated `[DEFERRED: <reason>]`. An assertion that only checks return type/shape is an identity CT and is rejected. The schema-level lexical validator (`ct_assertion_warnings` in `scripts/schemas.py`) surfaces missing keywords as non-blocking warnings under `/validate-plan`.
-- **[HARD] Spy-capable fixtures (A.4b).** `fixture_deps` must include, for every source Protocol on the seam, a `MagicMock`-based or spy-capable stub (e.g., `unittest.mock.MagicMock`, `pytest-mock`'s `mocker.spy`, or a hand-rolled stub that records calls and arguments). Identity-only fixtures -- a plain function returning a fixed value, or a dataclass with no call-recording surface -- are **insufficient**: call binding and cardinality cannot be observed against them and the three-observable assertion becomes unenforceable. A fixture entry like `stub_geocoder_returning_location` is a rejection signal; the correct form is `mock_geocoder_client` (with the expectation that the fixture exposes `.called`, `.call_args`, `.call_count`, or equivalent).
-- **[HARD] Composition-root DI seams (A.3c).** For every component whose `component-contracts.yaml` entry has `composition_root: true`, emit one connectivity test per Protocol in its `seams.yaml` `receives_di_protocols` list. Each such CT must substitute a spy-capable stub for the injected Protocol via the framework's DI override surface:
-  - **FastAPI composition roots:** `app.dependency_overrides[<ProtocolProvider>] = lambda: mock` inside the test fixture. The assertion observes the composition-root handler exercising the injected Protocol -- call binding names the Protocol method invoked, cardinality counts invocations per request, and error propagation covers each of the Protocol's declared `Raises:` converting to the documented HTTP status or domain response.
-  - **Typer composition roots:** override via the resolved DI callable (e.g., swap the provider factory registered on the Typer app) or supply a substitute through the `typer.Context` dependency surface, depending on how the root wires providers. The assertion observes the CLI command exercising the injected Protocol with the same three observables.
-  If a `composition_root: true` component's `receives_di_protocols` is empty in `plans/seams.yaml`, the architect underspecified the DI graph. HALT and route back to `/io-architect` rather than proceeding with partial CT coverage.
+- **[HARD] Three-observable assertion (A.4a).** Every assertion must name all three seam-level observables: (1) **call binding** -- which upstream contract surface the downstream invokes and with what argument(s); (2) **call cardinality** -- how many times the upstream is called per downstream operation; (3) **error propagation** -- what the downstream does when the upstream raises each of its declared exceptions. Each exception in the source contract's raises list must be named in the assertion OR explicitly annotated `[DEFERRED: <reason>]`. An assertion that only checks return type/shape is an identity CT and is rejected. The schema-level lexical validator (`ct_assertion_warnings` in `scripts/schemas.py`) surfaces missing keywords as non-blocking warnings under `/validate-plan`.
+- **[HARD] Spy-capable fixtures (A.4b).** `fixture_deps` must include, for every source contract on the seam, a `MagicMock`-based or spy-capable stub (e.g., `unittest.mock.MagicMock`, `pytest-mock`'s `mocker.spy`, or a hand-rolled stub that records calls and arguments). Identity-only fixtures -- a plain function returning a fixed value, or a dataclass with no call-recording surface -- are **insufficient**: call binding and cardinality cannot be observed against them and the three-observable assertion becomes unenforceable. A fixture entry like `stub_geocoder_returning_location` is a rejection signal; the correct form is `mock_geocoder_client` (with the expectation that the fixture exposes `.called`, `.call_args`, `.call_count`, or equivalent).
+- **[HARD] Composition-root DI seams (A.3c).** For every component whose `component-contracts.yaml` entry has `composition_root: true`, emit one connectivity test per contract in its `seams.yaml` `injected_contracts` list. Each such CT must substitute a spy-capable stub for the injected contract via the framework's DI override surface:
+  - **FastAPI composition roots:** `app.dependency_overrides[<ProtocolProvider>] = lambda: mock` inside the test fixture. The assertion observes the composition-root handler exercising the injected contract -- call binding names the contract surface invoked, cardinality counts invocations per request, and error propagation covers each exception in the contract's raises list converting to the documented HTTP status or domain response.
+  - **Typer composition roots:** override via the resolved DI callable (e.g., swap the provider factory registered on the Typer app) or supply a substitute through the `typer.Context` dependency surface, depending on how the root wires providers. The assertion observes the CLI command exercising the injected contract with the same three observables.
+  If a `composition_root: true` component's `injected_contracts` is empty in `plans/seams.yaml`, the architect underspecified the DI graph. HALT and route back to `/io-architect` rather than proceeding with partial CT coverage.
 - `fixture_deps` must name real fixtures or factories that will exist after CP-A is complete
 - Every dependency edge in the checkpoint graph must have at least one connectivity test
 - The CT test file is a write target of `target_cp` only. Source checkpoints must NOT include the CT file in their `write_targets` or `gate_command`.
@@ -198,7 +196,6 @@ generated_from:
   - plans/component-contracts.yaml
   - plans/symbols.yaml
   - plans/test-plan.yaml
-  - interfaces/
 validated: false
 checkpoints:
   - id: CP-01
@@ -208,17 +205,15 @@ checkpoints:
     status: pending
     scope:
       - component: "[ComponentName]"
-        protocol: "interfaces/[protocol].pyi"
         methods:
           - "[method_name]"
     write_targets:
       - "src/[path]/[module].py"
       - "tests/[path]/test_[module].py"
     context_files:
-      - "interfaces/[protocol].pyi"
       - "plans/component-contracts.yaml (CRC card for [ComponentName] only)"
       - "plans/symbols.yaml (filtered to symbols whose used_by contains [ComponentName])"
-      - "plans/test-plan.yaml (entries whose protocol matches the contract)"
+      - "plans/test-plan.yaml (entries whose component matches the scope component)"
     gate_command: "pytest tests/[path]/test_[module].py"
     depends_on: []
     parallelizable_with: []
@@ -286,15 +281,15 @@ filter symbols by CP-ID at dispatch time.
 
 The backfill is a value-preserving update to `used_by_cps` only -- it
 does not change any symbol's kind, type, env_var, message_pattern, or
-declared_in. Wrap it in the validating sentinel so the symbols-write
-reset hooks do not fire: the cascade would otherwise strip
+declared_in. Wrap it in a capability grant so the symbols-write reset
+hooks do not fire: the cascade would otherwise strip
 `test-plan.yaml.validated` (Phase 2 architecture: that stamp is owned
-by `/io-architect` Step H-post-validate and represents the architect's
+by `/io-architect` Step G and represents the architect's
 self-blessing of the canonical artifacts; a routine CP-ID backfill
 must not invalidate it).
 
 ```bash
-mkdir -p .iocane && touch .iocane/validating
+uv run python .claude/scripts/capability.py grant --template io-checkpoint.H
 
 uv run python -c "
 import sys; sys.path.insert(0, '.claude/scripts')
@@ -325,11 +320,11 @@ save_symbols('plans/symbols.yaml', SymbolsFile(symbols=new_symbols))
 print('used_by_cps backfill complete')
 "
 
-rm -f .iocane/validating
+uv run python .claude/scripts/capability.py revoke --template io-checkpoint.H
 ```
 
 `plan.yaml.validated` is already `false` from Step F (just written), so
-the suppressed reset on plan.yaml is a no-op either way. The sentinel
+the suppressed reset on plan.yaml is a no-op either way. The grant
 exists specifically to protect `test-plan.yaml.validated`.
 
 ---
@@ -353,12 +348,12 @@ Next step: Run /validate-plan to approve plan.yaml, then /io-plan-batch.
 
 ## 3. CONSTRAINTS
 
-- This workflow produces `plans/plan.yaml` AND backfills `used_by_cps` in `plans/symbols.yaml` (Step G-symbols). No `.pyi` edits, no component-contracts.yaml edits, no test-plan.yaml edits, no seams.yaml edits.
+- This workflow produces `plans/plan.yaml` AND backfills `used_by_cps` in `plans/symbols.yaml` (Step G-symbols). No component-contracts.yaml edits, no test-plan.yaml edits, no seams.yaml edits.
 - In remediation mode, also writes to `plans/backlog.yaml` via `route_backlog_item.py --prompt` (Routed annotation with prompt text).
 - Connectivity tests are signatures only — no test code is written here.
 - Write targets per checkpoint must be derived from the `file` fields in `plans/component-contracts.yaml`. A checkpoint may not write to a `src/` file whose component is not registered there.
-- **[HARD] Runtime `.py` location constraint:** All checkpoint write targets that are `.py` files must resolve to a path under `src/` or `tests/`. The `interfaces/` directory is reserved exclusively for `.pyi` contract stubs generated or approved by `/io-architect`. Any write target placing a `.py` file under `interfaces/` or any other directory outside `src/` and `tests/` is a structural error -- reject the write target and route the file to the appropriate `src/` component before the checkpoint is approved.
-- If decomposing a feature reveals a gap in the Interface Registry (a required component has no Protocol), HALT and route to `/io-architect` before continuing.
+- **[HARD] Runtime `.py` location constraint:** All checkpoint write targets that are `.py` files must resolve to a path under `src/` or `tests/`. Any write target placing a `.py` file outside `src/` and `tests/` is a structural error -- reject the write target and route the file to the appropriate `src/` component before the checkpoint is approved.
+- If decomposing a feature reveals a gap in the component contract set (a required component has no contract entry), HALT and route to `/io-architect` before continuing.
 - `plan.yaml` is the orchestrator's only input for delegation decisions. Vague checkpoints will produce low confidence scores and stall execution.
 - Remediation CP write targets must be a strict subset of files already implemented by the parent CP or its predecessors. Any file belonging to a pending roadmap checkpoint is off-limits — that forward dependency is a design error, not a valid remediation scope.
 - **Appendix A §A.6e -- Grep-verify paths before writing.** Before writing any file path into `plan.yaml` (checkpoint `write_targets`, `context_files`, `relies_on_existing`, or CT `file`/`fixture_deps`), use the Grep tool to verify the path either (a) already exists on disk, (b) traces to an upstream artifact's declared outputs, or (c) is claimed by this CP's own `write_targets`. Paths authored from memory are a recurring defect class that the `/validate-plan` Step 9D gate catches mechanically -- but the gate is non-blocking; authoring discipline is the primary defense.

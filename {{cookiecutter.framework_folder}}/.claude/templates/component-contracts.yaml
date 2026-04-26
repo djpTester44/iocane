@@ -17,7 +17,6 @@ components: {}
 #   Router:
 #     file: src/domain/router.py
 #     collaborators: [Settings, Geocoder]
-#     protocol: interfaces/router.pyi
 #     responsibilities:
 #       - Route incoming requests to the correct handler
 #     must_not:

@@ -33,10 +33,10 @@ def save_contracts(path: str, contracts: ComponentContractsFile) -> None:
     """Serialize contracts to YAML and write to disk.
 
     Round-trips the dumped payload through ``model_validate`` so that
-    ``@model_validator`` checks (e.g. ``check_protocol_requires_methods``)
-    fire at save time, not only at construction time. Catches the case
-    where a model was constructed via field mutation / dict-spread and
-    the on-write state is invalid even though construction succeeded.
+    field validators fire at save time as well as construction time.
+    Catches the case where a model was constructed via
+    ``model_construct`` / dict-spread and the on-write state is
+    invalid even though construction succeeded.
     """
     data = contracts.model_dump(mode="json")
     # Re-validate the round-tripped payload so model validators fire.
@@ -47,16 +47,14 @@ def save_contracts(path: str, contracts: ComponentContractsFile) -> None:
             comp.pop("collaborators", None)
         if not comp.get("composition_root"):
             comp.pop("composition_root", None)
-        if not comp.get("protocol"):
-            comp.pop("protocol", None)
         if not comp.get("responsibilities"):
             comp.pop("responsibilities", None)
         if not comp.get("must_not"):
             comp.pop("must_not", None)
         if not comp.get("features"):
             comp.pop("features", None)
-        if not comp.get("methods"):
-            comp.pop("methods", None)
+        if not comp.get("raises"):
+            comp.pop("raises", None)
     output = yaml.dump(
         data, default_flow_style=False, sort_keys=False, allow_unicode=True,
     )

@@ -7,7 +7,7 @@
 **Owns:** [One sentence — what this directory is responsible for. Observable behaviors only.]
 
 **Public via:**
-- `interfaces/[protocol].pyi` — [ProtocolName]
+- `[ComponentName]` — [first responsibility]
 
 **Must NOT:**
 - Import from `[higher-layer-path]/` (layer violation)

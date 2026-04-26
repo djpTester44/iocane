@@ -12,7 +12,7 @@ each resolves to one of:
 
 Unresolved paths emit ``WARN:`` lines at OBSERVATION severity on stderr.
 The script always exits 0 -- findings are non-blocking and surfaced by
-``/io-architect`` Step I-3 and ``/validate-plan`` Step 9D without halting
+``/io-architect`` Step G and ``/validate-plan`` Step 9D without halting
 the workflow.
 
 Extension-anchored patterns keep the match set biased toward false

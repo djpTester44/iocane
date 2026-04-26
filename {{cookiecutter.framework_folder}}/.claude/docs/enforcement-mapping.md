@@ -4,55 +4,6 @@ Maps every harness constraint to its enforcement mechanism.
 
 ---
 
-## Trust Model (interfaces-zone guard family)
-
-The hooks below under "interfaces-*.sh" gate AGENT DRIFT UNDER CONTEXT
-PRESSURE, not deliberate adversarial bypass. Specifically:
-
-- `IOCANE_ROLE` is a caller-controlled string. An agent that reads
-  `interfaces-codegen-only.sh` can inline `IOCANE_ROLE=gen_protocols`
-  on any Bash tool call to obtain admission. The SessionStart role-leak
-  guard catches only the "inherited-from-shell" case (`export`,
-  `.envrc`, copy-pasted debug), not deliberate inline prefix.
-- The Bash/PowerShell write-verb pattern sets are blocklists, not
-  allowlists, and are non-exhaustive by design. Unlisted primitives
-  (`ln -s`, `install` before this pass, `python -c "pathlib.Path(...)"`,
-  `git checkout -- interfaces/foo.pyi`, etc.) bypass by construction.
-  Adding verbs raises the drift bar incrementally; it does not close
-  the structural admission gap.
-
-Accepted under v3's threat model. Cryptographic admission engineering
-(per-invocation tokens, parent-process verification, capability
-binding) is deferred as out-of-scope. The hooks are load-bearing for
-honest-agent drift; Phase 2.5 validation is drift-validation, not
-adversarial red-team.
-
-**No whack-a-mole.** New verbs enter the Bash/PowerShell matcher ONLY
-when a plausible honest-agent drift pattern uses them -- not from
-theoretical adversarial enumeration. `/challenge` rounds will surface
-theoretical bypasses indefinitely; resist adding coverage unless the
-verb is part of standard agent toolkit AND a reasoning-from-task-
-pressure agent would naturally reach for it. If the verb requires
-deliberate gate-evasion thinking to use, it is a structural bypass
-(Path A territory) -- accept and document it, do not extend the
-matcher. This rule exists because an unchecked verb-addition cycle
-is indistinguishable from piecemeal Path A engineering and would
-invalidate the v3 deferral decision by slow creep.
-
-**Known-accepted residuals (documented, not fixed):**
-
-- *Template whitelist TOCTOU.* `_validate_template_path` resolves via
-  `.resolve()` + `is_file()`; jinja2 reads the file on a separate
-  trip. Low-likelihood under the honest-agent threat (the agent
-  does not race itself); acceptable trade for code simplicity.
-- *Windows 8.3 short names / case sensitivity beyond `.lower()`.*
-  Edit|Write path hooks call `os.path.realpath`, catching 8.3
-  resolution; the Bash matcher does not re-resolve the command
-  string. Honest-drift agents do not produce 8.3 paths, so the
-  Windows-specific gap stays open.
-
----
-
 ## Hook-Enforced (gate via exit code 2)
 
 | Constraint | Hook | Event | Async |
@@ -63,29 +14,20 @@ invalidate the v3 deferral decision by slow creep.
 | RTK prefix required for CLI tools | `rtk-enforce.sh` | PreToolUse Bash | |
 | No .py writes during /io-architect phase | `architect-boundary.sh` | PreToolUse Edit/Write | |
 | Implementation writes gated by workflow state | `workflow-state-gate.sh` | PreToolUse Edit/Write | |
-| Tier-1 Test Author bypass (scoped to `tests/contracts/`) | `workflow-state-gate.sh` (`IOCANE_ROLE=tester` branch) | PreToolUse Edit/Write | |
-| Tier-3a CT Author bypass (scoped to `tests/connectivity/`) | `workflow-state-gate.sh` (`IOCANE_ROLE=ct_author` branch, Phase 4) | PreToolUse Edit/Write | |
 | Write targets scoped to checkpoint | `write-gate.sh` | PreToolUse Edit/Write | |
 | No secrets in written files | `secret-scan.sh` | PreToolUse Edit/Write | |
 | No backslash paths in written files | `backslash-path.sh` | PreToolUse Edit/Write | |
 | No emoji in written files | `emoji-scan.sh` | PreToolUse Edit/Write | |
-| Design file required before .pyi contract | `design-before-contract.sh` | PreToolUse Edit/Write | |
-| interfaces/ is type-only (.pyi extension required) | `interfaces-pyi-only.sh` -> `interfaces_zone_check.py is_violation_pyi_only` | PreToolUse Edit/Write | |
-| interfaces/ writes require IOCANE_ROLE=gen_protocols | `interfaces-codegen-only.sh` -> `is_violation_codegen_only` | PreToolUse Edit/Write | |
-| Bash commands writing into interfaces/ must honor extension + role | `interfaces-bash-write.sh` -> `is_violation_bash_write` | PreToolUse Bash | |
-| PowerShell commands writing into interfaces/ must honor extension + role | `interfaces-powershell-write.sh` -> `is_violation_powershell_write` | PreToolUse PowerShell | |
-| Session refuses if IOCANE_ROLE=gen_protocols is inherited at session start | `session-start.sh` (role-leak guard near top) | SessionStart | |
-| Sub-agent warned if IOCANE_ROLE=gen_protocols is inherited at subagent start | `subagent-start.sh` (role-leak warning in additionalContext) | SubagentStart | |
 | Env vars filtered by phase (Phase A/B/C) | `environ-gate.sh` | PreToolUse Edit/Write | |
 | Plan mode required when flag set | `environ-gate.sh` | PreToolUse Edit/Write | |
 | .py file creation context injection | `py-create-context.sh` | PreToolUse Edit/Write | yes |
 | Validation stamp reset on PRD write | `reset-on-prd-write.sh` | PostToolUse Edit/Write | |
 | Validation stamp reset on project-spec write | `reset-on-project-spec-write.sh` | PostToolUse Edit/Write | |
 | Validation stamp reset on plan.yaml write | `reset-on-plan-write.sh` | PostToolUse Edit/Write | |
-| Validation stamp reset on .pyi write (resets plan.yaml + test-plan.yaml) | `reset-on-pyi-write.sh` | PostToolUse Edit/Write | |
 | Validation stamp reset on symbols.yaml write (resets plan.yaml + test-plan.yaml) | `reset-on-symbols-write.sh` | PostToolUse Edit/Write | |
 | Validation stamp reset on test-plan.yaml write (resets plan.yaml) | `reset-on-test-plan-write.sh` | PostToolUse Edit/Write | |
-| Within-session sentinel staleness guard (30-min TTL) | `scripts/check-validating-sentinel.sh` (called by bypass-aware hooks) | -- | |
+| Within-session sentinel staleness guard (60-min TTL) | `scripts/check-validating-sentinel.sh` (DEPRECATED 2026-04-22; unregistered, no longer consulted by any active hook -- retained in-place for rollback reference) | -- | |
+| Workflow write-authorization (capability grant + hot-path cache + catastrophic-rm deny) | `scripts/capability.py` (sole writer) + `hooks/capability-gate.sh` (PreToolUse Bash + Edit/Write, hardcoded catastrophic deny, fail-open baseline) + `scripts/capability-covers.sh` (helper invoked by reset-on-* hooks) | PreToolUse Bash, Edit/Write | |
 | BL-NNN assignment on backlog write | `backlog-id-assign.sh` -> `assign_backlog_ids.py` | PostToolUse Edit/Write | |
 | Backlog tag validation (blocking on schema failure) | `backlog-tag-validate.sh` -> `backlog_parser.load_backlog()` | PostToolUse Edit/Write | |
 | YAML schema validation (task, plan, backlog, seams, component-contracts, symbols, test-plan) | `validate-yaml.sh` | PostToolUse Edit/Write | |
@@ -97,7 +39,6 @@ invalidate the v3 deferral decision by slow creep.
 | Per-turn dynamic state injection | `prompt-submit.sh` | UserPromptSubmit | |
 | Sentinel cleanup on session exit | `session-end.sh` | SessionEnd | |
 | Sub-agent harness context injection | `subagent-start.sh` | SubagentStart | |
-| Role-scoped orientation (tester, ct_author) for `claude -p` dispatched sessions | `session-start.sh` (`IOCANE_ROLE` branch) | SessionStart | |
 | Sub-agent exit logging and loop guard | `subagent-stop.sh` | SubagentStop | |
 | Workflow state snapshot before compaction | `pre-compact.sh` | PreCompact | |
 | Harness re-orientation after compaction | `post-compact.sh` | PostCompact | |
@@ -109,21 +50,17 @@ invalidate the v3 deferral decision by slow creep.
 
 | Constraint | Command | When |
 |------------|---------|------|
-| CRC budget caps (responsibilities, features, composition-root fan-out) | `validate_crc_budget.py` | io-architect Step G-pre [HARD GATE] |
-| Symbols coverage (every Protocol Raises type declared as exception_class) | `validate_symbols_coverage.py` | io-architect Step H-post-validate [HARD GATE] |
-| Symbol conflict detection (env_var + message_pattern) | `symbols_parser.detect_env_var_conflicts` / `detect_message_pattern_conflicts` | io-architect Step H-post-validate + Step I-3 [HARD GATE] |
-| Test-plan completeness (every Protocol method has TestPlanEntry) | `validate_test_plan_completeness.py` | io-architect Step H-post-validate [HARD GATE] |
+| CRC budget caps (responsibilities, features, composition-root fan-out) | `validate_crc_budget.py` | io-architect Step G [HARD GATE] |
+| Symbols coverage (every Protocol Raises type declared as exception_class) | `validate_symbols_coverage.py` | io-architect Step G [HARD GATE] |
+| Symbol conflict detection (env_var + message_pattern) | `symbols_parser.detect_env_var_conflicts` / `detect_message_pattern_conflicts` | io-architect Step G [HARD GATE] |
+| Test-plan completeness (every Protocol method has TestPlanEntry) | `validate_test_plan_completeness.py` | io-architect Step G [HARD GATE] |
 | Write-target collision detection | `check_write_target_overlap.py` (includes CT files owned by target_cp) | io-plan-batch Step C [HARD GATE] |
 | CT seam completeness (covers source + target sides) | `check_ct_completeness.py` | validate-plan Step 9 [HARD GATE] |
 | CT dependency invariant | `check_ct_depends_on.py` | validate-plan Step 9B [HARD GATE] |
 | CT assertion behavior keywords (call binding, cardinality, error propagation) | `validate_ct_assertions.py` | validate-plan Step 9C [OBSERVATION] |
-| File-reference resolvability | `validate_path_refs.py` | io-architect Step I-3 + validate-plan Step 9D [OBSERVATION] |
+| File-reference resolvability | `validate_path_refs.py` | io-architect Step G + validate-plan Step 9D [OBSERVATION] |
 | Plan-wide Raises coverage in CT assertions | `validate_plan_raises_coverage.py` | validate-plan Step 9E [OBSERVATION] |
 | Batch architect-mode preflight (blocks dispatch while `/io-architect` mid-design) | `dispatch-agents.sh` (post-escalation-flag gate, pre-worktree) | pre-batch-dispatch |
-| Tester preflight (architect-mode sentinel, validated stamps, `interfaces/<stem>.pyi` exists) | `spawn-tester.sh` (defense-in-depth for standalone spawns) | pre-dispatch |
-| CT Author preflight (architect-mode sentinel, task-file validity, target_cp CT count) | `spawn-ct-writer.sh` (Phase 4; defense-in-depth for standalone spawns) | pre-dispatch |
-| CT-Writer stage per CP (before generator) | `dispatch-agents.sh` run_checkpoint_pipeline Phase 2A | per-CP, pre-generator |
-| Post-ct_author identity-CT escape detection (AST import check) | `dispatch-agents.sh` Phase 2A, invoking `symbol_tracer.py --imports-from-prefix src` | per-CP, post-ct_author, pre-generator [HARD GATE] |
 | Batch confidence threshold (85%) | inline scoring rubric | io-plan-batch Step E [HARD GATE] |
 | Batch human approval | user accept/modify/reject | io-plan-batch Step F [HUMAN GATE] |
 | Ruff lint compliance | `run-compliance.sh` → `uv run rtk ruff check` | io-review Step D, gap-analysis Step C |
@@ -156,5 +93,5 @@ invalidate the v3 deferral decision by slow creep.
 | Backlog tag semantics | `ticket-taxonomy.md` |
 | AST limitation awareness for DI | `architecture-gates.md` |
 | # noqa: DI usage judgment | `architecture-gates.md` |
-| CDD doctrine (contracts are behavioral; tests derived from clauses) | `cdd.md` + `references/cdd/principles.md` |
-| CDT vs Implementation TDD (contract tests in tests/contracts/) | `cdd.md` + `references/cdd/cdt-vs-impl-testing.md` |
+| CDD doctrine (contracts are behavioral; tests derived from clauses) | `cdd.md` |
+| CDT vs Implementation TDD (contract tests in tests/contracts/) | `cdd.md` |

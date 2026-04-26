@@ -11,7 +11,7 @@ description: Reconcile documentation and design artifacts with current codebase 
 > **[CRITICAL] CONTEXT LOADING**
 >
 > 1. Load the component registry: `view_file plans/component-contracts.yaml`
-> 2. Load the Architecture Spec: `view_file plans/project-spec.md` (read-only — reference only for planned CRC/Protocol-backed components)
+> 2. Load the Architecture Spec: `view_file plans/project-spec.md` (read-only — reference only for planned CRC/contract-backed components)
 > 3. Load the Roadmap: `view_file plans/roadmap.md`
 > 4. Load the Integration Seams reference (if exists) via `seam_parser.load_seams('plans/seams.yaml')`
 
@@ -43,8 +43,7 @@ Before proceeding, output:
 Read the following without loading full file contents into context where possible — use `extract_structure.py` for `.py` files:
 
 - `tasks/[CP-ID].status` — for all checkpoints to confirm PASS
-- `interfaces/*.pyi` — all current contracts
-- `plans/project-spec.md` — current Interface Registry and CRC cards (read-only reference only)
+- `plans/project-spec.md` — current CRC cards and component contracts (read-only reference only)
 - `plans/roadmap.md` — current feature list and acceptance criteria
 - `plans/backlog.yaml` — open items (to avoid marking a feature complete if blockers exist)
 
@@ -100,7 +99,7 @@ For each `[ ]` item in `plans/backlog.yaml`:
 
 Full-project reconciliation of `plans/seams.yaml` against actual source code using `seam_parser`. This catches drift that `/io-review` Step F missed (skipped reviews, brownfield onboarding, accumulated changes).
 
-**If `plans/seams.yaml` does not exist:** Create it from `.claude/templates/seams.yaml`, then populate every implemented component that is also registered in the Interface Registry.
+**If `plans/seams.yaml` does not exist:** Create it from `.claude/templates/seams.yaml`, then populate every implemented component that is also registered in `plans/component-contracts.yaml`.
 
 **Load seams:** `seam_parser.load_seams('plans/seams.yaml')`. Use `find_by_component()` for lookups.
 
@@ -121,7 +120,7 @@ Full-project reconciliation of `plans/seams.yaml` against actual source code usi
 - Use `seam_parser.update_component()` for drifted fields, `add_component()` for missing entries, `remove_component()` for orphaned entries. Call `save_seams()` after all mutations.
 - Remove entries only when the component is absent from both the current implementation and `plans/project-spec.md` (true orphaned seam entries).
 - Do **not** modify the `backlog_refs` field -- that is populated by `/io-backlog-triage` during drain.
-- Do **not** auto-remove planned CRC/Protocol-backed components.
+- Do **not** auto-remove planned CRC/contract-backed components.
 - Report a summary of changes in Step G output.
 
 ---
@@ -165,10 +164,9 @@ Broken links fixed: [N]
 ## 3. CONSTRAINTS
 
 - Does not touch `plans/plan.yaml` — plan.yaml is owned by `/io-checkpoint`
-- Does not touch `interfaces/*.pyi` — contracts are owned by `/io-architect`
 - Does not edit `plans/project-spec.md` — it may be read as reference, but ownership remains outside `/doc-sync`
 - Does not **add new findings** to `plans/backlog.yaml` — new findings go via `stage_review_findings.py`. Closing resolved items (`[ ]` → `[x]`) is permitted in Step D.
 - `src/*/CLAUDE.md` — regenerated as derived navigation artifacts by sync_dir_claude.py
 - `roadmap.md` status updates require human approval
-- Do not auto-remove planned CRC/Protocol-backed components from `plans/seams.yaml`
+- Do not auto-remove planned CRC/contract-backed components from `plans/seams.yaml`
 - No implementation code written in this workflow

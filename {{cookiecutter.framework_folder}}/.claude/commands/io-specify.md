@@ -123,14 +123,14 @@ ROADMAP LOCKED.
 Features: [N]
 Dependency layers: [N]
 
-Next step: Run /io-architect to define CRC cards, Protocols, and the Interface Registry.
+Next step: Run /io-architect to define CRC cards and component contracts.
 ```
 
 ---
 
 ## 3. CONSTRAINTS
 
-- This workflow produces ONLY `plans/roadmap.md`. No `.pyi` files, no `project-spec.md` edits.
+- This workflow produces ONLY `plans/roadmap.md`. No `project-spec.md` or `component-contracts.yaml` edits.
 - Do not decompose features into checkpoints here — that is `/io-checkpoint`'s job.
 - Do not propose implementation approaches — roadmap entries describe outcomes, not mechanisms.
 - If the PRD is ambiguous about whether two things are one feature or two, flag it and ask before proceeding.

@@ -24,7 +24,6 @@ Usage:
 
 import argparse
 import logging
-import re
 import sys
 import tomllib
 from pathlib import Path
@@ -116,55 +115,23 @@ def get_owns(
 def get_public_via(
     comp_names: list[str],
     components: dict[str, ComponentContract],
-    interfaces_dir: Path,
 ) -> list[str]:
     """Build Public via lines from component-contracts.yaml.
 
-    Cross-references with interfaces/*.pyi existence.
+    Emits one line per non-composition-root component in the directory:
+    ``\\`ComponentName\\` -- <first responsibility>``. Composition roots
+    do not expose public Protocols and are skipped.
     """
     lines: list[str] = []
     for name in sorted(comp_names):
         comp = components.get(name)
         if comp is None:
             continue
-        # Skip composition roots -- they have no Protocol
         if comp.composition_root:
             continue
-        # Convention: protocol file is interfaces/{name}_protocol.pyi
-        # or interfaces/{snake_case_name}.pyi
-        # Search for any .pyi that references this component
-        protocol_file = _find_protocol_file(name, interfaces_dir)
-        if protocol_file:
-            rel_path = protocol_file.relative_to(interfaces_dir.parent)
-            lines.append(f"`{rel_path}` -- {name}")
+        desc = comp.responsibilities[0] if comp.responsibilities else name
+        lines.append(f"`{name}` -- {desc}")
     return lines
-
-
-def _find_protocol_file(comp_name: str, interfaces_dir: Path) -> Path | None:
-    """Find the .pyi file for a component by scanning filenames."""
-    if not interfaces_dir.exists():
-        return None
-    snake = _to_snake_case(comp_name)
-    # Try exact match first
-    for pattern in [f"{snake}.pyi", f"{snake}_protocol.pyi"]:
-        candidate = interfaces_dir / pattern
-        if candidate.exists():
-            return candidate
-    # Scan all .pyi files for one containing a class matching the component
-    for pyi in sorted(interfaces_dir.glob("*.pyi")):
-        try:
-            text = pyi.read_text(encoding="utf-8")
-            if f"class {comp_name}" in text or f"class {comp_name}Protocol" in text:
-                return pyi
-        except OSError:
-            continue
-    return None
-
-
-def _to_snake_case(name: str) -> str:
-    """Convert CamelCase to snake_case."""
-    s1 = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
-    return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 
 
 def get_must_not(
@@ -330,11 +297,10 @@ def sync_directory(
     Returns 0 on success, 2 if line limit exceeded.
     """
     dir_name = Path(dir_path).name
-    interfaces_dir = project_root / "interfaces"
 
     layer = get_layer(comp_names, seam_components)
     owns = get_owns(comp_names, components)
-    public_via = get_public_via(comp_names, components, interfaces_dir)
+    public_via = get_public_via(comp_names, components)
     must_not = get_must_not(comp_names, components, il_contracts, dir_path)
     key_files = get_key_files(
         dir_path,

@@ -1,0 +1,18 @@
+# /auto-architect Step F executes architect edits in sequence: seams.yaml
+# updates, CRC card writes via component-contracts.yaml + render_crc.py,
+# Approved: True stamp on project-spec.md. Covers every reset hook target
+# the workflow touches so a single grant spans the whole multi-artifact
+# edit batch. Template name matches the plan §3 designation.
+
+workflow: auto-architect
+step: F
+ttl_seconds: 1800
+grants:
+  write:
+    - plans/component-contracts.yaml
+    - plans/project-spec.md
+    - plans/seams.yaml
+    - plans/symbols.yaml
+  rm: []
+keywords: [auto-architect, multi-artifact-edit]
+context: "auto-architect Step F: multi-artifact edit batch (seams, CRC, component contracts, project-spec stamp)."

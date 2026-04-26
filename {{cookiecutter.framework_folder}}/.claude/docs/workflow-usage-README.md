@@ -39,11 +39,10 @@ Omit `-f --no-input` if you want cookiecutter to prompt for each variable intera
 
 ```
 Primary Path:
-/io-clarify -> /io-init -> /io-specify -> /io-architect -> /io-gen-protocols -> [io-test-author per Protocol] -> /io-checkpoint -> /validate-plan -> /io-plan-batch -> /validate-tasks -> dispatch-agents.sh [per CP: spawn-ct-writer.sh -> io-execute (generator) -> evaluator] -> /io-review
+/io-clarify -> /io-init -> /io-specify -> /io-architect -> /io-checkpoint -> /validate-plan -> /io-plan-batch -> /validate-tasks -> dispatch-agents.sh [per CP: io-execute (generator) -> evaluator] -> /io-review
 
-io-test-author: Tier-1 contract-test authoring step. Per Protocol, writes tests/contracts/test_<stem>.py. Dispatched via .claude/scripts/spawn-tester.sh.
+Test-authoring is deferred to Plan B (`/io-wire-tests`, not yet shipped).
 
-CT-Writer stage (Tier 3a, per CP, Phase 4): spawn-ct-writer.sh dispatches io-ct-author.md for each CP whose task file lists at least one CT where target_cp == this CP. Writes tests/connectivity/*.py against spy-mocked source Protocols before impl exists. Generator stage inherits CTs as read-only. A CP with zero target_cp CTs skips the ct-writer stage cleanly.
 
 Remediation Path (after /io-backlog-triage routes DESIGN/REFACTOR items):
 /io-backlog-triage -> /auto-architect -> /auto-checkpoint -> /validate-plan -> /io-plan-batch
@@ -54,7 +53,7 @@ Batch Loop (repeat until all checkpoints complete):
 Closeout (after final batch review):
 /io-review -> /gap-analysis -> /doc-sync
 
-Recovery Path (only for out-of-band .pyi changes):
+Recovery Path (only for out-of-band component-contracts.yaml changes):
 /io-architect -> /validate-spec -> /io-checkpoint
 ```
 
@@ -85,8 +84,6 @@ Resume mode skips the escalation flag gate, clean-tree gate, batch collection, a
 These are operator-facing scripts. Run them directly when you need the behavior.
 
 - `bash .claude/scripts/dispatch-agents.sh [--resume CP-XX]`: dispatches pending checkpoint tasks. With `--resume`, re-enters the pipeline for a single preserved worktree.
-- `bash .claude/scripts/spawn-tester.sh --protocol <stem>`: dispatches a Tier-1 Test Author session for one Protocol. `--protocol` must be the bare stem (e.g., `idataflow`), not a path. Exports `IOCANE_ROLE=tester` + `IOCANE_PROTOCOL=<stem>`; session-start.sh injects role-scoped orientation. Reads `models.tier1` from `iocane.config.yaml` (defaults to `claude-opus-4-6`). Parallel dispatch across Protocols lives in Phase 6b (`dispatch-testers.sh`, not yet shipped).
-- `bash .claude/scripts/spawn-ct-writer.sh --cp-id <CP-ID>`: dispatches a Tier-3a CT Author session for one CP (Phase 4). `--cp-id` must match `^CP-\d+(R\d+)?$`. Writes all connectivity tests whose `target_cp == <CP-ID>` under `tests/connectivity/*.py`, spy-mocking the source-side Protocols. Exports `IOCANE_ROLE=ct_author` + `IOCANE_CP_ID=<CP-ID>`; session-start.sh injects role-scoped orientation including a derived source-Protocol manifest. Reads `models.ct_author` from `iocane.config.yaml` (defaults to `claude-sonnet-4-6`). Invoked automatically by `dispatch-agents.sh` before the generator stage; can also be run standalone for debugging. Exits 0 cleanly when the CP has zero target_cp CTs.
 - `bash .claude/scripts/ci-sidecar.sh`: full suite regression detection (advisory). Subcommands: `pre-wave`, `post-wave`, `diff`. Config: `ci.timeout` (default 5m), `ci.enabled` (default true). Env overrides: `CI_TIMEOUT`, `CI_ENABLED`. Called automatically by dispatch-agents.sh; can also be run standalone.
 - `bash .claude/scripts/reset-failed-checkpoints.sh`: resets failed checkpoints for re-queue.
 - `bash .claude/scripts/archive-approved.sh`: archives approved checkpoint artifacts from `plans/tasks/` into `plans/archive/` and updates `plans/plan.yaml` status from `[ ] pending` to `[x] complete`. For remediation CPs, resolves the source backlog item via `Source BL:` lookup.
@@ -145,9 +142,9 @@ These are hook-driven and configured in `.claude/settings.json`. They are execut
 - `PostCompact`: `.claude/hooks/post-compact.sh`
 - `Stop`: `.claude/hooks/stop-gate.sh`
 - `UserPromptSubmit`: `.claude/hooks/prompt-submit.sh`
-- `PreToolUse (Edit|Write)`: `.claude/hooks/workflow-state-gate.sh`, `.claude/hooks/write-gate.sh`, `.claude/hooks/secret-scan.sh`, `.claude/hooks/environ-gate.sh`, `.claude/hooks/py-create-context.sh` *(async)*, `.claude/hooks/backslash-path.sh`, `.claude/hooks/emoji-scan.sh`, `.claude/hooks/architect-boundary.sh`, `.claude/hooks/design-before-contract.sh`
+- `PreToolUse (Edit|Write)`: `.claude/hooks/workflow-state-gate.sh`, `.claude/hooks/write-gate.sh`, `.claude/hooks/secret-scan.sh`, `.claude/hooks/environ-gate.sh`, `.claude/hooks/py-create-context.sh` *(async)*, `.claude/hooks/backslash-path.sh`, `.claude/hooks/emoji-scan.sh`, `.claude/hooks/architect-boundary.sh`
 - `PreToolUse (Bash)`: `.claude/hooks/forbidden-tools.sh`, `.claude/hooks/rtk-enforce.sh`
-- `PostToolUse (Edit|Write)`: `.claude/hooks/reset-on-prd-write.sh`, `.claude/hooks/reset-on-project-spec-write.sh`, `.claude/hooks/reset-on-plan-write.sh`, `.claude/hooks/reset-on-pyi-write.sh`, `.claude/hooks/reset-on-symbols-write.sh`, `.claude/hooks/reset-on-test-plan-write.sh`, `.claude/hooks/backlog-id-assign.sh`, `.claude/hooks/backlog-tag-validate.sh`, `.claude/hooks/archive-sync.sh` *(async)*, `.claude/hooks/validate-yaml.sh`, `.claude/hooks/task-validation-report-write.sh`
+- `PostToolUse (Edit|Write)`: `.claude/hooks/reset-on-prd-write.sh`, `.claude/hooks/reset-on-project-spec-write.sh`, `.claude/hooks/reset-on-plan-write.sh`, `.claude/hooks/reset-on-symbols-write.sh`, `.claude/hooks/reset-on-test-plan-write.sh`, `.claude/hooks/backlog-id-assign.sh`, `.claude/hooks/backlog-tag-validate.sh`, `.claude/hooks/archive-sync.sh` *(async)*, `.claude/hooks/validate-yaml.sh`, `.claude/hooks/task-validation-report-write.sh`
 - `PostToolUse (Bash)`: `.claude/hooks/escalation-gate.sh`
 - `PostToolUseFailure`: `.claude/hooks/tool-failure.sh`
 
@@ -197,31 +194,38 @@ Tier 1 artifacts carry validation stamps that gate downstream workflows. Any sub
 | Artifact | Stamp | Gating Workflow | Gates |
 |----------|-------|-----------------|-------|
 | `plans/PRD.md` | `**Clarified:** True/False` (markdown) | `/io-clarify` | `/io-specify` |
-| `plans/test-plan.yaml` | `validated: true/false` (YAML field) | `/io-architect` Step H-post-validate | `/io-checkpoint`, `/io-test-author` |
+| `plans/test-plan.yaml` | `validated: true/false` (YAML field) | `/io-architect` Step G | `/io-checkpoint` |
 | `plans/plan.yaml` | `validated: true/false` (YAML field) | `/validate-plan` Step 13 | `/io-plan-batch` |
 
 Notes:
+
 - `test-plan.yaml.validated` is set by `/io-architect` after its two deterministic gates pass (`validate_symbols_coverage.py` + `validate_test_plan_completeness.py`). `/validate-plan` does NOT touch this stamp -- the architect is the only authority.
-- `plan.yaml.validated` is set by `/validate-plan` Step 13 under the validating sentinel, then the sentinel is explicitly removed at Step 13-post.
-- Reset chain: .pyi writes reset both plan.yaml and test-plan.yaml; symbols.yaml writes reset both; test-plan.yaml writes reset plan.yaml only. See `docs/enforcement-mapping.md` for the full table.
+- `plan.yaml.validated` is set by `/validate-plan` Step 13 under an `io-architect.H`-class capability grant.
+- Reset chain: component-contracts.yaml writes reset both plan.yaml and test-plan.yaml; symbols.yaml writes reset both; test-plan.yaml writes reset plan.yaml only. See `docs/enforcement-mapping.md` for the full table.
 - `plans/project-spec.md` is retired as a canonical artifact -- no agent reads or writes it. `/validate-spec` is retired with it (Phase 9 of the rebuild plan).
 
 ### Exempting a write from stamp reset
 
-Workflows that write stamps (not substantive content) must bracket all writes in the approval step with sentinel file creation and deletion to prevent a reset loop:
+Workflow steps that write canonical artifacts (stamps or substantive content) bracket their writes in a **capability grant** that declares the exact paths they will write. Reset hooks consult the per-session cache at `.iocane/sessions/<session_id>.active.txt` and bypass when a matching write pattern is covered. See `harness/references/capability-gate.md` for the primitive.
 
-    Step N-pre:  bash: mkdir -p .iocane && touch .iocane/validating
+#### Pattern
+
+    Step N-pre:  bash: uv run python .claude/scripts/capability.py grant --template <workflow>.<step>
     Step N:      [Edit/Write operations -- strictly sequential, never parallel]
+    Step N-post: bash: uv run python .claude/scripts/capability.py revoke --template <workflow>.<step>
 
-The sentinel must cover ALL writes in the approval step, not just the stamp itself. For example, `/io-architect` Step H writes CRC cards, `.pyi` files, AND the Approved stamp -- the sentinel is active for the entire sequence.
+The grant covers ALL writes declared in the template. Grant templates live at `harness/capability-templates/<workflow>.<step>.yaml` and are git-tracked + PR-reviewable (the authoritative catalog of what each step writes).
 
-**Auto-cleanup:** `/io-clarify` relies on hook auto-deletion triggered by the `**Clarified:** True` stamp write.
+**Migrated workflows + their templates:**
 
-**Explicit cleanup required:** `/io-architect` (Step H-5), `/io-checkpoint` (Step G-symbols), `/validate-plan` (Step 13-post), and `/doc-sync` all remove the sentinel explicitly. The architect-era Approved-stamp auto-detection was retired along with `project-spec.md`, so every workflow that sets the sentinel must now clean it up itself or risk a stale sentinel that silently bypasses gates.
+- `/io-architect` Step H → `io-architect.H`
+- `/io-checkpoint` Step H (used_by_cps backfill) → `io-checkpoint.H`
+- `/io-clarify` Step 7 (Clarified stamp) → `io-clarify.7`
+- `/validate-plan` Step 13 (validated stamp) → `validate-plan.13`
+- `/io-design-evaluator` Step A (findings emission) → `io-design-evaluator.A`
+- `/auto-architect` Step F (multi-artifact edit batch) → `auto-architect.architect`
 
-**Stale-sentinel guard:** `scripts/check-validating-sentinel.sh` adds a 60-minute TTL on top of explicit cleanup. Every bypass-aware hook calls this helper; if the sentinel is older than `IOCANE_SENTINEL_TTL_SEC` (default 3600), the helper removes it and the gate runs normally. Within-session leakage (workflow error between sentinel set and explicit cleanup) is bounded by this TTL.
-
-**Cross-session cleanup:** The sentinel is automatically cleared on session start and session end. If it is unexpectedly present at session start, it means a previous session crashed mid-stamp -- the session-start hook clears it.
+**Defense in depth:** explicit revoke is primary. Session-end sweeps revoke any still-live grants. A 24-hour hard TTL ceiling clamps buggy authors as a crash-safety floor.
 
 ---
 
@@ -233,11 +237,10 @@ The sentinel must cover ALL writes in the approval step, not just the stamp itse
 | `/io-adopt` | Adopt an existing codebase into Iocane with extracted current-state + draft PRD | `plans/current-state.md`, `plans/PRD.md` |
 | `/io-init` | Bootstrap project structure and stub roadmap from clarified PRD | `plans/roadmap.md`, `plans/backlog.yaml` |
 | `/io-specify` | Propose feature roadmap from clarified PRD | `plans/roadmap.md` |
-| `/io-architect` | Design CRC cards, Protocols, Interface Registry | `plans/project-spec.md`, `interfaces/*.pyi`, `plans/seams.yaml`, `src/*/CLAUDE.md` |
-| `/io-test-author` | Tier 1 (per Protocol). Write contract tests for one Protocol. Dispatched by `spawn-tester.sh`. | `tests/contracts/test_<stem>.py` |
+| `/io-architect` | Design CRC cards, component contracts, Interface Registry | `plans/project-spec.md`, `plans/component-contracts.yaml`, `plans/seams.yaml`, `src/*/CLAUDE.md` |
 | `/io-replan` | Propagate PRD deltas into roadmap/spec and route impacts | `plans/roadmap.md`, `plans/project-spec.md`, `plans/backlog.yaml` |
 | `/io-checkpoint` | Define atomic checkpoints and connectivity tests | `plans/plan.yaml`, `plans/backlog.yaml` (remediation: Routed annotation via script) |
-| `/auto-architect` | Resolve DESIGN/REFACTOR backlog items via sub-agent research + evaluator gate | `plans/project-spec.md`, `interfaces/*.pyi`, `plans/component-contracts.yaml`, `plans/seams.yaml`, `plans/backlog.yaml`, `src/*/CLAUDE.md` |
+| `/auto-architect` | Resolve DESIGN/REFACTOR backlog items via sub-agent research + evaluator gate | `plans/project-spec.md`, `plans/component-contracts.yaml`, `plans/seams.yaml`, `plans/backlog.yaml`, `src/*/CLAUDE.md` |
 | `/auto-checkpoint` | Batch-generate remediation CPs from triage-approved routing prompts | `plans/plan.yaml`, `plans/backlog.yaml` (Routed annotation) |
 | `/validate-plan` | Validate `plan.yaml` CDD compliance before batch composition | `plans/plan.yaml` (stamp only) |
 | `/io-plan-batch` | Compose dispatch batch, score confidence, get human approval | `plans/tasks/CP-XX.yaml` (on acceptance) |
@@ -245,11 +248,10 @@ The sentinel must cover ALL writes in the approval step, not just the stamp itse
 | `/task-recovery` | Regenerate task files for CPs with MECHANICAL findings | `plans/tasks/CP-XX.yaml` (regenerated) |
 | `dispatch-agents.sh` | Dispatch agents (run directly via `bash .claude/scripts/dispatch-agents.sh [--resume CP-XX]`) | none |
 | `/io-execute` | Tier 3 sub-agent workflow that executes one checkpoint task file | `plans/tasks/CP-XX.status`, checkpoint write targets |
-| `/validate-spec` | Detect CRC-Protocol drift and re-earn `**Approved:** True` (recovery path) | `plans/project-spec.md` (stamp only) |
+| `/validate-spec` | Detect CRC-contract drift and re-earn `**Approved:** True` (recovery path) | `plans/project-spec.md` (stamp only) |
 | `/doc-sync` | Reconcile docs with codebase after feature completion | `plans/project-spec.md`, `plans/roadmap.md`, `plans/seams.yaml`, `README.md`, `src/*/CLAUDE.md` |
 | `/io-review` | Post-implementation review | `plans/seams.yaml` (Step F), `src/*/CLAUDE.md` (Step F-post), `plans/review-output.yaml` (via `stage_review_findings.py`) |
 | `/io-backlog-triage` | Drain staging + triage open backlog items with approved routing decisions | `plans/backlog.yaml` (reads `plans/review-output.yaml` staging) |
-| `/io-ct-author` | Tier 3a (per CP). Primary flow: write all connectivity tests where target_cp == this CP, before generator runs. Dispatched by `spawn-ct-writer.sh`. Source Protocols spy-mocked; no gate run. | `tests/connectivity/*.py` per `task.connectivity_tests[].file` |
 | `/io-ct-remediate` | Remediation flow: create missing connectivity test(s) from CT spec for archived checkpoints. Imports both sides real; runs gate; closes backlog entry. | CT file path from `plans/plan.yaml`, `plans/backlog.yaml` |
 | `/gap-analysis` | Identify gaps between implementation and spec | `plans/review-output.yaml` (via `stage_review_findings.py`) |
 
@@ -276,14 +278,12 @@ models:
   tier1: claude-opus-4-6           # Strategic: io-clarify, io-architect, io-checkpoint, review
   tier2: claude-sonnet-4-6         # Orchestration: io-plan-batch, validate-plan, validate-spec
   tier3: claude-haiku-4-5-20251001 # Execution: io-execute sub-agents (dispatch-agents.sh)
-  ct_author: claude-sonnet-4-6     # Tier 3a: connectivity test author (spawn-ct-writer.sh)
 ```
 
 - **Tier 1 (interactive workflows):** `models.tier1` is documented guidance only. The user selects the active model in their Claude Code session; the config entry communicates intent.
 - **Tier 2 (orchestration workflows):** `models.tier2` is documented guidance only. `/io-plan-batch`, `/validate-plan`, and `/validate-spec` run interactively in the user's session.
 - **Tier 3 (sub-agents):** `models.tier3` is the value `dispatch-agents.sh` passes to `claude -p --model`. This is the only model setting that is programmatically enforced.
-- **Tier 3a (CT Author sub-agents, Phase 4):** `models.ct_author` is the value `spawn-ct-writer.sh` passes to `claude -p --model` when dispatched by `dispatch-agents.sh` per CP. Sonnet is the default because CT expansion is bounded but needs test-data reasoning. Missing key falls back to in-code default `claude-sonnet-4-6` with stderr warning.
-- **Override:** The `IOCANE_MODEL` environment variable overrides `models.tier3` (and `models.ct_author` when invoking `spawn-ct-writer.sh`) for ad-hoc runs when the config is absent or unreadable.
+- **Override:** The `IOCANE_MODEL` environment variable overrides `models.tier3` for ad-hoc runs when the config is absent or unreadable.
 
 ---
 
@@ -303,4 +303,4 @@ The following workflows require human interaction and must never be dispatched h
 
 ## Notes
 
-- `.pyi` writes (out-of-band, outside `/io-architect`) reset both `project-spec.md` approval and `plan.yaml` validation. Always use `/io-architect` to modify contracts. If a `.pyi` change is unavoidable, run `/validate-spec` to recover the `**Approved:** True` stamp before proceeding to `/io-checkpoint`.
+- `component-contracts.yaml` writes (out-of-band, outside `/io-architect`) reset both `project-spec.md` approval and `plan.yaml` validation. Always use `/io-architect` to modify contracts. If a `component-contracts.yaml` change is unavoidable, run `/validate-spec` to recover the `**Approved:** True` stamp before proceeding to `/io-checkpoint`.

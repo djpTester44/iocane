@@ -1,0 +1,17 @@
+# /validate-plan Step 13 stamps plans/plan.yaml with `validated: true`
+# (or `false` on FAIL) plus validated_date and validated_note. Without
+# this grant, reset-on-plan-write.sh's content-detection would see the
+# stamp-only write and unstamp it, producing an infinite reset loop.
+# Inner content-detection + workflow-state.json transition stays in the
+# hook (validated:true -> next=io-plan-batch); only the outer reset is
+# bypassed.
+
+workflow: validate-plan
+step: "13"
+ttl_seconds: 600
+grants:
+  write:
+    - plans/plan.yaml
+  rm: []
+keywords: [validate-plan, plan-stamp, validated]
+context: "validate-plan Step 13: validated: true/false stamp on plans/plan.yaml."

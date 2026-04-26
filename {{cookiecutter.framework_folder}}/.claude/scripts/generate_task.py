@@ -124,14 +124,13 @@ def generate_task(
     # Field 7: contract
     contract = resolved_contract(cp)
     if contract is None:
-        msg = f"No contract and no scope for {cp_id} -- cannot resolve contract"
+        msg = f"No contract set for {cp_id} -- cannot resolve contract"
         raise ValueError(msg)
 
     # Field 11: connectivity_tests (target_cp only).
-    # Phase 4: CT file paths live ONLY in task.connectivity_tests[].file
-    # for consumption by the ct_author stage (spawn-ct-writer.sh).
+    # CT file paths live ONLY in task.connectivity_tests[].file.
     # Duplicating them into write_targets would grant the generator
-    # write-scope coverage over files owned by ct_author.
+    # write-scope coverage over files it must treat as read-only.
     all_cts = connectivity_tests_for_cp(plan, cp_id)
     target_cts = [ct for ct in all_cts if ct.target_cp == cp_id]
     task_cts = [_project_ct(ct) for ct in target_cts]

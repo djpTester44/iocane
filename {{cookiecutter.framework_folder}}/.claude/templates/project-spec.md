@@ -19,12 +19,12 @@
 * **Layer 4 (Entrypoint):** `src/main.py` or `src/jobs/` (CLI commands, API endpoints, job runners)
 
 ## 3. Interface Registry
-[A mapping of every structural component to its corresponding protocol contract and implementation path.]
+[A mapping of every structural component to its implementation path. Behavioral contracts live in `plans/component-contracts.yaml`.]
 
-| Component Name | Protocol Contract | Target Implementation Path |
-| :--- | :--- | :--- |
-| [e.g., Inference Router] | `interfaces/inference.pyi` | `src/domain/inference_router.py` |
-| [e.g., State Store] | `interfaces/storage.pyi` | `src/lib/redis_adapter.py` |
+| Component Name | Target Implementation Path |
+| :--- | :--- |
+| [e.g., Inference Router] | `src/domain/inference_router.py` |
+| [e.g., State Store] | `src/lib/redis_adapter.py` |
 
 ## 4. System Dependency Graph
 [A Mermaid diagram illustrating the data flow and strict dependency directionality between the registered components.]
@@ -45,14 +45,13 @@ graph TD
 ### [ComponentName]
 **Layer:** [1-Foundation | 2-Utility | 3-Domain | 4-Entrypoint]
 **File:** `src/[path]/[module].py`
-**Protocol:** `interfaces/[protocol].pyi`
 
 **Responsibilities:**
-- [Observable behavior — maps to at least one Protocol method]
+- [Observable behavior — maps to at least one entry in the component contract's `methods` list]
 - [Each responsibility is testable in isolation]
 
 **Collaborators:**
-- [ComponentName] via [ProtocolName] — [why needed]
+- [ComponentName] via [ContractName] — [why needed]
 
 **Must NOT:**
 - [Explicit negative constraint — what this component must never do]

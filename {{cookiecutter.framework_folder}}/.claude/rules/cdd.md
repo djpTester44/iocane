@@ -1,7 +1,6 @@
 ---
 paths:
   - "plans/**"
-  - "interfaces/**"
   - "src/**"
   - "tests/**"
 ---
@@ -25,9 +24,9 @@ only catch byte-for-byte edits to the code they were extracted from.
 
 ## [HARD] Seven Principles
 
-1. **Contract first, always.** No impl, no test, before the `.pyi`.
+1. **Contract first, always.** No impl, no test, before the contract.
 2. **Contracts define behavior, not just shape.** Types, signatures,
-   `@pre`, `@post`, `@throws`, invariants -- all five are required.
+   `@throws`, invariants -- all four are required.
 3. **Tests are derived from contracts.** Read the contract; each clause
    produces one or more tests. Never read the impl to decide what to test.
 4. **Independent implementability.** A contract that cannot be implemented
@@ -56,11 +55,3 @@ contract tests, testers cannot write impl tests.
 
 If a TDD cycle reveals you want a different public interface, that is a
 contract amendment proposal, not a silent contract edit.
-
-## References
-
-- `references/cdd/principles.md` -- full seven-principle doctrine with
-  agent-facing workflow (design -> verify -> test -> implement -> audit).
-- `references/cdd/cdt-vs-impl-testing.md` -- full CDT/impl-test taxonomy
-  with directional diagram, worked example, and the retroactive-contract
-  trap detection checklist.

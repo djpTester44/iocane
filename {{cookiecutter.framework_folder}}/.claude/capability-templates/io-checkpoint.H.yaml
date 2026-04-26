@@ -1,0 +1,16 @@
+# /io-checkpoint's used_by_cps backfill writes plans/symbols.yaml to add
+# CP-ID lists to each symbol's used_by_cps field. This is a value-preserving
+# update that must not cascade into the reset-on-symbols-write.sh hook --
+# that cascade would strip plans/test-plan.yaml's validated stamp, which is
+# owned by /io-architect Step G and represents the architect's
+# self-blessing. A routine CP-ID backfill must not invalidate it.
+
+workflow: io-checkpoint
+step: H
+ttl_seconds: 1800
+grants:
+  write:
+    - plans/symbols.yaml
+  rm: []
+keywords: [checkpoint, used-by-cps-backfill]
+context: "io-checkpoint Step H: used_by_cps backfill into symbols.yaml (value-preserving; protect test-plan.yaml stamp)."

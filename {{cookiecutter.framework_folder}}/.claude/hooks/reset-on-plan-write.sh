@@ -2,10 +2,11 @@
 # PostToolUse hook: Edit | Write
 # Resets the validated stamp in plans/plan.yaml after any substantive write.
 #
-# Exempt: if .iocane/validating sentinel file exists, the write is a stamp-only
-# update (e.g. /validate-plan setting validated: true) and must NOT be reset.
-# The sentinel is created before the stamp write and deleted after. It persists
-# across tool calls within a session because it is shared filesystem state.
+# Bypass: if a capability grant covers write:plans/plan.yaml for this
+# session, the write is authored (e.g. /validate-plan Step 13 setting
+# validated: true). Inside the bypass, content detection drives the
+# workflow-state transition toward io-plan-batch -- legitimate state-
+# machine logic.
 #
 # Uses raw yaml.safe_load/yaml.dump -- NO Pydantic. This hook fires on every
 # Edit/Write; full load_plan/save_plan is a performance hit and risks re-trigger.
@@ -15,37 +16,38 @@
 
 INPUT=$(cat)
 
-if [ -f ".iocane/validating" ]; then
-    # If this write IS the validated stamp itself, the sentinel's job is done.
-    # Auto-delete so the agent does not need an explicit cleanup step.
-    NEW_CONTENT=$(printf '%s' "$INPUT" | uv run python -c "
+EXTRACT=$(printf '%s' "$INPUT" | uv run python -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
-    ti = d.get('tool_input', {})
-    print(ti.get('new_string', '') or ti.get('content', ''))
 except Exception:
-    print('')
-")
-    if echo "$NEW_CONTENT" | grep -qE "^validated:[[:space:]]*(true|True)[[:space:]]*$"; then
-        rm -f .iocane/validating
-        # State derivation: validated stamp just set -> ready for batch generation
-        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
-        mkdir -p .iocane
-        printf '{"next":"io-plan-batch","trigger":"plan.yaml (validated: true)","timestamp":"%s"}\n' \
-            "$TIMESTAMP" > .iocane/workflow-state.json
-    fi
-    exit 0
-fi
+    print('\\n\\n'); sys.exit(0)
+sid = d.get('session_id', '') or ''
+ti = d.get('tool_input') or {}
+fp = ti.get('file_path', '') or ''
+content = ti.get('new_string', '') or ti.get('content', '') or ''
+print(sid)
+print(fp)
+print(content)
+" 2>/dev/null)
 
-FILE_PATH=$(printf '%s' "$INPUT" | uv run python -c "
-import sys, json
-try:
-    d = json.load(sys.stdin)
-    print(d.get('tool_input', {}).get('file_path', ''))
-except Exception:
-    print('')
-")
+SID=$(printf '%s' "$EXTRACT" | sed -n '1p')
+FILE_PATH=$(printf '%s' "$EXTRACT" | sed -n '2p')
+NEW_CONTENT=$(printf '%s' "$EXTRACT" | sed -n '3,$p')
+
+if [ -n "$SID" ] && [ -n "$FILE_PATH" ]; then
+    if bash .claude/scripts/capability-covers.sh "$SID" "write" "$FILE_PATH"; then
+        # Authored write. If this is the validated:true stamp, drive
+        # the workflow-state transition toward io-plan-batch.
+        if echo "$NEW_CONTENT" | grep -qE "^validated:[[:space:]]*(true|True)[[:space:]]*$"; then
+            TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
+            mkdir -p .iocane
+            printf '{"next":"io-plan-batch","trigger":"plan.yaml (validated: true)","timestamp":"%s"}\n' \
+                "$TIMESTAMP" > .iocane/workflow-state.json
+        fi
+        exit 0
+    fi
+fi
 
 if [ -z "$FILE_PATH" ]; then
     exit 0
@@ -59,9 +61,7 @@ print('yes' if p.endswith('plans/plan.yaml') else 'no')
 
 if [ "$MATCH" = "yes" ] && [ -f "plans/plan.yaml" ]; then
     # Single python invocation: mutate the plan file AND derive post-reset
-    # state. Raw yaml.safe_load (not Pydantic) per the header-comment
-    # performance guard; the state-derivation read is piggybacked on the
-    # mutation read, so there is no extra file open.
+    # state.
     STATE=$(uv run python -c "
 import yaml
 path = 'plans/plan.yaml'
@@ -82,15 +82,12 @@ print(f'{v}|{h}')
     HAS_COMPLETE="${STATE#*|}"
 
     if [ -n "$HAS_COMPLETE" ]; then
-        # dispatch-agents.sh just merged a CP and updated status
         NEXT="io-review"
         TRIGGER="plan.yaml (CP status: complete)"
     elif [ -n "$VALIDATED" ]; then
-        # /validate-plan just stamped the plan (shouldn't reach here due to sentinel)
         NEXT="io-plan-batch"
         TRIGGER="plan.yaml (validated: true)"
     else
-        # plan.yaml written or validation reset
         NEXT="validate-plan"
         TRIGGER="plan.yaml (validated: false)"
     fi

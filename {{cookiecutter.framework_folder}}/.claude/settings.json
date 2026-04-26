@@ -28,15 +28,7 @@
             "type": "command"
           },
           {
-            "command": "bash .claude/hooks/reset-on-project-spec-write.sh",
-            "type": "command"
-          },
-          {
             "command": "bash .claude/hooks/reset-on-plan-write.sh",
-            "type": "command"
-          },
-          {
-            "command": "bash .claude/hooks/reset-on-pyi-write.sh",
             "type": "command"
           },
           {
@@ -134,15 +126,7 @@
             "type": "command"
           },
           {
-            "command": "bash .claude/hooks/design-before-contract.sh",
-            "type": "command"
-          },
-          {
-            "command": "bash .claude/hooks/interfaces-pyi-only.sh",
-            "type": "command"
-          },
-          {
-            "command": "bash .claude/hooks/interfaces-codegen-only.sh",
+            "command": "bash .claude/hooks/capability-gate.sh",
             "type": "command"
           }
         ],
@@ -159,7 +143,7 @@
             "type": "command"
           },
           {
-            "command": "bash .claude/hooks/interfaces-bash-write.sh",
+            "command": "bash .claude/hooks/capability-gate.sh",
             "type": "command"
           }
         ],
@@ -169,10 +153,6 @@
         "hooks": [
           {
             "command": "bash .claude/hooks/forbidden-tools.sh",
-            "type": "command"
-          },
-          {
-            "command": "bash .claude/hooks/interfaces-powershell-write.sh",
             "type": "command"
           }
         ],

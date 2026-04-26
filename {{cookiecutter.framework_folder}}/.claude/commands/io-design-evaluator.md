@@ -1,0 +1,155 @@
+---
+name: io-design-evaluator
+description: Semantic design-evaluator subprocess. Reads io-architect's canonical four-artifact set and emits OBSERVATION findings against the design rubric. Tier 1 (Opus). Spawned by harness/scripts/spawn-artifact-evaluator.sh --rubric design at io-architect Step H. Never halts; iteration is bounded by the caller.
+---
+
+> **[NO PLAN MODE]**
+> This workflow runs as a subprocess from the architect spawn helper.
+> No proposals. No human interaction. Emit findings; exit 0.
+
+> **[CRITICAL] CONTEXT LOADING**
+> Load only the four canonical artifacts named in the spawn prompt
+> plus the artifact-evaluator skill (`SKILL.md` +
+> `references/design-eval-rubric.md`). Do NOT read implementation
+> files, dispatch logs, or upstream planning documents.
+
+# WORKFLOW: IO-DESIGN-EVALUATOR
+
+**Objective.** Apply the eight-category design rubric semantically
+against the canonical artifact set. Emit one Finding per defect via
+`findings_emitter.emit_finding`. Print a summary line. Exit 0.
+
+**Chain positioning.**
+
+```
+io-architect Step H -> spawn-artifact-evaluator.sh --rubric design
+  -> [io-design-evaluator] -> findings emitted to .iocane/findings/
+  -> io-architect re-reads, revises, re-runs (5-cycle bound)
+```
+
+The architect's iteration loop -- not this subprocess -- enforces
+the budget. Halting from inside the subprocess corrupts the loop.
+
+---
+
+## 1. STATE INITIALIZATION
+
+The spawn prompt names four canonical artifact paths:
+
+- `contracts` -- `plans/component-contracts.yaml`
+  (`ComponentContractsFile`)
+- `seams` -- `plans/seams.yaml` (`SeamsFile`)
+- `symbols` -- `plans/symbols.yaml` (`SymbolsFile`)
+- `test-plan` -- `plans/test-plan.yaml` (`TestPlanFile`)
+
+Read all four. Read the artifact-evaluator skill `SKILL.md` and
+`references/design-eval-rubric.md` to load the methodology and the
+eight reasoning categories. Do not read any other file -- the rubric
+is self-contained against the four canonical artifacts.
+
+---
+
+## 2. PROCEDURE
+
+**Step A-pre:** `bash: uv run python .claude/scripts/capability.py grant --template io-design-evaluator.A`
+
+Issues the capability grant that authorizes findings emission to `.iocane/findings/*.yaml`. The grant is declared in `harness/capability-templates/io-design-evaluator.A.yaml` -- git-tracked, PR-reviewable. `session-end.sh` revokes any live grants automatically when the subprocess exits; no explicit revoke step is required.
+
+### Step A: APPLY THE RUBRIC
+
+For each of the eight categories in `design-eval-rubric.md`,
+reason across the four-artifact set:
+
+1. **Tautological Invariants** -- scan
+   `TestPlanFile.entries[component].invariants[].statement` for
+   restatements of types, names, or framework guarantees.
+2. **Vague Raises Triggers** -- scan
+   `ComponentContract.raises[]` strings for trigger phrasing that
+   does not name a concrete precondition.
+3. **Suspicious Symbol Classifications** -- cross-reference
+   `SymbolsFile` `kind` / `declared_in` against the same names'
+   usage in `ComponentContractsFile`.
+4. **Missing Adversarial Coverage** -- scan
+   `ComponentContract.responsibilities` for security-sensitive or
+   input-validation surfaces; check that the matching `raises` and
+   the matching `entries[component].invariants` carry adversarial
+   triggers.
+5. **Near-Duplicate Symbols** -- scan `SymbolsFile` for entries that
+   differ only in case, pluralization, underscores, or one-character
+   typos and that both appear on the same component's surface.
+6. **Over-Abstracted Parameter Types** -- scan
+   `ComponentContract.responsibilities` and
+   `ComponentContract.raises[]` for `Any`, `object`, `dict`, or
+   unparameterized `Mapping` references that strip the test surface.
+7. **Implementation-Leaking Docstrings** -- scan
+   `ComponentContract.responsibilities` and
+   `TestPlanEntry.narrative` for prose describing HOW (algorithm,
+   internal state, library) instead of WHAT (guaranteed behavior).
+8. **Responsibility Cohesion Drift** -- scan
+   `ComponentContract.responsibilities` for two-or-more unrelated
+   concerns bundled into one component (composition_root components
+   exempt).
+
+### Step B: EMIT FINDINGS
+
+For each defect surfaced under Step A, construct one `Finding` and
+call `findings_emitter.emit_finding(finding, repo_root=Path.cwd())`.
+Follow the SKILL.md emission contract verbatim:
+
+- `role = FindingRole.EVALUATOR_DESIGN`
+- `defect_kind` = the slug named in the rubric category (the schema
+  validator rejects unknown slugs)
+- `diagnosis.what` -- the concrete defect (one sentence)
+- `diagnosis.where` -- artifact path + locator
+  (`plans/test-plan.yaml entries.router invariants[0]` style)
+- `diagnosis.why` -- the specific reasoning (NEVER empty; the
+  schema validator rejects empty values for this role)
+- `affected_artifacts` -- the canonical YAML files the architect
+  must edit
+- `remediation.root_cause_layer = RootCauseLayer.YAML_CONTRACT`
+  (design defects are YAML-layer)
+- `remediation.fix_steps` -- the actionable edit
+- `remediation.re_entry_commands = ["/io-architect"]`
+
+Each Finding emits to a separate file -- one defect per FindingFile
+per the SKILL.md emission contract. Use the emitter; do not write
+YAML by hand.
+
+### Step C: SUMMARY LINE
+
+Print exactly one line to stdout:
+
+- If zero findings emitted: `PASS    -- 0 findings emitted`
+- If one or more emitted:
+  `OBSERVATION -- N findings emitted; first at <path-from-emitter>`
+
+The architect parses this line; per-defect chatter is noise.
+
+### Step D: EXIT 0
+
+Always exit 0 -- whether findings were emitted or not. A non-zero
+exit is interpreted as evaluator infrastructure failure, not as a
+design verdict. The architect's 5-cycle bound is the only
+termination authority.
+
+---
+
+## 3. CONSTRAINTS
+
+- **Read-only on canonical artifacts.** Never write or edit
+  `component-contracts.yaml`, `seams.yaml`, `symbols.yaml`, or
+  `test-plan.yaml`. The architect re-authors them.
+- **Write only via emitter.** Findings flow through
+  `findings_emitter.emit_finding`. No direct YAML writes to
+  `.iocane/findings/`.
+- **Allowed tools fence (set by spawn helper):**
+  `Bash,Read,Write,Grep,Glob`. `Bash` is required to issue the
+  capability grant at Step A-pre and to invoke `findings_emitter`
+  (`uv run python ...`); `forbidden-tools.sh`, `rtk-enforce.sh`, and
+  `capability-gate.sh` continue to gate it centrally. `Edit` is
+  excluded -- the subprocess never mutates canonical artifacts.
+- **One defect per Finding.** Related-but-distinct defects emit as
+  separate findings, even when surfaced in the same review pass.
+- **No halt.** The subprocess never raises a HARD verdict. Caller
+  iteration -- io-architect Step H 5-cycle bound -- is the only
+  budget surface.

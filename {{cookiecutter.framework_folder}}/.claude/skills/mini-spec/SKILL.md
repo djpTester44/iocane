@@ -5,7 +5,7 @@ description: Generates CRC cards and Sequence Diagrams to anchor behavioral logi
 
 # MINI-SPEC: Behavioral Anchoring
 
-> **Purpose:** To prevent "Unanchored Code" by defining the internal behavior (Design) of a component before the Type Signature (Contract) is written.
+> **Purpose:** To prevent "Unanchored Code" by defining the internal behavior (Design) of a component before the component contract (Contract) is written.
 
 ## 1. Position in the Workflow
 
@@ -13,7 +13,7 @@ description: Generates CRC cards and Sequence Diagrams to anchor behavioral logi
 PRD -> /io-clarify -> /io-specify -> [/io-architect uses mini-spec] -> /io-checkpoint -> /io-plan-batch -> /validate-tasks -> dispatch-agents.sh
 ```
 
-This skill is invoked by `/io-architect` during the CRC card and Protocol design steps. It defines what a component does (Design) before the `.pyi` contract is written (Contract).
+This skill is invoked by `/io-architect` during the CRC card and contract design steps. It defines what a component does (Design) before the component contract is written (Contract).
 
 ## 2. CRC Card Standard
 
@@ -25,13 +25,12 @@ Class-Responsibility-Collaboration (CRC) cards map the observable behavior of a 
 ### [ComponentName]
 **Layer:** [1-Foundation | 2-Utility | 3-Domain | 4-Entrypoint]
 **File:** `src/[path]/[module].py`
-**Protocol:** `interfaces/[protocol].pyi`
 
 **Responsibilities:**
 - [Each responsibility is a testable behavioral statement]
 
 **Collaborators:**
-- [ComponentName] via [ProtocolName] — [why needed]
+- [ComponentName] via [ContractName] — [why needed]
 
 **Must NOT:**
 - [Explicit negative constraint — what this component must never do]
@@ -50,10 +49,10 @@ hand-authored input.
 
 - **Observable behaviors only:** Responsibilities describe outcomes, not implementation steps. "Validates payload against domain model" not "calls `.model_validate()` on input dict".
 - **One card, one concept:** If a card has more than 7 responsibilities, break it into two components.
-- **Traceability:** Every responsibility must map to at least one public method in the Protocol. Private helpers (`_`-prefixed) do not appear in CRC cards.
-- **Must NOT is mandatory for Protocol components:** Derive
+- **Traceability:** Every responsibility must map to at least one entry in the component contract's `methods` list. Private helpers (`_`-prefixed) do not appear in CRC cards.
+- **Must NOT is mandatory for behavioral components:** Derive
   from layer rules in `pyproject.toml` import-linter config.
-  Leaf components (no Protocol, no collaborators) are exempt
+  Leaf components (no contract, no collaborators) are exempt
   -- their constraints are implicit in their layer placement.
 - **Testable, not tagged:** Every responsibility is a testable
   behavioral statement. No implementation status tags or file

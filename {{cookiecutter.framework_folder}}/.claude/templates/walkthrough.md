@@ -12,7 +12,7 @@ USAGE: Invoked by the /walkthrough-sync workflow.
 -->
 
 > **Audience:** Technical evaluators assessing production readiness and competitive positioning.
-> **Sources:** [PRD.md](file:///REPO_ROOT/plans/PRD.md), source code under `src/`, [settings.yaml](file:///REPO_ROOT/settings.yaml), Protocol stubs in `interfaces/`, and supplementary docs in `docs/`.
+> **Sources:** [PRD.md](file:///REPO_ROOT/plans/PRD.md), source code under `src/`, [settings.yaml](file:///REPO_ROOT/settings.yaml), component contracts in `plans/component-contracts.yaml`, and supplementary docs in `docs/`.
 
 ---
 

@@ -66,15 +66,10 @@ def render_crc_section(
         layer_int = layer_lookup.get(name)
         layer_label = _LAYER_NAMES.get(layer_int, "unassigned") if layer_int else "unassigned"
 
-        protocol_display = (
-            f"`{contract.protocol}`" if contract.protocol else "None"
-        )
-
         lines: list[str] = [
             f"### {name}",
             f"**Layer:** {layer_label}",
             f"**File:** `{contract.file}`",
-            f"**Protocol:** {protocol_display}",
             "",
             "**Responsibilities:**",
         ]

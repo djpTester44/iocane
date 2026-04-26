@@ -9,7 +9,7 @@ description: Validate plans/plan.yaml checkpoint structure against CDD principle
 
 # WORKFLOW: VALIDATE-PLAN (CDD Compliance)
 
-**Objective:** Pre-orchestration validation that `plans/plan.yaml` maintains CDD structural integrity — CRC-Protocol symmetry, checkpoint atomicity, connectivity test completeness, and write-target registry alignment — before any sub-agent is dispatched.
+**Objective:** Pre-orchestration validation that `plans/plan.yaml` maintains CDD structural integrity — checkpoint atomicity, connectivity test completeness, and write-target registry alignment — before any sub-agent is dispatched.
 
 **Context:**
 
@@ -57,7 +57,7 @@ If `plans/component-contracts.yaml` does not exist, HALT: "Run `/io-architect` t
 
 `plans/plan.yaml` is already in context from Step 1.
 
-Do NOT load CRC cards, Protocol files, `plans/seams.yaml`, or run `extract_structure.py` here. Those belong to Phase 2.
+Do NOT load `plans/seams.yaml` or run `extract_structure.py` here. Those belong to Phase 2.
 
 Files loaded in this step remain in context for all subsequent steps — do not re-read any file already loaded unless it has been modified during this run.
 
@@ -86,8 +86,8 @@ For every write target listed in every checkpoint:
 
 **Not exempt under any circumstances:**
 
-* Any `.py` file under `src/` — including internal utilities annotated "no Protocol." A `src/` file absent from `component-contracts.yaml` is always `UNREGISTERED_WRITE_TARGET` (VIOLATION), regardless of prior log precedents or "internal utility" annotations. Route to `/io-architect` for explicit registration or exemption before orchestration.
-* Any `.py` file outside `src/` and `tests/`. Runtime Python modules must live under `src/`. Flag as `MISPLACED_RUNTIME_MODULE` (VIOLATION). This explicitly includes `interfaces/*.py`, which is a contract-only directory reserved for `.pyi` stubs.
+* Any `.py` file under `src/` — including internal utilities annotated "no contract." A `src/` file absent from `component-contracts.yaml` is always `UNREGISTERED_WRITE_TARGET` (VIOLATION), regardless of prior log precedents or "internal utility" annotations. Route to `/io-architect` for explicit registration or exemption before orchestration.
+* Any `.py` file outside `src/` and `tests/`. Runtime Python modules must live under `src/`. Flag as `MISPLACED_RUNTIME_MODULE` (VIOLATION).
 
 ---
 
@@ -112,7 +112,7 @@ Run the CT completeness check:
 
 The script handles two exemptions internally:
 1. **Verification-only:** CPs with no `src/` write targets (INFO, not VIOLATION).
-2. **Covered seams:** CPs whose scope Protocols are all covered by existing CTs (INFO, not VIOLATION). This subsumes remediation CPs that patch the same component as their parent.
+2. **Covered seams:** CPs whose scope components are all covered by existing CTs (INFO, not VIOLATION). This subsumes remediation CPs that patch the same component as their parent.
 
 ---
 
@@ -200,7 +200,7 @@ After running Steps 4, 7, 8, 9, 9B, 9C, 9D, and 9E:
 * If all Phase 1 violations are auto-remediable: apply auto-fixes, mark `[AUTO-AMENDED]`, and re-run Steps 4, 7, 8, 9, 9B only (no Phase 2 reload per self-heal iteration). Steps 9C, 9D, and 9E always emit OBSERVATION-severity findings -- never VIOLATION -- so they do not participate in the self-heal loop.
 * Only when Phase 1 is clean (zero Phase 1 VIOLATIONs): proceed to Phase 2.
 
-> **Note on symbol/test-plan coverage:** these checks live at `/io-architect` Step H-post-validate, NOT here. The architect is the authority that can act on a coverage failure cheaply (just amend the artifact being held in mind); re-checking here would only halt-and-route back to architect, which is the same round-trip the architect already closed. The reset-hook chain forces re-architect on any post-blessing mutation to `.pyi`, `symbols.yaml`, or `test-plan.yaml`, so by the time `/validate-plan` runs the architect's coverage stamp is current.
+> **Note on symbol/test-plan coverage:** these checks live at `/io-architect` Step G, NOT here. The architect is the authority that can act on a coverage failure cheaply (just amend the artifact being held in mind); re-checking here would only halt-and-route back to architect, which is the same round-trip the architect already closed. The reset-hook chain forces re-architect on any post-blessing mutation to `symbols.yaml` or `test-plan.yaml`, so by the time `/validate-plan` runs the architect's coverage stamp is current.
 
 ---
 
@@ -208,37 +208,21 @@ After running Steps 4, 7, 8, 9, 9B, 9C, 9D, and 9E:
 
 Load the following before running Phase 2 checks:
 
-* **CRC cards** from `plans/project-spec.md` for every component referenced across all checkpoints that survived Phase 1.
-* **Protocol files** (`interfaces/*.pyi`) for those same components.
 * **`plans/seams.yaml`** -- load now via `seam_parser.load_seams('plans/seams.yaml')`, not earlier. Steps 4, 7, 8, 9 do not require seam data.
 
 Do NOT run `extract_structure.py` here. It runs at Step 10 only, scoped to checkpoints with new collaborators.
 
 ---
 
-### Step 5: CHECK — CRC-Protocol Symmetry per Checkpoint [Phase 2 — requires CRC/Protocol context loaded above]
+### Step 6: CHECK — Checkpoint Atomicity [Phase 2 — requires seams context loaded above]
 
-For each checkpoint:
-
-* Every Protocol method listed in the checkpoint's Contract section must have a corresponding CRC responsibility in `project-spec.md`.
-* Every CRC responsibility named in the checkpoint must map to at least one Protocol method.
-* For each Protocol method in the checkpoint's Contract section, invoke `/symbol-tracer` with `--imports-only` on the method symbols to verify an implementation file imports and references it.
-* **Flag:** Protocol method with no CRC anchor = `UNANCHORED_CONTRACT`
-* **Flag:** CRC responsibility with no Protocol method = `ORPHANED_DESIGN` (acceptable only for private helpers)
-* For each Protocol method in the checkpoint's Contract section, verify that every `Raises:` declaration in the method's docstring has a corresponding acceptance criterion in the checkpoint, or an explicit `[DEFERRED: justification]` annotation. Cross-reference with `seams.yaml` `key_failure_modes` entries for the same component.
-* **Flag:** Protocol `Raises:` declaration with no acceptance criterion and no deferral annotation = `RAISES_UNCOVERED`
+* Each checkpoint must reference a single component contract, or if multi-component, the components must be explicitly named.
+* Component contract changes for the same component must appear in the same checkpoint, not split across multiple.
+* **Flag:** Component contract changes for the same component in separate ungrouped checkpoints = `ATOMICITY_VIOLATION`
 
 ---
 
-### Step 6: CHECK — Checkpoint Atomicity [Phase 2 — requires CRC/Protocol context loaded above]
-
-* Each checkpoint must reference components from a single CRC card, or if multi-component, the components must be explicitly named and their Protocols cross-referenced.
-* CRC + Protocol changes for the same component must appear in the same checkpoint, not split across multiple.
-* **Flag:** CRC and Protocol for the same component in separate ungrouped checkpoints = `ATOMICITY_VIOLATION`
-
----
-
-### Step 10: CHECK — DI Compliance Preview [Phase 2 — requires CRC/Protocol context loaded above]
+### Step 10: CHECK — DI Compliance Preview [Phase 2 — requires seams context loaded above]
 
 `plans/seams.yaml` is already in context from Step 2B (loaded via `seam_parser.load_seams()`).
 
@@ -262,7 +246,7 @@ Generate a Plan Validation report:
 
 | # | Check | Checkpoint | Component | Finding | Severity | Auto-Remediable? |
 |---|-------|------------|-----------|---------|----------|-----------------|
-| 1 | CRC-Protocol Symmetry | CP-NN | ... | ... | VIOLATION | Yes/No |
+| 1 | Checkpoint Atomicity | CP-NN | ... | ... | VIOLATION | Yes/No |
 
 * **Required Amendments:** Specific changes to `plan.yaml` (as checkboxes).
 
@@ -275,8 +259,6 @@ Generate a Plan Validation report:
 | Flag | Auto-Fix Action |
 |---|---|
 | `PRIVATE_METHOD_PROMOTION` | Remove the `_`-prefixed method reference from the checkpoint section. |
-| `UNANCHORED_CONTRACT` | Add the missing CRC responsibility reference to the checkpoint's description. |
-| `ORPHANED_DESIGN` | Add the missing Protocol method reference to the checkpoint's Contract section. |
 | `ATOMICITY_VIOLATION` | Merge the split checkpoint sections into a single checkpoint entry. |
 | `PLACEHOLDER_GATE` | Flag for human — cannot auto-generate a concrete gate command. Treat as non-auto-remediable. |
 
@@ -305,7 +287,7 @@ Generate a Plan Validation report:
 
 When a violation has appeared in 3 consecutive passes without being resolved, auto-heal has exhausted its scope. The problem is in the underlying design, not in `plan.yaml` surface edits.
 
-1. Stamp `plans/plan.yaml` with `**Plan Validated:** FAIL` (via Step 13 sentinel procedure).
+1. Stamp `plans/plan.yaml` with `**Plan Validated:** FAIL` (via Step 13 capability procedure).
 2. Append an `## Architect Brief` section to `plans/plan.yaml`:
 
 ```markdown
@@ -325,9 +307,11 @@ When a violation has appeared in 3 consecutive passes without being resolved, au
 ### Implied Structural Issue
 
 [One paragraph: what the recurring violation reveals about the design — e.g.,
-"CP-03 and CP-04 cannot be merged because they reference components from different
-CRC cards with no shared Protocol anchor. The CRC card for ComponentX may need
-to be split, or the checkpoint boundary redrawn at /io-checkpoint."]
+"CP-03 and CP-04 cannot be consolidated because they reference distinct components
+from `component-contracts.yaml` with disjoint contract scopes. The component
+contracts may need to be split or merged at `/io-architect` to align with the
+natural CP boundary, or the CP scope redrawn at `/io-checkpoint` to consolidate
+touched components."]
 ```
 
 1. Inform the user:
@@ -362,9 +346,9 @@ Do NOT offer to re-run `/validate-plan`. The loop cannot converge without a desi
 
 **Gate Artifact:**
 
-Write the stamp using the following strictly sequential steps. Do NOT parallelize — the sentinel must exist before the Edit tool call fires.
+Write the stamp using the following strictly sequential steps. Do NOT parallelize — the capability grant must exist before the Edit tool call fires.
 
-* **Step 13-pre:** `bash: mkdir -p .iocane && touch .iocane/validating`
+* **Step 13-pre:** `bash: uv run python .claude/scripts/capability.py grant --template validate-plan.13`
 * **Step 13:** On **PASS**, stamp `plans/plan.yaml` with `validated: true`, `validated_date`, and `validated_note` via plan_parser:
 
   ```bash
@@ -380,9 +364,9 @@ Write the stamp using the following strictly sequential steps. Do NOT paralleliz
 
   On **FAIL**, stamp with `validated: false` and a note listing blocking violations.
 
-* **Step 13-post:** `bash: rm -f .iocane/validating`
+* **Step 13-post:** `bash: uv run python .claude/scripts/capability.py revoke --template validate-plan.13`
 
-The sentinel prevents `reset-on-plan-write.sh` from reverting the PASS stamp. Explicit cleanup at Step 13-post is required so the sentinel does not persist across the gate boundary. `plans/test-plan.yaml.validated` is owned by `/io-architect` Step H-post-validate -- this gate does NOT touch it.
+The capability grant prevents `reset-on-plan-write.sh` from reverting the PASS stamp. Explicit revoke at Step 13-post is required so the grant does not persist across the gate boundary (the 24h hard TTL ceiling and session-end sweep are crash-safety floors, not substitutes for explicit revoke). `plans/test-plan.yaml.validated` is owned by `/io-architect` Step G -- this gate does NOT touch it.
 
 * `/io-plan-batch` **MUST** check for `validated: true` before composing the batch. If missing or false, halt and recommend `/validate-plan`.
 
@@ -403,7 +387,8 @@ The sentinel prevents `reset-on-plan-write.sh` from reverting the PASS stamp. Ex
 * Do not execute the plan. Amend and validate only.
 * `UNREGISTERED_WRITE_TARGET` findings must route to `/io-architect`, not be auto-amended.
 * `MISSING_CONNECTIVITY_TEST` findings must route to `/io-checkpoint` amendment, not be auto-amended.
-* Phase 1 context load (Step 2) does not load CRC cards, Protocol files, seams.yaml, or run extract_structure.py.
+* Phase 1 context load (Step 2) does not load `seams.yaml` or run `extract_structure.py`.
 * Phase 2 context load (Step 2B) does not re-load anything already in context from Phase 1.
 * Self-healing loop re-validates Phase 1 checks only — no Phase 2 context reload per iteration.
 * `extract_structure.py` runs only at Step 10, and only for checkpoints that introduce a new collaborator.
+* **Plan-layer `component-contracts.yaml` method coverage** (every method covered by at least one CP scope) is NOT YET CHECKED. Pending Plan B authoring of `validate_plan_contract_coverage.py` (see `plans/v4-meso-pivot/plan-B-decisions.md` D-03). Until that lands, plan-layer method-coverage is enforced only by `/io-checkpoint`'s authoring discipline.

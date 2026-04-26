@@ -8,7 +8,6 @@ paths:
   - "plans/test-plan.yaml"
   - "plans/plan.yaml"
   - "plans/backlog.yaml"
-  - "interfaces/**"
   - "tests/contracts/**"
   - "tests/connectivity/**"
 ---
@@ -27,13 +26,10 @@ The three-tier model ensures no generated code reaches the codebase without huma
 |----------|----------|-------|---------|
 | PRD | `plans/PRD.md` | Human | Requirements, user stories, stack decisions |
 | Roadmap | `plans/roadmap.md` | Human (via /io-specify) | Feature sequence, dependency order |
-| CRC Contracts | `plans/component-contracts.yaml` | Human (via /io-architect) | CRC behavioral data (responsibilities, must_not, protocol, features) |
+| CRC Contracts | `plans/component-contracts.yaml` | Human (via /io-architect) | Component contracts: CRC behavioral data (responsibilities, must_not, features) with component-level `raises` declarations |
 | Integration Seams | `plans/seams.yaml` | Human (via /io-architect) | DI graph, external terminals, key failure modes |
-| Symbols Registry | `plans/symbols.yaml` | Human (via /io-architect Step H-6) | Cross-CP identifiers: Settings fields, exception classes, shared types, fixtures, error messages. `used_by_cps` is backfilled by /io-checkpoint. |
-| Test Plan | `plans/test-plan.yaml` | Human (via /io-architect Step H-7) | Per-Protocol-method behavioral invariants; stamped `validated: true` by architect Step H-post-validate |
-| Contracts | `interfaces/*.pyi` | Human (via /io-architect) | Binding Protocol definitions with mandatory Raises clauses |
-| Contract Tests | `tests/contracts/test_<stem>.py` | Test Author (via io-test-author dispatched by `spawn-tester.sh`) | Pytest tests exercising test-plan invariants against one Protocol |
-| Connectivity Tests | `tests/connectivity/*.py` | CT Author (via io-ct-author dispatched by `spawn-ct-writer.sh`) | Pytest tests exercising seam contracts (source Protocol spy-mocked); authored per CP before generator runs |
+| Symbols Registry | `plans/symbols.yaml` | Human (via /io-architect Step F) | Cross-CP identifiers: Settings fields, exception classes, shared types, fixtures, error messages. `used_by_cps` is backfilled by /io-checkpoint. |
+| Test Plan | `plans/test-plan.yaml` | Human (via /io-architect Step F) | Behavioral invariants per component contract; stamped `validated: true` by architect Step G |
 | Checkpoint Plan | `plans/plan.yaml` | Human (via /io-checkpoint) | Atomic checkpoints, connectivity test signatures; stamped `validated: true` by /validate-plan Step 13 |
 | Task Files | `plans/tasks/[CP-ID].yaml` | Orchestrator | Per-checkpoint sub-agent work packages |
 | Dispatch Script | `plans/tasks/run.sh` | Orchestrator | Worktree setup and sub-agent invocation |
@@ -47,8 +43,6 @@ The three-tier model ensures no generated code reaches the codebase without huma
 | Symbols Parser | `.claude/scripts/symbols_parser.py` | Harness | Load/save/query `plans/symbols.yaml`; conflict detection (env_var + message_pattern) |
 | Test Plan Parser | `.claude/scripts/test_plan_parser.py` | Harness | Load/save/query `plans/test-plan.yaml` |
 | Contract Parser | `.claude/scripts/contract_parser.py` | Harness | Load/save/query `plans/component-contracts.yaml` |
-| Test Author Dispatch | `.claude/scripts/spawn-tester.sh` | Harness | Dispatches `claude -p` for one Protocol with `IOCANE_ROLE=tester` + `IOCANE_PROTOCOL=<stem>`; preflights architect-mode sentinel, validated stamps, target `.pyi` existence |
-| CT Author Dispatch | `.claude/scripts/spawn-ct-writer.sh` | Harness (Phase 4) | Dispatches `claude -p` for one CP with `IOCANE_ROLE=ct_author` + `IOCANE_CP_ID=<CP-ID>`; preflights architect-mode sentinel, task-file validity, target_cp CT count. Invoked by `dispatch-agents.sh` before the generator stage. |
 | Workflow State | `.iocane/workflow-state.json` | Hook | Deterministic workflow state derived from artifact writes; consumed by `workflow-state-gate.sh` |
 | Escalation Flag | `.iocane/escalation.flag` | Hook | Sentinel written by `escalation-gate.sh`; blocks dispatch and implementation writes |
 | Review Pending | `.iocane/review-pending.json` | Command (`/io-review`) | Sentinel marking "reviewed but not approved"; consumed by `session-start.sh`, cleaned by `archive-approved.sh` |
@@ -61,5 +55,12 @@ The three-tier model ensures no generated code reaches the codebase without huma
 | Pre-Compaction State | `.iocane/pre-compact-state.json` | Hook | Workflow state snapshot before compaction (consumed by post-compact.sh) |
 | Session End Log | `.iocane/session-end.log` | Hook | Session termination and cleanup records |
 | CI Wave Report | `.iocane/ci/ci-wave-report.json` | Script (`ci-sidecar.sh`) | Pre/post-wave test suite snapshot for regression diffing |
+| Capability Session State | `.iocane/sessions/<session_id>.{jsonl,active.txt}` + `.iocane/sessions/manifest.yaml` + `.iocane/sessions/.current-session-id` | Harness (`capability.py` sole writer, consumed by reset-on-*.sh via `capability-covers.sh`) | Per-session grant/revoke event log (jsonl audit), hot-path cache (active.txt; flat text, bash-grep), LRU-50 session manifest (yaml). See `references/capability-gate.md` for the primitive. |
+
+---
+
+## Capability-Gate State
+
+Workflow-authored write authorization is modeled as time-bounded capability grants, not as boolean sentinel files. Reset and guard hooks consult the per-session cache at `.iocane/sessions/<session_id>.active.txt` and bypass their resets when a write pattern is covered. Primer: [`references/capability-gate.md`](../references/capability-gate.md). Grant templates: `harness/capability-templates/<workflow>.<step>.yaml` (git-tracked, PR-reviewable catalog of what each step writes).
 
 ---

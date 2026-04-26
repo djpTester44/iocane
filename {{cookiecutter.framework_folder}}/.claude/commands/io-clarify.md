@@ -54,10 +54,11 @@ description: Clarify the PRD before Init to ensure testable, autonomous executio
    If FAIL: present gaps to the user, wait for responses, update `plans/PRD.md`, and re-run the critique. Iterate until all criteria PASS.
 
 7. **Pass Gate:** When the critique returns an overall PASS, write the `**Clarified:** True` stamp to `plans/PRD.md` using the following strictly sequential steps:
-   - **Step 7-pre:** `bash: mkdir -p .iocane && touch .iocane/validating`
+   - **Step 7-pre:** `bash: uv run python .claude/scripts/capability.py grant --template io-clarify.7`
    - **Step 7:** Edit `plans/PRD.md` to set `**Clarified:** True` in the doc header.
+   - **Step 7-post:** `bash: uv run python .claude/scripts/capability.py revoke --template io-clarify.7`
 
-   The sentinel prevents `reset-on-prd-write.sh` from immediately resetting the stamp. The hook auto-deletes the sentinel when it detects the `**Clarified:** True` stamp write — no explicit cleanup step required. Steps must NOT be parallelized — create sentinel first, then write.
+   The capability grant prevents `reset-on-prd-write.sh` from reverting the stamp. The hook still runs its content-detection state-machine logic when it sees `**Clarified:** True` (driving the workflow-state.json transition), but the outer reset is bypassed. Explicit revoke at Step 7-post closes the grant window. Steps must NOT be parallelized — grant first, then write, then revoke.
 
 ## Output Format
 

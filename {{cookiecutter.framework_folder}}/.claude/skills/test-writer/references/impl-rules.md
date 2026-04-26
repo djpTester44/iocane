@@ -4,15 +4,14 @@ Reference loaded by `io-execute.md` Step B. Governs impl tests
 authored *during* implementation -- the TDD cycle that develops
 internal logic underneath a contract that is already locked.
 
-Substance traces to `.claude/references/cdd/cdt-vs-impl-testing.md`
-sections "Implementation TDD: The How" and "The Directional
-Distinction."
+Substance traces to `.claude/rules/cdd.md` section
+"[HARD] CDT vs Implementation TDD".
 
 ---
 
 ## Scope
 
-Impl tests verify internals invisible to the Protocol:
+Impl tests verify internals invisible to the contract:
 
 - Complex parsing or validation helpers behind a single public method.
 - Caching strategies, TTL logic, cache-stampede protection.
@@ -20,7 +19,7 @@ Impl tests verify internals invisible to the Protocol:
 - Data transformation pipelines with intermediate state.
 - Internal state machines governing private transitions.
 
-The public contract says what the method does; impl tests verify how
+The public contract specifies the behavior; impl tests verify how
 the private machinery gets there.
 
 ---
@@ -34,8 +33,8 @@ Under `tests/**` **except** `tests/contracts/` and
 - `tests/<component>/test_<module>_impl.py`
 
 Any write into `tests/contracts/` or `tests/connectivity/` is a scope
-violation -- those directories are owned by the tester and ct_author
-roles respectively, and reset hooks are not the intended defense.
+violation -- those directories are outside the impl test author's write
+scope, and reset hooks are not the intended defense.
 
 ---
 
@@ -77,15 +76,14 @@ deleted or rewritten freely during refactor.
 
 ## TDD Never Reshapes the Contract
 
-If a TDD cycle reveals that the public interface should differ --
-different method name, different parameter types, different return
-semantics -- the implementation does not silently diverge. The
-Protocol stays locked until the architect amends it.
+If a TDD cycle reveals that the public contract should differ, the
+implementation does not silently diverge. The contract stays locked
+until the architect amends it.
 
 This is the amendment trigger: emit
 `.iocane/amend-signals/<cp-id>.yaml` following the `AmendSignalFile`
 schema (see `io-execute.md` Section 9 AMEND-on-impl-gap path). The
-architect consumes the signal, amends the Protocol, and dispatch
+architect consumes the signal, amends the contract, and dispatch
 re-runs. An impl workaround that ships anyway is a contract
 violation regardless of whether the tests pass.
 
@@ -95,7 +93,7 @@ violation regardless of whether the tests pass.
 
 - `assert True` placeholders.
 - Writing impl tests into `tests/contracts/` or `tests/connectivity/`.
-- Tests that modify Protocol stubs in `interfaces/*.pyi`.
+- Tests that modify `plans/component-contracts.yaml`.
 - "Replacing" a contract test with an impl test because the contract
   test is inconvenient -- this silently erases the acceptance surface.
 - Citing `INV-NNN` in impl-test docstrings (use design-intent prose).

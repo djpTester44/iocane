@@ -11,31 +11,41 @@ set -euo pipefail
 
 INPUT=$(cat)
 
-# --- gen_protocols role-leak guard ---
-# IOCANE_ROLE=gen_protocols is a single-subprocess scope set by
-# /io-gen-protocols when it invokes gen_protocols.py. It is NEVER a
-# spawned-session role (unlike tester / ct_author which ARE spawned via
-# spawn-*.sh scripts that set the var). Its presence at SessionStart
-# means the var leaked from the user's shell env (export, .envrc, or
-# a copy-pasted "debug" export from the command docs). Refusing here
-# closes the C8 adversarial bypass where an attacker exports the magic
-# string to disable interfaces-codegen-only.sh for the whole session.
-if [ "${IOCANE_ROLE:-}" = "gen_protocols" ]; then
-    echo "BLOCKED: IOCANE_ROLE=gen_protocols detected in session environment." >&2
-    echo "  This role scope is meant for a single subprocess invocation of gen_protocols.py" >&2
-    echo "  from within /io-gen-protocols -- never a session-level export." >&2
-    echo "  Fix: unset IOCANE_ROLE (or remove the export from your shell / .envrc / profile)," >&2
-    echo "  then restart the session." >&2
-    exit 1
-fi
-
-# Clear any stale validating sentinel left by a crashed session.
-# If present at session start, the reset hooks would be permanently disabled.
-rm -f .iocane/validating
-
 # Dump raw payload for schema debugging (overwritten every session start).
 mkdir -p .iocane
 printf '%s' "$INPUT" > .iocane/session-start-payload.json
+
+# Capability lifecycle bootstrap: extract session_id + source from the
+# payload and register the session with capability.py. Failures here are
+# non-fatal -- if capability.py or its template dir is unreachable the
+# session still proceeds, it just runs without active grants.
+CAP_EXTRACT=$(printf '%s' "$INPUT" | uv run python -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    print(d.get('session_id', '') or '')
+    print(d.get('source', '') or 'startup')
+except Exception:
+    print('')
+    print('startup')
+" 2>/dev/null || echo "")
+CAP_SID=$(printf '%s' "$CAP_EXTRACT" | sed -n '1p')
+CAP_SOURCE=$(printf '%s' "$CAP_EXTRACT" | sed -n '2p')
+CAP_REPO_ROOT="${IOCANE_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+
+if [ -n "$CAP_SID" ]; then
+    CAP_ARGS=(--repo-root "$CAP_REPO_ROOT" --session-id "$CAP_SID" --source "${CAP_SOURCE:-startup}")
+    if [ -n "${IOCANE_SUBAGENT:-}" ] && [ "$IOCANE_SUBAGENT" = "1" ]; then
+        CAP_ARGS+=(--subagent)
+    fi
+    if [ -n "${IOCANE_PARENT_SESSION_ID:-}" ]; then
+        CAP_ARGS+=(--parent-session-id "$IOCANE_PARENT_SESSION_ID")
+    fi
+    if [ -n "${IOCANE_CP_ID:-}" ]; then
+        CAP_ARGS+=(--cp-id "$IOCANE_CP_ID")
+    fi
+    uv run python .claude/scripts/capability.py session-start "${CAP_ARGS[@]}" >/dev/null 2>&1 || true
+fi
 
 # Write model name so write-gate can exempt interactive (non-haiku) sessions.
 # Sub-agents: dispatch-agents.sh exports IOCANE_MODEL_NAME with the real model string.
@@ -366,96 +376,7 @@ except Exception:
 
 NEXT_STEP=$(suggest_next_workflow)
 
-# --- Role-aware orientation (Phase 3) ---
-# spawn-{tester,...}.sh dispatches a claude -p session with IOCANE_ROLE
-# set. SessionStart fires for that new process -- inject role-scoped
-# orientation so the dispatched agent reads its write scope and AMEND
-# protocol without relying on inherited context. Unset IOCANE_ROLE =
-# interactive session; falls through to the generic briefing.
 ROLE_BLOCK=""
-if [ -n "${IOCANE_ROLE:-}" ]; then
-    case "$IOCANE_ROLE" in
-        tester)
-            ROLE_BLOCK="
-## ROLE: Test Author (Tier 1)
-
-You are dispatched as the Tier-1 Test Author for Protocol \`${IOCANE_PROTOCOL:-unknown}\`
-(at \`interfaces/${IOCANE_PROTOCOL:-*}.pyi\`).
-
-- Read ONLY: interfaces/*.pyi, plans/test-plan.yaml, plans/symbols.yaml, plans/component-contracts.yaml
-- Write ONLY: tests/contracts/test_${IOCANE_PROTOCOL:-*}.py OR .iocane/amend-signals/${IOCANE_PROTOCOL:-*}.yaml
-- NEVER edit interfaces/*.pyi, plans/symbols.yaml, plans/test-plan.yaml (architect-owned -- reset hooks will fire)
-- If the Protocol is silent on a test-plan invariant, emit an AMEND signal (per AmendSignalFile schema) and terminate without writing tests. Under-specification is a real signal, not a failure.
-
-Workflow: .claude/commands/io-test-author.md
-"
-            ;;
-        ct_author)
-            # Derive source-Protocol manifest: for each CT where
-            # target_cp == IOCANE_CP_ID, collect every source
-            # Protocol via plan.yaml.connectivity_tests[*].contract_under_test.
-            # Inject as a bulleted list in the role block so the
-            # agent doesn't have to re-derive mid-session.
-            #
-            # contract_under_test supports comma-separated multi-Protocol
-            # entries (e.g., "interfaces/a.pyi :: A, interfaces/b.pyi :: B").
-            # Parser mirrors check_ct_completeness.py:33-36 -- split on
-            # comma first, then `::`, collect the left side. A naive
-            # `split('::')[0]` would drop all but the first Protocol.
-            SOURCE_PROTOCOLS=$(uv run python -c "
-import sys; sys.path.insert(0, '.claude/scripts')
-from plan_parser import load_plan
-plan = load_plan('plans/plan.yaml')
-cts = [ct for ct in plan.connectivity_tests if ct.target_cp == '${IOCANE_CP_ID:-}']
-protos = set()
-for ct in cts:
-    for segment in ct.contract_under_test.split(','):
-        before_colons = segment.split('::')[0].strip()
-        if before_colons:
-            protos.add(before_colons)
-for p in sorted(protos): print(f'  - {p}')
-" 2>/dev/null || echo "  - (derivation failed; inspect plans/plan.yaml manually)")
-
-            ROLE_BLOCK="
-## ROLE: CT Author (Tier 3a)
-
-You are dispatched as the Tier-3a CT Author for checkpoint \`${IOCANE_CP_ID:-unknown}\`.
-
-Write every connectivity test whose target_cp == ${IOCANE_CP_ID:-unknown}.
-The target CP's impl does not exist yet -- CTs will fail by design
-once written. The generator stage takes them RED to GREEN.
-
-### Source Protocols for this CP's CTs
-${SOURCE_PROTOCOLS}
-
-### Read scope (never edit)
-- plans/tasks/${IOCANE_CP_ID:-*}.yaml (your task file)
-- plans/plan.yaml (CT signatures)
-- plans/seams.yaml (fixture wiring hints)
-- plans/symbols.yaml (exception + type registry)
-- interfaces/*.pyi (Protocol definitions -- for \`spec=\` type hints)
-- tests/contracts/*.py (existing import patterns -- read-only)
-
-### Write scope (only paths listed in task.connectivity_tests[].file)
-- tests/connectivity/*.py
-
-### Never-edit (triggers reset hooks; breaks architect blessing during parallel dispatch)
-- interfaces/*.pyi
-- plans/*.yaml
-- tests/contracts/*
-
-### Do NOT
-- Run CT gates -- impl does not exist yet; gates will fail by design.
-- Create skeleton impl in src/ to silence import errors -- preflight will misdiagnose this as impl-leaked.
-- Emit AMEND signals -- on CT spec ambiguity, HALT with structured error (per D16).
-
-Workflow: .claude/commands/io-ct-author.md
-Rules reference: .claude/skills/test-writer/references/ct-author-rules.md
-"
-            ;;
-        *) ROLE_BLOCK="" ;;
-    esac
-fi
 
 # --- Assemble briefing ---
 BRIEFING="# Iocane Session Briefing

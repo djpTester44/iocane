@@ -1,8 +1,8 @@
 """validate_crc_budget.py
 
-Mechanical pre-gate for /io-architect -- enforces Appendix A section A.1 of
-the reassembly plan. Run immediately before the human approval gate in
-Step G of /io-architect.
+Mechanical validator for /io-architect Step G's deterministic batch --
+enforces Appendix A section A.1 of the reassembly plan against the
+canonical artifacts authored at Step F.
 
 Checks applied to every component in plans/component-contracts.yaml:
   A.1a: max MAX_RESPONSIBILITIES responsibilities per CRC
@@ -11,14 +11,12 @@ Checks applied to every component in plans/component-contracts.yaml:
         by itself violate the cap)
   A.1c: composition_root components with more than
         MAX_COMP_ROOT_L23_COLLABORATORS Layer-2/3 collaborators must
-        decompose into resource-scoped sub-components. When seams.yaml
-        is not yet generated (common at the pre-gate), falls back to
-        counting every collaborator -- fail-safe so that missing layer
-        data cannot silently bypass the cap.
+        decompose into resource-scoped sub-components. seams.yaml
+        layer assignments (authored at Step F-6) are required input.
 
 In addition, non-blocking warnings are emitted for behavioral components
-(those with a Protocol or marked composition_root) that have
-responsibilities but no declared features. A.1b can only evaluate
+(those with declared responsibilities or marked composition_root) that
+have responsibilities but no declared features. A.1b can only evaluate
 fan-out when features are declared, so this surfaces the
 "did-you-forget-to-declare" case without failing the gate.
 
@@ -68,15 +66,11 @@ def _count_l23_collaborators(
 ) -> int:
     """Count collaborators that sit in Layer 2 or Layer 3.
 
-    Fall-back behavior when seams data is unavailable:
-      - If the lookup is entirely empty (seams.yaml not generated), count
-        every collaborator. This is the pre-gate scenario.
-      - If the lookup is populated but a specific collaborator is missing
-        from it, count that collaborator. A missing entry must not
-        silently bypass the cap.
+    seams.yaml is required input (authored at io-architect Step F-6
+    before this validator runs in Step G). A collaborator missing from
+    the lookup is conservatively counted -- a missing entry must not
+    silently bypass the cap.
     """
-    if not layer_by_component:
-        return len(collaborators)
     count = 0
     for collab in collaborators:
         layer = layer_by_component.get(collab)
@@ -88,10 +82,10 @@ def _count_l23_collaborators(
 def check_warnings(contracts: ComponentContractsFile) -> list[str]:
     """Return non-blocking warnings for likely missing feature declarations.
 
-    A component is flagged when it is clearly behavioral (has a Protocol
-    or is a composition root) and has responsibilities, but its
-    ``features`` list is empty. Leaf infrastructure components (no
-    Protocol, no composition_root) are silent.
+    A component is flagged when it is clearly behavioral (has declared
+    responsibilities or is a composition root) and its ``features``
+    list is empty. Stub components (no responsibilities, no
+    composition_root) are silent.
 
     Warnings never affect exit codes -- they only surface the
     "did-you-forget-to-declare-features" case to the architect.
@@ -103,7 +97,9 @@ def check_warnings(contracts: ComponentContractsFile) -> list[str]:
             continue
         if not contract.responsibilities:
             continue
-        is_behavioral = bool(contract.protocol) or contract.composition_root
+        is_behavioral = (
+            bool(contract.responsibilities) or contract.composition_root
+        )
         if not is_behavioral:
             continue
         warnings.append(
@@ -177,10 +173,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--seams",
         default="plans/seams.yaml",
-        help=(
-            "Path to seams.yaml. If absent, the A.1c check falls back to "
-            "counting every collaborator (fail-safe)."
-        ),
+        help="Path to seams.yaml (authored at io-architect Step F-6).",
     )
     args = parser.parse_args(argv)
 

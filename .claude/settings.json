@@ -17,10 +17,6 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/write-gate.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/di-gate.sh"
           }
         ]
       },

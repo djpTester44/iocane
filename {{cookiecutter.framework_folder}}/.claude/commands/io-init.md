@@ -193,7 +193,6 @@ Next step: Run /io-specify to generate the dependency-ordered feature roadmap fr
 
 - This workflow does NOT generate `plans/project-spec.md`. That is `/io-architect`'s output.
 - This workflow does NOT generate `plans/plan.yaml` or any checkpoint plan. That is `/io-checkpoint`'s output.
-- This workflow does NOT generate `interfaces/*.pyi` files.
 - Do not reference or create `execution-handoff-bundle.md` — that artifact is retired.
 - The stub `plans/roadmap.md` must not contain feature entries. `/io-specify` owns that content.
 - Layer mapping output in Step B is informational only — no files are written for it here.

@@ -16,13 +16,9 @@ Execution follows a strict chronology. Design is locked before any code is writt
   2. /io-init         -- bootstrap project structure and stub roadmap from clarified PRD
   3. /io-specify      -- PLAN MODE -- propose roadmap.md, human approves
   4. /io-architect    -- PLAN MODE -- produce full canonical set (component-contracts.yaml,
-                        interfaces/*.pyi, symbols.yaml, test-plan.yaml, seams.yaml), human
-                        approves (contract lock). Step H-post-validate runs deterministic gates
-                        and stamps test-plan.yaml validated: true.
-  4b. io-test-author  -- Tier 1 sub-agent per Protocol (dispatched via spawn-tester.sh).
-                        Writes tests/contracts/test_<stem>.py exercising test-plan invariants
-                        against the Protocol. Parallel dispatch across Protocols lives in
-                        Phase 6b.
+                        symbols.yaml, test-plan.yaml, seams.yaml), human approves (contract
+                        lock). Step G runs deterministic gates and stamps
+                        test-plan.yaml validated: true.
   5. /io-checkpoint   -- PLAN MODE -- propose plan.yaml + CT signatures, human approves.
                         Step G-symbols backfills symbols.yaml used_by_cps under the validating
                         sentinel (protects test-plan.yaml.validated from spurious reset).
@@ -32,11 +28,9 @@ Execution follows a strict chronology. Design is locked before any code is writt
 [Tier 2 -- Harness Autonomous]
   7. /io-plan-batch   -- compose batch, score confidence rubric [HARD GATE], generate task files, human approves [HUMAN GATE]
   8. /validate-tasks  -- validate task files against plan.yaml before dispatch
-  9. bash .claude/scripts/dispatch-agents.sh  -- human executes; per-CP pipeline runs three stages in each worktree:
-        a. spawn-ct-writer.sh (Tier 3a)  -- writes tests/connectivity/*.py for every CT whose target_cp == this CP
-                                           (Phase 4; skipped cleanly when the CP is target_cp of zero CTs)
-        b. io-execute (Tier 3)           -- writes src/ impl + emergent impl tests; CTs are read-only
-        c. io-evaluator-dispatch         -- grades impl against acceptance criteria
+  9. bash .claude/scripts/dispatch-agents.sh  -- human executes; per-CP pipeline runs two stages in each worktree:
+        a. io-execute (Tier 3)           -- writes src/ impl + emergent impl tests; CTs are read-only
+        b. io-evaluator-dispatch         -- grades impl against acceptance criteria
      ci-sidecar runs pre-wave and post-wave for regression detection.
 
 [Tier 3 -- Post-Generation Evaluation]
@@ -61,7 +55,7 @@ The human is required at these moments and only these:
 | PRD ambiguities | `/io-clarify` | Answer questions, approve stamp |
 | Project bootstrap | `/io-init` | Confirm project structure and stub roadmap |
 | Roadmap proposal | `/io-specify` | Approve or correct `roadmap.md` |
-| Design proposal | `/io-architect` | Approve CRC + Protocols -- contract lock |
+| Design proposal | `/io-architect` | Approve CRC + component contracts -- contract lock |
 | Checkpoint boundaries | `/io-checkpoint` | Approve `plan.yaml` + connectivity signatures |
 | Plan validation | `/validate-plan` | Review `Plan Validated` stamp before batch composition |
 | Run sub-agents | post `/io-plan-batch` | `bash .claude/scripts/dispatch-agents.sh` |
@@ -94,7 +88,7 @@ After `/io-execute` writes its status, `dispatch-agents.sh` spawns `/io-evaluato
 |---------|---------|-------------|
 | `PASS` | All criteria met, gate passing | Merge-ready; proceeds to `/io-review` |
 | `MECHANICAL_FAIL` | Retryable failures (gate, test, type, DI) | Regen loop with `regen_hint` as negative constraint |
-| `DESIGN_FAIL` | Architectural gap (missing Protocol method, layer violation) | Escalate to human; routes to `/io-architect` |
+| `DESIGN_FAIL` | Contract gap or layer violation | Escalate to human; routes to `/io-architect` |
 
 ### Status Reporting
 
@@ -114,7 +108,7 @@ Sub-agents do not attempt autonomous remediation for these conditions -- they wr
 - `# noqa: DI` required with no backlog entry
 - Layer violation detected
 
-The `PostToolUse` hook (`escalation-gate.sh`) captures failures to `.iocane/escalation.log` and sets `escalation: true` in `.iocane/workflow-state.json`. The `PreToolUse` hook (`workflow-state-gate.sh`) blocks all writes to `src/`, `tests/`, and `interfaces/*.py` while escalation is active. Session start surfaces the flag and bootstraps the escalation state. Non-numeric exit codes that indicate infrastructure problems (`PARSE_ERROR`, `EXEC_ERROR`) are logged to `.iocane/hook-debug.log`. Commands with no `exit_code` in the payload (normal for successful runs) are silently skipped. Max-turns exhaustion (no status file written) also sets the escalation flag at batch completion, closing the detection gap for silent agent termination. Commands with benign exit-code-1 semantics (grep, test, diff) are allowlisted and do not trigger escalation.
+The `PostToolUse` hook (`escalation-gate.sh`) captures failures to `.iocane/escalation.log` and sets `escalation: true` in `.iocane/workflow-state.json`. The `PreToolUse` hook (`workflow-state-gate.sh`) blocks all writes to `src/` and `tests/` while escalation is active. Session start surfaces the flag and bootstraps the escalation state. Non-numeric exit codes that indicate infrastructure problems (`PARSE_ERROR`, `EXEC_ERROR`) are logged to `.iocane/hook-debug.log`. Commands with no `exit_code` in the payload (normal for successful runs) are silently skipped. Max-turns exhaustion (no status file written) also sets the escalation flag at batch completion, closing the detection gap for silent agent termination. Commands with benign exit-code-1 semantics (grep, test, diff) are allowlisted and do not trigger escalation.
 
 ---
 
@@ -182,7 +176,7 @@ When removing redundant or dead code, prove unused status before deletion.
 
 1. **Prove dead status:** Invoke `/symbol-tracer` with `--summary` on the candidate symbols. Zero usages + zero imports = dead. For module-level checks, also invoke with `--include-tests`.
 
-2. **Delete code:** Remove the `.py` file and corresponding `.pyi` if no other component depends on the Protocol.
+2. **Delete code:** Remove the `.py` file and the component's entry in `plans/component-contracts.yaml` if no other component depends on the contract.
 
 3. **Verify integrity:**
 
@@ -235,7 +229,7 @@ stage_review_findings.py    --> appends validated findings to plans/review-outpu
 /io-backlog-triage           --> drains staging to plans/backlog.yaml with BL-NNN IDs,
                                  assesses open items, outputs prioritized routing summary
                                  with explicit prompts per item (Tier 1 -- plan mode)
-/auto-architect               --> resolves [DESIGN]/[REFACTOR] items (CRC + Protocol changes),
+/auto-architect               --> resolves [DESIGN]/[REFACTOR] items (CRC + contract changes),
                                  unblocks dependent CLEANUP/TEST items
 /auto-checkpoint             --> batches unblocked CLEANUP/TEST items into remediation CPs
 /io-checkpoint (remediation) --> writes Source BL: BL-NNN in CP section, runs
@@ -263,7 +257,7 @@ routable item, referenced by BL-ID.
 
 | Tag | Meaning | Blocks orchestration? | Routing workflow |
 |-----|---------|----------------------|-----------------|
-| `[DESIGN]` | CRC or Protocol gap -- requires `/io-architect` | Yes (warning) | `/auto-architect` (batch) or `/io-architect` (manual) |
+| `[DESIGN]` | CRC or contract gap -- requires `/io-architect` | Yes (warning) | `/auto-architect` (batch) or `/io-architect` (manual) |
 | `[REFACTOR]` | DI, layer, or SOLID violation | Yes (warning) | `/auto-architect` (batch) or `/io-architect` (CRC only, manual) |
 | `[CLEANUP]` | Minor improvement | No | `/validate-plan` -> `/io-plan-batch` |
 | `[TEST]` | Missing test coverage | No | `/io-ct-remediate` (CT gaps) or checkpoint amendment (unit test gaps) |

@@ -10,14 +10,12 @@ description: Full-system integration correctness analysis after all checkpoints 
 >
 > 1. Load planning rules: `view_file .claude/rules/planning.md`
 > 2. Load the component registry: `view_file plans/component-contracts.yaml`
-> 3. Load the Architecture Spec: `view_file plans/project-spec.md`
-> 4. Load all contracts: `view_file interfaces/*.pyi`
 
 # WORKFLOW: GAP ANALYSIS
 
 **Objective:** Verify integration correctness across the entire codebase after all checkpoints in a feature (or full project) are complete. Confirm all contracts are satisfied, all connectivity tests are green, and no architectural drift has occurred.
 
-**Scope:** Full system — all components in the Interface Registry.
+**Scope:** Full system — all components in `plans/component-contracts.yaml`.
 
 **Position in chain:**
 
@@ -33,7 +31,7 @@ Before proceeding, output:
 
 - **Scope:** [Feature F-XX / Full project]
 - **Checkpoints covered:** [list from plan.yaml with PASS/FAIL status]
-- **Interface Registry entries:** [N components]
+- **Component contracts:** [N components]
 - **Connectivity tests defined:** [N total in plan.yaml]
 
 ---
@@ -56,12 +54,12 @@ For every entry in `plans/component-contracts.yaml` (use the `file` field for th
 
 - **Action:** Run `uv run python .claude/scripts/extract_structure.py <implementation_file>` to map the public surface area.
 
-- **Check:** Does the implementation surface match the Protocol signature exactly?
+- **Check:** Does the implementation surface match the component contract exactly?
   - Missing methods → HIGH finding
   - Signature mismatch (wrong types, wrong return) → HIGH finding
-  - Extra public methods not in Protocol → MEDIUM finding (scope creep)
+  - Extra public methods not in component contract → MEDIUM finding (scope creep)
 
-- **Check:** Run `uv run python .claude/scripts/extract_structure.py` to verify CRC-to-Protocol alignment.
+- **Check:** Run `uv run python .claude/scripts/extract_structure.py` to verify CRC-to-contract alignment.
 
 ---
 
@@ -106,8 +104,8 @@ Verify cross-component wiring:
 
 Each finding gets one tag. Decision gate:
 
-1. Does this require a new or updated `.pyi` contract? -> [DESIGN]
-2. Does this require a CRC update (but no `.pyi` change)? -> [REFACTOR]
+1. Does this require a new or updated component contract? -> [DESIGN]
+2. Does this require a CRC update (but no contract change)? -> [REFACTOR]
 3. Is this a missing or inadequate test? -> [TEST]
 4. Otherwise (implementation fix, spec already correct) -> [CLEANUP]
 
@@ -116,7 +114,7 @@ Each finding gets one tag. Decision gate:
 | HIGH | [TAG] | [ComponentName] | [issue] | [fix] |
 
 ### Contract Coverage
-- Interface Registry entries: [N]
+- Component contracts: [N]
 - Fully satisfied: [N]
 - Gaps: [N]
 
@@ -145,7 +143,7 @@ Each finding gets one tag. Decision gate:
         - "[repo-relative path]"
       issue: "[one-line description]"
       detail: "[implementation guidance]"
-      contract_impact: null  # or description of CRC/Protocol change needed
+      contract_impact: null  # or description of CRC/contract change needed
   ```
 
   **Invoke:**
@@ -177,5 +175,5 @@ Next step: Run /doc-sync to reconcile project-spec.md and roadmap.md with curren
 
 - Read-only — no fixes, no file writes beyond `plans/review-output.yaml` (via `stage_review_findings.py`)
 - Findings route to `plans/backlog.yaml` only — never to `plans/plan.yaml` or `plans/roadmap.md`
-- Do not modify `interfaces/*.pyi` — if a contract gap is found, it goes to backlog as a `[DESIGN]` item
+- Do not modify `plans/component-contracts.yaml` — if a contract gap is found, it goes to backlog as a `[DESIGN]` item
 - No git operations

@@ -11,7 +11,7 @@ description: Detect and remediate drift between plans/project-spec.md CRC cards 
 
 * Target artifacts: `plans/project-spec.md` (CRC cards section), `interfaces/*.pyi`, and `plans/component-contracts.yaml`
 * Output: Drift report, updated `plans/component-contracts.yaml`, and re-stamped `**Approved:** True` on `plans/project-spec.md`
-* Trigger: Recovery path. Run after `reset-on-pyi-write.sh` has reset `**Approved:** False` due to an out-of-band `.pyi` modification.
+* Trigger: Recovery path. Run after a reset hook has flipped `**Approved:** False` due to an out-of-band artifact modification.
 
 **Position in chain:**
 
@@ -94,10 +94,11 @@ Present a drift table to the user:
 
 ### Step E — Auto-Remediate
 
-* Set sentinel: `bash: mkdir -p .iocane && touch .iocane/validating`
+* Grant capability: `bash: uv run python .claude/scripts/capability.py grant --template validate-spec.E`
 * Apply all MISSING_CRC_METHOD and STALE_SIGNATURE fixes to `plans/project-spec.md`.
 * Apply any ORPHANED_CRC_METHOD removals confirmed by the user in Step D.
 * Re-run Step B to verify no further drift remains after edits. If new violations surface, return to Step D.
+* **Step E-post:** `bash: uv run python .claude/scripts/capability.py revoke --template validate-spec.E`
 
 ---
 
@@ -141,9 +142,11 @@ Report: "component-contracts.yaml: in sync" or "component-contracts.yaml: regene
 ### Step F — Stamp
 
 * Confirm zero unresolved violations.
-* If Step E was skipped (zero violations detected in Step B): set sentinel now: `bash: mkdir -p .iocane && touch .iocane/validating`
+* If Step E was skipped (zero violations detected in Step B): grant capability now: `bash: uv run python .claude/scripts/capability.py grant --template validate-spec.F`
 * Write `**Approved:** True` to the `plans/project-spec.md` header.
-* The sentinel is auto-deleted by `reset-on-project-spec-write.sh` when it detects the `**Approved:** True` write — no explicit cleanup step required.
+* **Step F-post:** `bash: uv run python .claude/scripts/capability.py revoke --template validate-spec.F`
+
+The reset-on-project-spec-write.sh hook still runs its content-detection state-machine logic when it sees `**Approved:** True` (driving the workflow-state.json transition), but the outer reset is bypassed by the grant.
 
 ---
 
@@ -159,7 +162,7 @@ Report: "component-contracts.yaml: in sync" or "component-contracts.yaml: regene
 * Do not modify `interfaces/*.pyi` files. `.pyi` files are the authoritative source; `plans/project-spec.md` is updated to match.
 * `PROTOCOL_MISMATCH` findings (new or removed Protocol classes) must route to `/io-architect`, not be auto-amended.
 * `extract_structure.py` output is the sole source for `.pyi` structural facts — do not read `.pyi` files directly unless `extract_structure.py` is unavailable.
-* The sentinel must be active before any write to `plans/project-spec.md` in Step E and Step F. Never write to `project-spec.md` without the sentinel.
-* If Step E and Step F writes are performed in sequence, a single sentinel set at the start of Step E covers both — do not re-set between steps.
+* A capability grant must be active before any write to `plans/project-spec.md` in Step E and Step F. Never write to `project-spec.md` without an active grant (`validate-spec.E` or `validate-spec.F`).
+* If Step E and Step F writes are performed in sequence, the `validate-spec.E` grant issued at the start of Step E covers both — do not revoke between steps; revoke once at the end of Step F.
 * `plans/component-contracts.yaml` is always regenerated in full — never patched. Partial edits risk inconsistency with `check_di_compliance.py`.
 * Step E-1 runs regardless of whether Step E made changes. Even if zero CRC-Protocol drift was found, `component-contracts.yaml` may still be stale from a prior OOB change.

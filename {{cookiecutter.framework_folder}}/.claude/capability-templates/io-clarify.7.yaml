@@ -1,0 +1,15 @@
+# /io-clarify Step 7 writes the **Clarified:** True stamp to plans/PRD.md.
+# Without this grant, reset-on-prd-write.sh would flip the stamp back as
+# soon as it fires. The hook still runs its content-detection state-
+# machine logic (the stamp write drives the workflow-state.json
+# transition); only the outer reset is bypassed.
+
+workflow: io-clarify
+step: "7"
+ttl_seconds: 600
+grants:
+  write:
+    - plans/PRD.md
+  rm: []
+keywords: [clarify, prd-stamp, clarified-true]
+context: "io-clarify Step 7: **Clarified:** True stamp write to plans/PRD.md."

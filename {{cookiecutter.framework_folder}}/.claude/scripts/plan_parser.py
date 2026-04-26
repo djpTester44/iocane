@@ -75,12 +75,8 @@ def save_plan(path: str, plan: Plan) -> None:
 
 
 def resolved_contract(cp: Checkpoint) -> str | None:
-    """Return the checkpoint's contract, falling back to scope[0].protocol."""
-    if cp.contract:
-        return cp.contract
-    if cp.scope:
-        return cp.scope[0].protocol
-    return None
+    """Return the checkpoint's contract, or None if unset."""
+    return cp.contract or None
 
 
 def resolved_criteria(cp: Checkpoint) -> list[str]:

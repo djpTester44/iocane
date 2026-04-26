@@ -9,7 +9,7 @@ This is **__PROJECT_NAME__** — __PROJECT_DESCRIPTION__. Claude must treat this
 ## Structural Contracts
 
 - `.claude/` files govern this project's workflows and rules — never modify without explicit instruction.
-- `interfaces/*.pyi` are binding behavioral contracts — changes require `/io-architect` with human approval.
+- `plans/component-contracts.yaml` holds the binding behavioral contract for every component — changes require `/io-architect` with human approval.
 - `.claude/scripts/schemas.py` defines structural contracts for all workflow YAML — never modify without explicit instruction.
 - `plans/backlog.yaml` is append-only — never delete entries (audit trail).
 
@@ -26,7 +26,7 @@ Core workflow files are Pydantic-validated YAML. Schema violations are rejected 
 | Task Files | `plans/tasks/CP-*.yaml` | `TaskFile` | `task_parser.py` |
 | Seams | `plans/seams.yaml` | `SeamsFile` | `seam_parser.py` |
 
-- `schemas.py` is the canonical schema — same binding status as `interfaces/*.pyi`.
+- `schemas.py` is the canonical schema — as binding as `plans/component-contracts.yaml`.
 - Prefer parser modules for mutations — raw YAML edits bypass immutability guarantees.
 - `.claude/templates/*.yaml` for canonical format reference.
 
@@ -55,7 +55,7 @@ The human is required at these moments — and only these:
 |--------|----------|-----------------|
 | PRD ambiguities | `/io-clarify` | Answer questions, approve stamp |
 | Roadmap proposal | `/io-specify` | Approve or correct `roadmap.md` |
-| Design proposal | `/io-architect` | Approve CRC + Protocols — this is the contract lock |
+| Design proposal | `/io-architect` | Approve CRC + component contracts — this is the contract lock |
 | Checkpoint boundaries | `/io-checkpoint` | Approve `plan.yaml` + connectivity test signatures |
 | Validate task files | post `/io-plan-batch` | Run `/validate-tasks`; approve or route DESIGN findings |
 | Run sub-agents | post `/validate-tasks` | `bash .claude/scripts/dispatch-agents.sh` |

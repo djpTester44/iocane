@@ -1,4 +1,6 @@
 agents:
+  design_eval_max_turns: 50
+  design_eval_timeout: 15m
   eval_max_retries: 2
   eval_max_turns: 20
   eval_timeout: 5m

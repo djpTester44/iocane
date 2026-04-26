@@ -68,10 +68,10 @@ Before proceeding:
 |---------|------|-----------|
 | Gate command failing | MECHANICAL | Generator can fix its own code |
 | Test assertion failing | MECHANICAL | Generator can fix test or implementation |
-| Protocol signature mismatch | MECHANICAL | Generator can align signatures |
+| Contract signature mismatch | MECHANICAL | Generator can align signatures |
 | DI violation (internal instantiation) | MECHANICAL | Generator can refactor to injection |
 | Type error (mypy) | MECHANICAL | Generator can fix types |
-| Missing Protocol method entirely | DESIGN | Requires /io-architect -- method not in spec |
+| Missing contract method entirely | DESIGN | Requires /io-architect -- method not declared in contract |
 | Wrong component boundary | DESIGN | Architectural gap |
 | Layer violation (lint-imports) | DESIGN | Requires structural redesign |
 | Missing dependency (package not installed) | DESIGN | Requires project-level change |
@@ -81,7 +81,7 @@ Before proceeding:
 ### Step D: STRUCTURAL COMPLIANCE
 
 - **Action:** Check (findings only, not blocking):
-  - Every Protocol method has a corresponding implementation method with matching signature
+  - Every public surface declared on the component contract has a corresponding implementation
   - All collaborators received via `__init__`, none instantiated internally
   - Protocol imports inside `if TYPE_CHECKING:` only
   - `from __future__ import annotations` present
@@ -91,6 +91,7 @@ Before proceeding:
 ### Step E: DETERMINE VERDICT AND WRITE EVAL JSON
 
 **Verdict logic:**
+
 - All criteria met + gate passing --> `PASS`
 - Any DESIGN failure present --> `DESIGN_FAIL` (even if some failures are MECHANICAL)
 - Only MECHANICAL failures --> `MECHANICAL_FAIL` + populated `regen_hint`

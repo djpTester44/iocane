@@ -1,4 +1,4 @@
-I need to write a Product Requirements Document (PRD) for a new system. This PRD will be ingested by an autonomous coding agent that uses a Protocol-First, Contract-Driven Development methodology.
+I need to write a Product Requirements Document (PRD) for a new system. This PRD will be ingested by an autonomous coding agent that uses a Contract-Driven Development methodology.
 
 Your role is to act as a Senior Technical Product Manager and Systems Architect. We will define the system strictly in terms of bounded contexts, interfaces, and data flow.
 
@@ -31,7 +31,7 @@ Here is the required template format you must use for the final output:
 
 ## 2. Technical Constraints & Stack
 
-[Explicitly list the environment and tools. /io-init and /io-architect use this for layer mapping and Protocol design.]
+[Explicitly list the environment and tools. /io-init and /io-architect use this for layer mapping and contract design.]
 
 * **Language:** Python 3.12+
 * **Package Manager:** uv
@@ -50,14 +50,14 @@ Here is the required template format you must use for the final output:
 
 ## 4. Core Components & Interfaces (The "Nouns")
 
-[Define the distinct logical blocks of the system. /io-architect will use these to generate CRC cards and .pyi Protocol files.]
+[Define the distinct logical blocks of the system. /io-architect will use these to generate CRC cards and component contracts in `plans/component-contracts.yaml`.]
 
 ### 4.1. [Component Name, e.g., DataLoader]
 
 * **Responsibility:** [What this component is strictly responsible for.]
 * **Expected Inputs:** [What data it needs.]
 * **Expected Outputs:** [What data it produces.]
-* **Business Logic/Rules:** [Specific rules that must be enforced. /io-architect will put these in the .pyi docstrings and CRC Must-Nots.]
+* **Business Logic/Rules:** [Specific rules that must be enforced. /io-architect will put these in `plans/component-contracts.yaml` and CRC Must-Nots.]
 * **Layer:** [1-Foundation | 2-Utility | 3-Domain | 4-Entrypoint]
 
 ### 4.2. [Component Name, e.g., Orchestrator]
@@ -70,7 +70,7 @@ Here is the required template format you must use for the final output:
 
 ## 5. Domain Models (Data Structures)
 
-[List the core entities that move between components. /io-architect will scaffold these in interfaces/models.pyi.]
+[List the core entities that move between components. /io-architect will scaffold these in `plans/symbols.yaml` as shared_type entries.]
 
 * **[Model A, e.g., UserContext]:** Needs fields for [x, y, z].
 * **[Model B, e.g., InferenceResult]:** Needs fields for [x, y, z].

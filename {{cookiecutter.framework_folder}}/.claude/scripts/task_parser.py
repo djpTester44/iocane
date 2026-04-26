@@ -67,10 +67,10 @@ def save_task(path: str, task: TaskFile) -> None:
         if "receives_di" in seam and not seam["receives_di"]:
             del seam["receives_di"]
         if (
-            "receives_di_protocols" in seam
-            and not seam["receives_di_protocols"]
+            "injected_contracts" in seam
+            and not seam["injected_contracts"]
         ):
-            del seam["receives_di_protocols"]
+            del seam["injected_contracts"]
         if "key_failure_modes" in seam and not seam["key_failure_modes"]:
             del seam["key_failure_modes"]
     # Ensure always-emit fields exist

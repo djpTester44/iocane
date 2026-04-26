@@ -135,7 +135,6 @@ class ScopeEntry(BaseModel, frozen=True):
     """A single scope line within a checkpoint."""
 
     component: str
-    protocol: str | None = None
     methods: list[str] = []
 
 
@@ -319,16 +318,17 @@ class ExecutionFinding(BaseModel, frozen=True):
 class SeamEntry(BaseModel, frozen=True):
     """Seam context entry describing a component boundary.
 
-    Appendix A §A.3a: ``receives_di_protocols`` is the canonical field for
-    Protocol-level DI graph. ``receives_di`` is a deprecated alias carrying
-    collaborator component names from pre-A.3 seams files; readers migrating
-    the graph to Protocol names should prefer ``receives_di_protocols`` and
-    fall back to ``receives_di`` only when the new field is empty.
+    Appendix A §A.3a: ``injected_contracts`` is the canonical field for
+    the contract-level DI graph. ``receives_di`` is a deprecated alias
+    carrying collaborator component names from pre-A.3 seams files;
+    readers migrating the graph to contract names should prefer
+    ``injected_contracts`` and fall back to ``receives_di`` only when
+    the new field is empty.
     """
 
     component: str
     receives_di: list[str] = []
-    receives_di_protocols: list[str] = []
+    injected_contracts: list[str] = []
     key_failure_modes: list[str] = []
     external_terminal: str | None = None
 
@@ -403,87 +403,28 @@ class SeamsFile(BaseModel, frozen=True):
 # ---------------------------------------------------------------------------
 
 _PY_IDENT_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
-
-
-class ArgSpec(BaseModel, frozen=True):
-    """A positional argument on a Protocol method.
-
-    ``self`` is implicit; do not declare it. ``type_expr`` is a PEP 484
-    expression (e.g., ``"list[int]"``, ``"Mapping[str, Route]"``).
-    ``default``, when present, is the serialized literal rendered on
-    the right-hand side of ``=`` in the generated signature.
-    """
-
-    name: str
-    type_expr: str
-    default: str | None = None
-
-    @field_validator("name")
-    @classmethod
-    def validate_name(cls, v: str) -> str:
-        """Enforce lowercase Python-identifier-safe arg name."""
-        if not _PY_IDENT_RE.fullmatch(v):
-            msg = f"arg name must be lowercase identifier-safe, got '{v}'"
-            raise ValueError(msg)
-        return v
-
-    @field_validator("type_expr")
-    @classmethod
-    def validate_type_expr(cls, v: str) -> str:
-        """Reject empty type expression."""
-        if not v.strip():
-            msg = "type_expr must be non-empty"
-            raise ValueError(msg)
-        return v
-
-
-class MethodSpec(BaseModel, frozen=True):
-    """A Protocol method signature plus behavioral docstring.
-
-    Authored inside ``ComponentContract.methods``. Consumed by
-    ``gen_protocols.py`` to emit the ``.pyi`` Protocol body and the
-    docstring Raises block. ``raises`` carries bare exception class
-    names; each name must resolve to a Symbol of kind=exception_class
-    in ``plans/symbols.yaml`` (enforced by
-    ``validate_symbols_coverage.py``).
-    """
-
-    name: str
-    args: list[ArgSpec] = []
-    return_type: str = "None"
-    raises: list[str] = []
-    docstring: str | None = None
-
-    @field_validator("name")
-    @classmethod
-    def validate_name(cls, v: str) -> str:
-        """Enforce lowercase Python-identifier-safe method name."""
-        if not _PY_IDENT_RE.fullmatch(v):
-            msg = f"method name must be lowercase identifier-safe, got '{v}'"
-            raise ValueError(msg)
-        return v
-
-    @field_validator("return_type")
-    @classmethod
-    def validate_return_type(cls, v: str) -> str:
-        """Reject empty return_type."""
-        if not v.strip():
-            msg = "return_type must be non-empty"
-            raise ValueError(msg)
-        return v
+_RAISES_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
 
 
 class ComponentContract(BaseModel, frozen=True):
-    """A single component entry in plans/component-contracts.yaml."""
+    """A single component entry in plans/component-contracts.yaml.
+
+    Behavioral commitments live at the component layer: ``responsibilities``
+    name what the component owns; ``raises`` declares the component-level
+    exception surface (bare class names like ``RouteNotFound`` or dotted
+    stdlib names like ``subprocess.CalledProcessError``). Each name in
+    ``raises`` must resolve to a Symbol of ``kind=exception_class`` in
+    ``plans/symbols.yaml`` (enforced by ``validate_symbols_coverage.py``);
+    builtin and stdlib-module exceptions are skipped.
+    """
 
     file: str
     collaborators: list[str] = []
     composition_root: bool = False
-    protocol: str = ""
     responsibilities: list[str] = []
     must_not: list[str] = []
     features: list[str] = []
-    methods: list[MethodSpec] = []
+    raises: list[str] = []
 
     @field_validator("file")
     @classmethod
@@ -494,48 +435,18 @@ class ComponentContract(BaseModel, frozen=True):
             raise ValueError(msg)
         return v
 
-    @field_validator("protocol")
+    @field_validator("raises")
     @classmethod
-    def normalize_protocol_path(cls, v: str) -> str:
-        """Normalize the protocol path so key-matching is path-form-agnostic.
-
-        Empty string is allowed (composition roots have no Protocol).
-        Non-empty strings are normalized: Windows backslashes -> forward
-        slashes, leading ``./`` stripped, and (when the string contains
-        ``interfaces/``) anchored so only the canonical form remains.
-        Mirrors ``TestPlanEntry.validate_protocol_path`` minus the ``.pyi``
-        suffix check -- this field also accepts free-form Protocol names
-        used in display-only fixtures where no filesystem path exists.
-        """
-        if not v:
-            return v
-        v = v.replace("\\", "/")
-        while v.startswith("./"):
-            v = v[2:]
-        idx = v.rfind("interfaces/")
-        if idx >= 0:
-            v = v[idx:]
+    def validate_raises_names(cls, v: list[str]) -> list[str]:
+        """Enforce identifier-safe exception class names (dotted allowed)."""
+        for name in v:
+            if not _RAISES_NAME_RE.fullmatch(name):
+                msg = (
+                    f"raises entry must be an identifier-safe class name "
+                    f"(dotted module paths allowed), got '{name}'"
+                )
+                raise ValueError(msg)
         return v
-
-    @model_validator(mode="after")
-    def check_protocol_requires_methods(self) -> "ComponentContract":
-        """Protocol-bound components must declare at least one MethodSpec.
-
-        A contract with ``protocol:`` set but ``methods: []`` silently
-        breaks the downstream codegen + tester dispatch chain. Step H of
-        /io-architect requires MethodSpec coverage for every behavioral
-        component; this validator promotes that prose invariant to a
-        structural gate enforced at YAML parse time.
-        """
-        if self.protocol and not self.methods:
-            msg = (
-                f"ComponentContract with protocol={self.protocol!r} must "
-                "populate methods (non-empty list[MethodSpec]). "
-                "Protocol-bound components require method signatures "
-                "for codegen."
-            )
-            raise ValueError(msg)
-        return self
 
 
 class ComponentContractsFile(BaseModel, frozen=True):
@@ -675,7 +586,7 @@ class Symbol(BaseModel, frozen=True):
     message_pattern: str | None = None
     fixture_scope: str | None = None
     # Architect-authored: component names that reference this symbol.
-    # Populated at /io-architect Step H-6 from CRC collaboration analysis.
+    # Populated at /io-architect Step F from CRC collaboration analysis.
     used_by: list[str] = []
     # Checkpoint-backfilled: CP-IDs that touch this symbol. Populated at
     # /io-checkpoint after plan.yaml is authored, by walking each CP's
@@ -714,11 +625,9 @@ class Symbol(BaseModel, frozen=True):
         exception_class and shared_type manifest as concrete Python class
         bodies at runtime. They live either under the project's ``src/``
         tree OR in an external installable package (``pydantic``,
-        ``sqlalchemy.orm``, etc.). Placing them in ``interfaces/``
-        conflates type-only Protocol stubs with runtime implementations
-        (the C8 drift). ``declared_in`` presence is enforced by
-        ``check_kind_required_fields``; this validator constrains the
-        zone of any value that is set.
+        ``sqlalchemy.orm``, etc.). ``declared_in`` presence is enforced
+        by ``check_kind_required_fields``; this validator constrains
+        the zone of any value that is set.
 
         Accepted shapes:
           * ``src/...`` -- project filesystem path.
@@ -726,8 +635,6 @@ class Symbol(BaseModel, frozen=True):
             ``sqlalchemy.orm``) -- external package.
 
         Rejected shapes:
-          * ``interfaces/...`` -- type-only zone; runtime identity
-            cannot live there.
           * path-shaped without ``src/`` prefix (``domain/types.py``,
             ``../escape``, absolute paths) -- catches typos and escapes.
           * dotted-src forms (``src.domain.types``) -- the most likely
@@ -739,13 +646,6 @@ class Symbol(BaseModel, frozen=True):
         declared = self.declared_in
         if declared is None:
             return self
-        if declared.startswith("interfaces/"):
-            msg = (
-                f"Symbol of kind {self.kind.value} must not declare_in "
-                f"interfaces/; runtime symbols live in src/ or in an "
-                f"external module (e.g., 'pydantic'), got '{declared}'"
-            )
-            raise ValueError(msg)
         normalized = declared.replace("\\", "/")
         has_slash = "/" in normalized
         if has_slash and not declared.startswith("src/"):
@@ -791,13 +691,14 @@ class SymbolsFile(BaseModel, frozen=True):
 # ---------------------------------------------------------------------------
 
 _INV_ID_RE = re.compile(r"^INV-\d{3}$")
+_COMPONENT_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 class InvariantKind(StrEnum):
-    """Taxonomy of per-Protocol-method test invariants.
+    """Taxonomy of per-component test invariants.
 
     Tracks the same observable axes used by CT assertion validation but
-    at the Protocol-method layer rather than the seam layer.
+    at the component-contract layer rather than the seam layer.
     """
 
     CALL_BINDING = "call_binding"
@@ -809,7 +710,15 @@ class InvariantKind(StrEnum):
 
 
 class TestInvariant(BaseModel, frozen=True):
-    """A single behavioral invariant on a Protocol method."""
+    """A single behavioral invariant scoped to a component contract.
+
+    ``method`` is optional and architect-supplied: when an
+    ``error_propagation`` invariant covers a specific component-level
+    raises entry, the architect may populate ``method`` from impl
+    knowledge to anchor the invariant to a method scope. No upstream
+    YAML supplies method context, so the field stays None unless the
+    architect chooses to populate it.
+    """
 
     __test__: ClassVar[bool] = False
 
@@ -817,6 +726,7 @@ class TestInvariant(BaseModel, frozen=True):
     kind: InvariantKind
     description: str
     pass_criteria: str
+    method: str | None = None
 
     @field_validator("id")
     @classmethod
@@ -827,40 +737,44 @@ class TestInvariant(BaseModel, frozen=True):
             raise ValueError(msg)
         return v
 
+    @field_validator("method")
+    @classmethod
+    def validate_method_name(cls, v: str | None) -> str | None:
+        """Enforce lowercase Python-identifier method name when present."""
+        if v is None:
+            return v
+        if not _PY_IDENT_RE.fullmatch(v):
+            msg = (
+                f"method must be lowercase identifier-safe when present, "
+                f"got '{v}'"
+            )
+            raise ValueError(msg)
+        return v
+
 
 class TestPlanEntry(BaseModel, frozen=True):
-    """Per-Protocol-method test authoring spec.
+    """Per-component test authoring spec.
 
-    The Test Author reads this entry and produces one or more contract
-    tests covering each invariant. If any invariant cannot be enforced
-    because the Protocol is silent on it, the Test Author emits an
-    AmendSignal instead of writing the test.
+    One entry per component contract. The downstream test author reads
+    this entry and produces one or more contract tests covering each
+    invariant. ``component`` matches the dict key in
+    ``TestPlanFile.entries`` (and the component name in
+    ``ComponentContractsFile.components``); the redundancy is
+    deliberate so a TestPlanEntry remains self-describing when passed
+    individually to downstream consumers.
     """
 
     __test__: ClassVar[bool] = False
 
-    protocol: str
-    method: str
+    component: str
     invariants: list[TestInvariant]
 
-    @field_validator("protocol")
+    @field_validator("component")
     @classmethod
-    def validate_protocol_path(cls, v: str) -> str:
-        """Normalize and enforce a .pyi path anchored at interfaces/.
-
-        Accepts ``interfaces/router.pyi``, ``./interfaces/router.pyi``,
-        and Windows-style backslash paths; normalizes to a single
-        canonical form so downstream lookups are not foiled by
-        path-format drift between authoring environments.
-        """
-        v = v.replace("\\", "/")
-        while v.startswith("./"):
-            v = v[2:]
-        idx = v.rfind("interfaces/")
-        if idx >= 0:
-            v = v[idx:]
-        if not v.endswith(".pyi"):
-            msg = f"protocol must be a .pyi path, got '{v}'"
+    def validate_component_name(cls, v: str) -> str:
+        """Enforce identifier-safe component name."""
+        if not _COMPONENT_NAME_RE.fullmatch(v):
+            msg = f"component name must be identifier-safe, got '{v}'"
             raise ValueError(msg)
         return v
 
@@ -872,10 +786,9 @@ class TestPlanEntry(BaseModel, frozen=True):
         """Reject empty invariants list.
 
         An entry with zero invariants silently bypasses the
-        completeness gate -- the entry exists, so the method counts as
-        covered, but no behavioral claim is asserted. The entry must
-        be either populated or removed (with a # noqa: TEST_PLAN
-        deferral on the .pyi method, which surfaces as an INFO line).
+        completeness gate -- the entry exists, so the component counts
+        as covered, but no behavioral claim is asserted. The entry
+        must be either populated or removed.
         """
         if not v:
             msg = "invariants must contain at least one TestInvariant"
@@ -884,82 +797,34 @@ class TestPlanEntry(BaseModel, frozen=True):
 
 
 class TestPlanFile(BaseModel):
-    """Top-level container for plans/test-plan.yaml."""
+    """Top-level container for plans/test-plan.yaml.
+
+    ``entries`` is a component-keyed dict mirroring
+    ``ComponentContractsFile.components``: each key is a component name
+    and maps to one TestPlanEntry. The dict key is the source of truth
+    for naming; the model_validator below verifies the entry's own
+    ``component`` field matches its key, catching construction-bypass
+    drift.
+    """
 
     __test__: ClassVar[bool] = False
 
     validated: bool = False
     validated_date: str | None = None
     validated_note: str | None = None
-    entries: list[TestPlanEntry] = []
+    entries: dict[str, TestPlanEntry] = {}
 
-
-# ---------------------------------------------------------------------------
-# Amend signal (.iocane/amend-signals/<protocol>.yaml)
-# ---------------------------------------------------------------------------
-
-
-class AmendSignalKind(StrEnum):
-    """Categories of Protocol under-specification a Test Author may surface."""
-
-    MISSING_RAISES = "missing_raises"
-    SILENT_RETURN_SEMANTICS = "silent_return_semantics"
-    MISSING_PRECONDITION = "missing_precondition"
-    UNDECLARED_COLLABORATOR = "undeclared_collaborator"
-    SYMBOL_GAP = "symbol_gap"
-
-
-class AmendSignal(BaseModel, frozen=True):
-    """One under-specification the Test Author could not author tests for."""
-
-    method: str
-    invariant_id: str
-    kind: AmendSignalKind
-    description: str
-    suggested_amendment: str
-
-    @field_validator("invariant_id")
-    @classmethod
-    def validate_inv_id(cls, v: str) -> str:
-        """Enforce INV-NNN format when present; allow empty for impl-level gaps.
-
-        Tester signals always originate from a specific test-plan
-        invariant and carry a non-empty INV-NNN id. Generator
-        (io-execute) signals on impl-Protocol gaps may surface
-        contract insufficiencies that are not tied to any single
-        declared invariant -- e.g., a return shape the Protocol is
-        silent on that multiple invariants incidentally depend upon.
-        For those cases empty is the correct signal; inventing an
-        INV-NNN to satisfy the schema would mislead the architect
-        consumer into looking for a specific invariant that does
-        not exist.
-        """
-        if v and not _INV_ID_RE.fullmatch(v):
-            msg = f"invariant_id must match INV-NNN format or be empty, got '{v}'"
-            raise ValueError(msg)
-        return v
-
-
-class AmendSignalFile(BaseModel, frozen=True):
-    """Structured payload written by Test Author when it cannot proceed.
-
-    One file per Protocol, at ``.iocane/amend-signals/<protocol>.yaml``.
-    Consumed by ``handle_amend_signal.py`` which re-enters the architect
-    amend sub-loop until the attempt counter exceeds the configured cap.
-    """
-
-    protocol: str
-    attempt: int = 1
-    signals: list[AmendSignal]
-
-    @field_validator("protocol")
-    @classmethod
-    def validate_protocol_path(cls, v: str) -> str:
-        """Enforce a .pyi path inside interfaces/."""
-        if not v.endswith(".pyi"):
-            msg = f"protocol must be a .pyi path, got '{v}'"
-            raise ValueError(msg)
-        return v
+    @model_validator(mode="after")
+    def check_entry_keys_match_components(self) -> "TestPlanFile":
+        """Enforce dict key == entry.component for every entry."""
+        for key, entry in self.entries.items():
+            if entry.component != key:
+                msg = (
+                    f"entries['{key}'].component is '{entry.component}'; "
+                    "dict key must match the entry's component field"
+                )
+                raise ValueError(msg)
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -973,20 +838,35 @@ class FindingRole(StrEnum):
     TEST_AUTHOR = "test_author"
     GENERATOR = "generator"
     EVALUATOR = "evaluator"
-    IO_GEN_PROTOCOLS = "io-gen-protocols"
+    EVALUATOR_DESIGN = "evaluator_design"
+
+
+ROLE_TO_DEFECT_KINDS: dict[FindingRole, frozenset[str]] = {
+    FindingRole.EVALUATOR_DESIGN: frozenset(
+        {
+            "design_tautological_invariant",
+            "design_vague_raises_trigger",
+            "design_symbol_classification_drift",
+            "design_missing_adversarial_coverage",
+            "design_duplicate_symbols",
+            "design_over_abstracted_param_type",
+            "design_impl_leaking_docstring",
+            "design_responsibility_cohesion_drift",
+        }
+    ),
+}
 
 
 class RootCauseLayer(StrEnum):
     """The layer whose defect produced the finding and owns the fix.
 
-    Remediation flows downward from the named layer: fixing
-    yaml_contract requires re-running gen_protocols, test author,
-    and downstream; fixing interfaces_codegen only requires
-    re-running codegen and downstream; and so on.
+    Remediation flows downward from the named layer: a yaml_contract
+    fix re-drives test authorship and downstream; a test_authorship
+    fix re-drives only the test layer; an impl fix is local to the
+    affected component.
     """
 
     YAML_CONTRACT = "yaml_contract"
-    INTERFACES_CODEGEN = "interfaces_codegen"
     TEST_AUTHORSHIP = "test_authorship"
     IMPL = "impl"
 
@@ -999,17 +879,16 @@ class FindingContext(BaseModel, frozen=True):
     locators is orphaned and cannot be routed.
     """
 
-    protocol: str | None = None
     cp_id: str | None = None
     test_file: str | None = None
 
     @model_validator(mode="after")
     def check_at_least_one_locator(self) -> "FindingContext":
         """Reject a context with no populated locator."""
-        if not any((self.protocol, self.cp_id, self.test_file)):
+        if not any((self.cp_id, self.test_file)):
             msg = (
                 "FindingContext requires at least one of "
-                "protocol, cp_id, test_file"
+                "cp_id, test_file"
             )
             raise ValueError(msg)
         return self
@@ -1064,12 +943,51 @@ class Finding(BaseModel, frozen=True):
     diagnosis: FindingDiagnosis
     remediation: FindingRemediation
 
+    @model_validator(mode="after")
+    def validate_design_role_diagnosis_why(self) -> "Finding":
+        """Reject empty diagnosis.why on EVALUATOR_DESIGN findings.
+
+        Semantic findings carry the agent's reasoning in
+        diagnosis.why. An empty value strips the human remediator's
+        only context for the call. Legacy roles are unconstrained
+        until A5/A6 introduce additional semantic roles.
+        """
+        if (
+            self.role is FindingRole.EVALUATOR_DESIGN
+            and not self.diagnosis.why.strip()
+        ):
+            msg = (
+                "diagnosis.why must be non-empty for "
+                f"role {self.role.value}"
+            )
+            raise ValueError(msg)
+        return self
+
+    @model_validator(mode="after")
+    def validate_defect_kind(self) -> "Finding":
+        """Reject defect_kind not in the allowed set for the role.
+
+        Strict set-membership at the data-model layer catches typos,
+        unauthorized novel slugs, and rubric drift at construction
+        time. Roles absent from ROLE_TO_DEFECT_KINDS skip the check
+        (legacy free-form behavior; A5/A6 register their own slug
+        sets when their roles land).
+        """
+        allowed = ROLE_TO_DEFECT_KINDS.get(self.role)
+        if allowed is not None and self.defect_kind not in allowed:
+            msg = (
+                f"defect_kind {self.defect_kind!r} not in allowed "
+                f"set for role {self.role.value}"
+            )
+            raise ValueError(msg)
+        return self
+
 
 class FindingFile(BaseModel, frozen=True):
     """Container for .iocane/findings/<role>-<timestamp>.yaml.
 
     One file per role emission; may carry multiple related findings
-    surfaced together (same precedent as AmendSignalFile.signals).
+    surfaced together.
     """
 
     findings: list[Finding]

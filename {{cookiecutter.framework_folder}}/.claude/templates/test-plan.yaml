@@ -1,20 +1,22 @@
-# Test plan -- per-Protocol-method behavioral invariants
+# Test plan -- per-component behavioral invariants
 # Schema: .claude/scripts/schemas.py (TestPlanFile, TestPlanEntry, TestInvariant)
 # Hook: .claude/hooks/validate-yaml.sh routes plans/test-plan.yaml
 # Writer: .claude/scripts/test_plan_parser.py (authored by /io-architect)
-# Reader: /io-test-author (Opus, Tier 1, per-Protocol)
 # Reference: .claude/references/test-plan-schema.md
 #
-# One entry per (protocol, method). Each invariant becomes one or more
-# contract tests. If the Protocol is silent on an invariant the Test
-# Author emits an AmendSignal instead of writing the test.
+# entries is a component-keyed dict (mirrors component-contracts.yaml's
+# components dict). Each entry covers one component's behavioral
+# commitments. The optional TestInvariant.method anchors an invariant
+# to a specific method scope -- the architect supplies it from impl
+# knowledge when an error_propagation invariant covers a particular
+# component-level raises entry.
 
-entries: []
+entries: {}
 
 # Example:
 # entries:
-#   - protocol: interfaces/router.pyi
-#     method: route
+#   Router:
+#     component: Router
 #     invariants:
 #       - id: INV-001
 #         kind: error_propagation
@@ -22,6 +24,7 @@ entries: []
 #         pass_criteria: |
 #           Given a destination not present in the routing table, route()
 #           raises RouteNotFound with the destination in the message.
+#         method: route
 #
 #       - id: INV-002
 #         kind: call_binding

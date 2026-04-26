@@ -29,7 +29,7 @@ symbols:
 Two reference axes, populated by different stages:
 
 - **`used_by`** -- component names that reference the symbol. The
-  architect populates this at `/io-architect` Step H-6 by walking the
+  architect populates this at `/io-architect` Step F by walking the
   CRC collaboration graph. This list is stable across the architect
   lifetime; it changes only when the architect re-runs.
 - **`used_by_cps`** -- CP-IDs that touch the symbol. Backfilled at
@@ -40,7 +40,7 @@ Two reference axes, populated by different stages:
 
 Tier-3 generators query `used_by_cps` to scope the symbol slice they
 receive in their task pack. Tier-1 architect amend cycles query
-`used_by` to find every component impacted by a Protocol change.
+`used_by` to find every component impacted by a contract change.
 
 The validator `check_kind_required_fields` enforces which fields must
 be populated per kind.
@@ -64,7 +64,7 @@ DatabaseUrl:
 ```
 
 ### `exception_class`
-A custom exception that crosses a Protocol boundary.
+A custom exception that crosses a component-contract boundary.
 
 Required: `parent` (base class name)
 
@@ -144,9 +144,9 @@ Session:
   used_by: [PipelineRepository]
 ```
 
-`gen_protocols.py` emits `from <module> import <Name>` for these --
-the consumer's `pyproject.toml` is responsible for ensuring the
-package is installable.
+Downstream test and impl authoring imports `from <module> import <Name>`
+for these -- the consumer's `pyproject.toml` is responsible for
+ensuring the package is installable.
 
 ### `declared_in` shape rules (zone check)
 
@@ -156,20 +156,18 @@ package is installable.
 | `tests/conftest.py` | Tests zone (fixtures only) | `from tests.conftest import X` |
 | `pydantic` | External bare module | `from pydantic import X` |
 | `sqlalchemy.orm` | External dotted module | `from sqlalchemy.orm import X` |
-| `interfaces/foo.pyi` | **Rejected** -- type-only zone | -- |
 | `src.domain.types` | **Rejected** -- dotted-src is a Pythonic mistake; use filesystem form | -- |
 | `sorce/foo.py` | **Rejected** -- path-shaped values must start with `src/` | -- |
 
 The validator rejects the common authoring mistakes (dotted-src
-Pythonic form, wrong prefix, `interfaces/` placement) at schema load
-so typos surface near the authoring site rather than downstream at
-type-check time.
+Pythonic form, wrong prefix) at schema load so typos surface near
+the authoring site rather than downstream at type-check time.
 
 ### Residual authoring risks
 
 - **Typo in a bare-module name** (`declared_in: pydantik`) cannot be
-  caught at codegen time without importing the package. Surfaces at
-  pyright/mypy when the `.pyi` is consumed.
+  caught at schema-load time without importing the package. Surfaces
+  at pyright/mypy when the module is imported from `src/`.
 - **Single-segment name collision** (`declared_in: core` where both a
   project `src/core/__init__.py` and an installed `core` package
   exist) resolves to whichever Python finds first on `sys.path`.

@@ -23,8 +23,6 @@ For module-level instantiation violations, use `# noqa: DI-MODULE`. Same rules a
 
 Components outside `src/` break import-linter contracts and the DI compliance check -- a single misplaced file fails the entire architecture gate.
 
-**Cross-reference:** The `interfaces/` directory invariant (`.pyi` stubs only, no runtime `.py` files) is enforced at the planning layer by `/io-checkpoint` Section 3, `/validate-plan` Step 7, and `/io-review` Step D.
-
 ---
 
 ## DEPENDENCY ANALYSIS

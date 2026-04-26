@@ -19,7 +19,7 @@ from schemas import MissingCtSeam, SeamComponent, SeamEntry, SeamsFile
 # Fields where empty lists can be stripped for readability.
 _STRIPPABLE_LISTS = {
     "receives_di",
-    "receives_di_protocols",
+    "injected_contracts",
     "key_failure_modes",
     "backlog_refs",
 }

@@ -108,9 +108,9 @@ For each open item:
 
 **Tag-specific guidance:**
 
-- `[DESIGN]` items reference `interfaces/*.pyi` contracts. The check is whether the
-  *contract gap* still exists (e.g., error types not exported, missing method), not
-  whether source code has changed. Read the `.pyi` file, not the implementation.
+- `[DESIGN]` items reference component-contract entries in `plans/component-contracts.yaml`. The check is whether the
+  *contract gap* still exists (e.g., error types not declared, missing behavioral unit), not
+  whether source code has changed. Read the contract entry in `plans/component-contracts.yaml`, not the implementation.
 - `[TEST]` items: check whether the referenced test file exists and contains the
   described coverage. Do not execute tests — existence and assertion shape are sufficient.
 - `[CLEANUP]` / `[REFACTOR]` items: read the referenced source location.
@@ -359,7 +359,7 @@ This step is skipped if the input source was `plans/backlog.yaml` directly
 ## CONSTRAINTS
 
 - Steps 1-5 are ANALYSIS AND PROPOSAL ONLY. No writes until Step 6 human approval.
-- Does NOT modify `plans/plan.yaml`, any `interfaces/*.pyi`, or any source or test file.
+- Does NOT modify `plans/plan.yaml`, `plans/component-contracts.yaml`, or any source or test file.
 - Writes to `plans/backlog.yaml` (Step 6: tagging deferred items, closing
   confirmed-resolved items, writing routing prompt annotations, atomic BL items
   from staging).
@@ -389,11 +389,11 @@ This step is skipped if the input source was `plans/backlog.yaml` directly
   Prompt: `/validate-plan`
   Context to provide: "CLEANUP items require no plan.yaml amendment -- route directly."
 
-- BL-003 [DESIGN] ComponentC error types not exported from Protocol
+- BL-003 [DESIGN] ComponentC contract's raises list missing error types
   Risk: Orchestration blocker
   Prompt: `/io-architect`
-  Context to provide: "ErrorTypeX and ErrorTypeY need to be exported from
-  interfaces/component_c.pyi. See BL-003."
+  Context to provide: "ErrorTypeX and ErrorTypeY need to be added to the
+  ComponentC contract's raises list in plans/component-contracts.yaml. See BL-003."
 ```
 
 ### Atomic entry creation (Step 6 -- from staging)
@@ -401,21 +401,21 @@ This step is skipped if the input source was `plans/backlog.yaml` directly
 A staging finding with non-None Contract impact produces two atomic BL entries:
 
 ```
-- [ ] **BL-042** [DESIGN] Export ErrorTypeX from ComponentC Protocol
+- [ ] **BL-042** [DESIGN] Add ErrorTypeX to ComponentC contract's raises list
   - Severity: HIGH
   - Component: ComponentC
-  - Files: interfaces/component_c.pyi
-  - Detail: ErrorTypeX and ErrorTypeY not exported; downstream handlers cannot type-check
-  - Contract impact: Add error types to component_c.pyi Protocol exports
+  - Files: plans/component-contracts.yaml
+  - Detail: ErrorTypeX and ErrorTypeY not declared in ComponentC contract's raises list; downstream handlers cannot type-check
+  - Contract impact: Add error types to ComponentC contract's raises list
   - Source: CP-12 /io-review 2026-04-04
   - Routed: CP-12R1 (2026-04-04)
-    - '/io-architect -- Export ErrorTypeX and ErrorTypeY from interfaces/component_c.pyi. See BL-042.'
+    - '/io-architect -- Add ErrorTypeX and ErrorTypeY to the raises list of the ComponentC contract in plans/component-contracts.yaml. See BL-042.'
 
 - [ ] **BL-043** [CLEANUP] Update ComponentC error handlers for new exports
   - Severity: HIGH
   - Component: ComponentC
   - Files: src/component_c/handlers.py
-  - Detail: Handlers reference error types by string; update to use Protocol exports
+  - Detail: Handlers reference error types by string; update to use the ComponentC contract's declared error types
   - Contract impact: None
   - Source: CP-12 /io-review 2026-04-04
   - Blocked: BL-042
@@ -431,27 +431,27 @@ An existing backlog item that needs splitting gets closed and replaced:
 - [x] **BL-020** [REFACTOR] ComponentD config validation missing
   - Severity: MEDIUM
   - Component: ComponentD
-  - Files: src/component_d/config.py, interfaces/component_d.pyi
-  - Detail: Validation logic not enforced at Protocol level
-  - Contract impact: Add validate() to Protocol
+  - Files: src/component_d/config.py, plans/component-contracts.yaml
+  - Detail: Validation logic not enforced at contract level
+  - Contract impact: Add validate() to component contract
   - Source: CP-08 /io-review 2026-03-15
   - Split: BL-044, BL-045
 
-- [ ] **BL-044** [DESIGN] Add validate() to ComponentD Protocol
+- [ ] **BL-044** [DESIGN] Add validate() to ComponentD contract
   - Severity: MEDIUM
   - Component: ComponentD
-  - Files: interfaces/component_d.pyi
-  - Detail: Protocol needs validate() method signature
-  - Contract impact: Add validate() to component_d.pyi
+  - Files: plans/component-contracts.yaml
+  - Detail: ComponentD contract needs a validate() entry
+  - Contract impact: Add validate() to ComponentD contract
   - Source: Split from BL-020
   - Routed: CP-08R1 (2026-04-04)
-    - '/io-architect -- Add validate() to ComponentD Protocol. See BL-044, split from BL-020.'
+    - '/io-architect -- Add validate() to ComponentD contract. See BL-044, split from BL-020.'
 
 - [ ] **BL-045** [CLEANUP] Implement ComponentD config validation
   - Severity: MEDIUM
   - Component: ComponentD
   - Files: src/component_d/config.py
-  - Detail: Implement validate() per new Protocol contract
+  - Detail: Implement validate() per new ComponentD contract
   - Contract impact: None
   - Source: Split from BL-020
   - Blocked: BL-044

@@ -1,6 +1,6 @@
 """Test plan I/O for plans/test-plan.yaml.
 
-YAML-based test-plan I/O with Pydantic validation. Provides per-method
+YAML-based test-plan I/O with Pydantic validation. Provides per-component
 invariant lookup used by the Test Author (Tier 1) and completeness
 checks used by validate-plan (Tier 1/2).
 
@@ -42,33 +42,26 @@ def save_test_plan(path: str, plan: TestPlanFile) -> None:
 # ---------------------------------------------------------------------------
 
 
-def entries_for_protocol(
-    plan: TestPlanFile, protocol: str
-) -> list[TestPlanEntry]:
-    """Return every entry whose protocol matches ``protocol``."""
-    return [entry for entry in plan.entries if entry.protocol == protocol]
-
-
-def invariants_for_method(
-    plan: TestPlanFile, protocol: str, method: str
-) -> list[TestInvariant]:
-    """Return all invariants declared on ``protocol.method``."""
-    invariants: list[TestInvariant] = []
-    for entry in plan.entries:
-        if entry.protocol == protocol and entry.method == method:
-            invariants.extend(entry.invariants)
-    return invariants
+def entry_for_component(
+    plan: TestPlanFile, component: str
+) -> TestPlanEntry | None:
+    """Return the TestPlanEntry for ``component`` or None if absent."""
+    return plan.entries.get(component)
 
 
 def invariants_by_kind(
     plan: TestPlanFile, kind: InvariantKind
-) -> list[tuple[str, str, TestInvariant]]:
-    """Return ``(protocol, method, invariant)`` tuples matching ``kind``."""
-    matches: list[tuple[str, str, TestInvariant]] = []
-    for entry in plan.entries:
+) -> list[tuple[str, TestInvariant]]:
+    """Return ``(component, invariant)`` tuples matching ``kind``.
+
+    Method context, when populated, lives on ``invariant.method`` --
+    callers needing it read it from the returned invariant directly.
+    """
+    matches: list[tuple[str, TestInvariant]] = []
+    for component, entry in plan.entries.items():
         for inv in entry.invariants:
             if inv.kind == kind:
-                matches.append((entry.protocol, entry.method, inv))
+                matches.append((component, inv))
     return matches
 
 
@@ -77,21 +70,34 @@ def invariants_by_kind(
 # ---------------------------------------------------------------------------
 
 
-def methods_missing_invariants(
-    plan: TestPlanFile, methods_by_protocol: dict[str, set[str]]
-) -> dict[str, list[str]]:
-    """Return methods declared on Protocols but absent from the test plan.
+def components_missing_entries(
+    plan: TestPlanFile, components: set[str]
+) -> list[str]:
+    """Return component names absent from the test plan, sorted."""
+    return sorted(c for c in components if c not in plan.entries)
 
-    ``methods_by_protocol`` is the ground-truth map produced by AST
-    extraction against interfaces/*.pyi. Mapping returned is
-    ``protocol_path -> [missing method names]``.
+
+def components_missing_error_propagation(
+    plan: TestPlanFile, raises_by_component: dict[str, list[str]]
+) -> list[str]:
+    """Return component names whose declared raises lack error_propagation coverage.
+
+    A component with non-empty ``raises`` must have at least one
+    ``error_propagation`` invariant in its TestPlanEntry. Components
+    without any raises are skipped.
     """
-    covered: dict[str, set[str]] = {}
-    for entry in plan.entries:
-        covered.setdefault(entry.protocol, set()).add(entry.method)
-    gaps: dict[str, list[str]] = {}
-    for protocol, methods in methods_by_protocol.items():
-        missing = sorted(methods - covered.get(protocol, set()))
-        if missing:
-            gaps[protocol] = missing
-    return gaps
+    gaps: list[str] = []
+    for component, raises in raises_by_component.items():
+        if not raises:
+            continue
+        entry = plan.entries.get(component)
+        if entry is None:
+            gaps.append(component)
+            continue
+        has_ep = any(
+            inv.kind == InvariantKind.ERROR_PROPAGATION
+            for inv in entry.invariants
+        )
+        if not has_ep:
+            gaps.append(component)
+    return sorted(gaps)

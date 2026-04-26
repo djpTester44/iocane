@@ -15,7 +15,7 @@ description: Per-checkpoint behavioral review and connectivity verification. Fin
 > 2. Load the component registry: `view_file plans/component-contracts.yaml`
 > 3. Load the checkpoint being reviewed from `plans/plan.yaml`
 > 4. Load CRC cards for checkpoint components from `plans/project-spec.md`
-> 5. Load relevant Protocol contracts from `interfaces/*.pyi`
+> 5. Load relevant component contracts from `plans/component-contracts.yaml`
 > 6. Load the Integration Seams reference via `seam_parser.load_seams('plans/seams.yaml')`
 > 7. Load the task file: `view_file plans/tasks/[CP-ID].yaml` -- check for `execution_findings` and `evaluator_result` fields
 
@@ -93,7 +93,7 @@ Before proceeding, output:
 ### Step C: LOAD BEHAVIORAL ANCHORS
 
 - **Action:** Read the CRC card for each component in scope from `plans/project-spec.md`.
-- **Action:** Read the Protocol contract for each component from `interfaces/*.pyi`.
+- **Action:** Read the contract for each component from `plans/component-contracts.yaml`.
 - **Goal:** Establish the behavioral intent before reading implementation.
 
 ---
@@ -104,9 +104,9 @@ For each implementation file in the checkpoint's write targets:
 
 - Run `uv run python .claude/scripts/extract_structure.py <file>` — map public surface area
 - Run `bash .claude/scripts/run-compliance.sh <write_targets>` — ruff, mypy, lint-imports, bandit, DI check
-- Invoke `/symbol-tracer` with `--summary` on the checkpoint's Protocol symbols — verify Protocol is consumed
+- Invoke `/symbol-tracer` with `--summary` on the checkpoint's component contract symbols — verify the contract is consumed
 - **Registry check:** For each write target under `src/`, verify the file path (or its parent component) appears in `plans/component-contracts.yaml` as a top-level component key. A `src/` file whose component is absent from the YAML registry is a HIGH finding: `UNREGISTERED_WRITE_TARGET` — route to `/io-architect` before the checkpoint can be considered approved. `tests/` files and tooling files outside `src/` are exempt.
-- **[HARD] Location check:** For each write target that is a `.py` file, verify it resides under `src/` or `tests/`. A `.py` file outside these directories is a HIGH finding: `MISPLACED_RUNTIME_MODULE`. The `interfaces/` directory must contain only `.pyi` stub files; any `.py` file there is a violation. Record in findings and route to backlog -- do not defer to Step E.
+- **[HARD] Location check:** For each write target that is a `.py` file, verify it resides under `src/` or `tests/`. A `.py` file outside these directories is a HIGH finding: `MISPLACED_RUNTIME_MODULE`. Record in findings and route to backlog -- do not defer to Step E.
 
 Flag any violations. Do not fix — record for findings.
 
@@ -118,7 +118,7 @@ For each component in scope, verify:
 
 - **CRC Responsibilities:** Does the implementation fulfill every responsibility listed in `plans/component-contracts.yaml`? Flag any responsibility with no corresponding implementation.
 - **CRC Must-Nots:** Does the implementation violate any `must_not` constraint in `plans/component-contracts.yaml`?
-- **Protocol compliance:** Does every public method match its Protocol signature exactly? Flag any signature deviation.
+- **Contract compliance:** Does every public surface match its component contract exactly? Flag any deviation.
 - **Protocol Raises coverage:** For each Protocol method in scope, verify that every `Raises:` declaration in the `.pyi` docstring has a corresponding `pytest.raises()` call in the test file. The compliance script `check_raises_coverage.py` (run via `run-compliance.sh`) performs this check mechanically. Flag any uncovered raises path as a finding.
 - **Collaborators:** Are all collaborators received via `__init__`? Flag any that are instantiated internally.
 - **Sequence diagrams:** If a sequence diagram exists in `project-spec.md` for this component's flows, does the implementation follow it?
@@ -190,8 +190,8 @@ Generate a findings report:
 
 Each finding gets one tag. Decision gate:
 
-1. Does this require a new or updated `.pyi` contract? -> [DESIGN]
-2. Does this require a CRC update (but no `.pyi` change)? -> [REFACTOR]
+1. Does this require a new or updated component-contract entry in `plans/component-contracts.yaml`? -> [DESIGN]
+2. Does this require a CRC update (but no contract change)? -> [REFACTOR]
 3. Is this a missing or inadequate test? -> [TEST]
 4. Otherwise (implementation fix, spec already correct) -> [CLEANUP]
 
@@ -234,7 +234,7 @@ Each finding gets one tag. Decision gate:
         - "[repo-relative path]"
       issue: "[one-line description]"
       detail: "[implementation guidance]"
-      contract_impact: null  # or description of CRC/Protocol change needed
+      contract_impact: null  # or description of CRC/contract change needed
   ```
 
   **Invoke:**

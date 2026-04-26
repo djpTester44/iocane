@@ -41,7 +41,6 @@ uv run python -m src.main
 ## Project Structure
 
 * `src/` - Application code
-* `interfaces/` - Type stubs and Protocols (.pyi)
 * `plans/` - Documentation and Agent context
   * `project-spec.md` - Technical specs
   * `progress.md` - Work log

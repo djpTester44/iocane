@@ -1,0 +1,27 @@
+# Step F of /io-architect writes the canonical artifact set:
+# component-contracts.yaml (F-3), symbols.yaml (F-4), test-plan.yaml (F-5),
+# seams.yaml (F-6), and the pyproject.toml import-linter contracts (F-1).
+# Step G then stamps test-plan.yaml.validated under the same grant.
+#
+# Reset hooks for symbols.yaml and test-plan.yaml cascade into plan.yaml
+# validated-stamp resets. Without this capability, authoring those files
+# during Step F would re-reset the stamps Step G sets.
+#
+# Template name retains the .H stable identifier to keep grant lookups
+# stable across the workflow restructure; the bracket spans Step F-pre
+# (grant) through Step J-2 (revoke).
+
+workflow: io-architect
+step: H
+ttl_seconds: 1800
+grants:
+  write:
+    - plans/component-contracts.yaml
+    - plans/seams.yaml
+    - plans/symbols.yaml
+    - plans/test-plan.yaml
+    - plans/plan.yaml
+    - pyproject.toml
+  rm: []
+keywords: [architect, canonical-yaml-write, step-f, step-g]
+context: "Architect Steps F-G: canonical artifact write sequence (component-contracts, seams, symbols, test-plan, pyproject.toml import-linter contracts, plan.yaml stamp)."

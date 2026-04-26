@@ -144,9 +144,7 @@ if [ -z "$RESUME_CP" ]; then
     # are mid-mutation and sub-agents would be written against stale
     # contracts. This is the architectural layer for the gate: REPO_ROOT
     # is the parent repo here (pre-worktree), so the sentinel read is
-    # always correctly parent-scoped. Per-spawn-script checks
-    # (spawn-ct-writer.sh:62, spawn-tester.sh:62) remain as defense-in-
-    # depth for standalone user-invoked spawns that bypass the dispatcher.
+    # always correctly parent-scoped.
     ARCHITECT_MODE_FLAG="$REPO_ROOT/.iocane/architect-mode"
     if [ -f "$ARCHITECT_MODE_FLAG" ]; then
         echo "ERROR: .iocane/architect-mode sentinel is set. /io-architect is mid-design." >&2
@@ -297,10 +295,6 @@ for f in extract_ct_files(load_task('$TASKS_DIR/$CP_ID.yaml')):
                 # Simple runtime symptom check: if a pre-existing CT
                 # file passes pytest before the generator runs, impl
                 # leaked somewhere (or a prior run's state is stale).
-                # Identity-CT escape -- a structural defect where the
-                # CT body never exercises the target -- is caught
-                # post-ct_author via symbol_tracer AST analysis in
-                # Phase 2A, not here (see Fix #4 in Phase 4 /challenge).
                 if uv run rtk test pytest -x --timeout=60 "$ct_file" >> "$LOG_FILE" 2>&1; then
                     bash "$REPO_ROOT/.claude/scripts/write-status.sh" "$CP_ID" \
                         "PREFLIGHT_FAIL: CT $ct_file already passes before generation"
@@ -309,87 +303,10 @@ for f in extract_ct_files(load_task('$TASKS_DIR/$CP_ID.yaml')):
                 fi
                 # CT exists and fails -- expected RED state, proceed
             fi
-            # CT file doesn't exist -- expected (ct_author stage will create it), proceed
+            # CT file absent: proceed without preflight assertion. Upstream
+            # state owns CT existence; this stage neither creates nor
+            # mandates them.
         done
-    fi
-
-    # --- Phase 2A: CT-Writer (fresh only; skips if no target_cp CTs) ---
-    # Per D1: CT authorship is hoisted out of io-execute into a
-    # separate per-CP stage that runs before the generator. CT
-    # signatures are pinned at io-plan-batch time; the test body
-    # still has semantic freedom. An agent writing both the CT and
-    # the impl converges them on whatever passes -- the same
-    # independence principle that justifies Tier-1 Test Author.
-    # Skipped on resume (CT files were written in the original run
-    # and now live in git) and skipped cleanly when the task has
-    # zero target_cp CTs.
-    if [ -z "$IS_RESUME" ]; then
-        CT_COUNT=$(uv run python -c "
-import sys; sys.path.insert(0, '.claude/scripts')
-from task_parser import load_task
-t = load_task('plans/tasks/${CP_ID}.yaml')
-print(len(t.connectivity_tests))
-" 2>/dev/null || echo "0")
-        # Bounds-validate the int in case uv stdout contamination
-        # (lockfile syncs, warnings) slipped through the 2>/dev/null.
-        [[ "$CT_COUNT" =~ ^[0-9]+$ ]] || CT_COUNT=0
-
-        if [ "$CT_COUNT" -gt 0 ]; then
-            # Errexit-safe exit capture: under `set -euo pipefail` a
-            # non-zero exit from a plain command aborts the shell
-            # before $? can be read (Phase 4 /challenge Fix #1).
-            # Wrapping in `if` makes the call errexit-exempt by design.
-            if bash "$REPO_ROOT/.claude/scripts/spawn-ct-writer.sh" --cp-id "$CP_ID" \
-                    >> "$LOG_FILE" 2>&1; then
-                echo "[CT_WRITER] $CP_ID: ct_author exited 0" >> "$LOG_FILE"
-            else
-                CT_EXIT=$?
-                echo "CT_FAIL: ${CP_ID} -- ct_author exited $CT_EXIT" > "$STATUS_FILE"
-                echo "1" > "$EXIT_FILE"
-                echo "[CT_WRITER] $CP_ID: failed (exit $CT_EXIT)" >> "$LOG_FILE"
-                return 1
-            fi
-
-            # Post-ct_author: identity-CT escape check via AST import
-            # analysis (Fix #4). Every CT file MUST import from src.*;
-            # an identity-CT body that only references mock fixtures
-            # without exercising the target passes pytest vacuously
-            # and would fool downstream preflight on subsequent runs.
-            # Catch the structural defect here, before the generator
-            # runs, close to where it was introduced.
-            if ! CT_POST_CHECK=$(uv run python -c "
-import sys
-sys.path.insert(0, '.claude/scripts')
-sys.path.insert(0, '.claude/skills/symbol-tracer/scripts')
-from pathlib import Path
-from task_parser import load_task, extract_ct_files
-from symbol_tracer import search_file
-
-task = load_task('plans/tasks/${CP_ID}.yaml')
-failures = []
-for ct_file in extract_ct_files(task):
-    p = Path(ct_file)
-    if not p.exists():
-        failures.append(f'{ct_file} (not written by ct_author)')
-        continue
-    results = search_file(p, symbol='', imports_from_prefix='src')
-    if not results:
-        failures.append(f'{ct_file} (no src.* import -- identity-CT escape)')
-
-if failures:
-    print(' | '.join(failures))
-    sys.exit(1)
-" 2>>"$LOG_FILE"); then
-                echo "CT_FAIL: ${CP_ID} -- ${CT_POST_CHECK}" > "$STATUS_FILE"
-                echo "1" > "$EXIT_FILE"
-                echo "[CT_WRITER] $CP_ID: post-check failed: ${CT_POST_CHECK}" >> "$LOG_FILE"
-                return 1
-            fi
-
-            echo "[CT_WRITER] $CP_ID: PASS (${CT_COUNT} CTs written; src.* import check passed)" >> "$LOG_FILE"
-        else
-            echo "[CT_WRITER] $CP_ID: SKIP (no target_cp CTs)" >> "$LOG_FILE"
-        fi
     fi
 
     # --- Phase 3: Generate-Evaluate-Regen Loop ---
@@ -440,6 +357,10 @@ except: print('')
         export IOCANE_REPO_ROOT="$REPO_ROOT"
         export IOCANE_LOG_FILE="$LOG_FILE"
         export IOCANE_MODEL_NAME="$MODEL"
+        # Parent-session correlation for the subagent's capability manifest
+        # entry. Empty when no main-session pointer exists (e.g. greenfield
+        # dispatch before session-start has fired).
+        export IOCANE_PARENT_SESSION_ID="$(cat "$REPO_ROOT/.iocane/sessions/.current-session-id" 2>/dev/null || echo "")"
         unset VIRTUAL_ENV
 
         cd "$WORKTREE_PATH"
@@ -452,8 +373,7 @@ except: print('')
         # `if cmd; then :; else X=$?; fi` makes the call errexit-exempt
         # AND preserves $? inside the else branch (the `if ! cmd; then
         # X=$?` form looks similar but returns 0 because $? reflects
-        # the `!` operator's exit, not the pipeline's). Mirrors the
-        # ct_author pattern above (Phase 4 /challenge Fix #1).
+        # the `!` operator's exit, not the pipeline's).
         local GEN_EXIT=0
         if echo "$GEN_PROMPT" | timeout "$AGENT_TIMEOUT" claude -p \
                 --model "$MODEL" \
@@ -652,22 +572,6 @@ print(f'{cp_id}: plan.yaml -> complete')
     elif echo "$STATUS" | grep -q "^PREFLIGHT_FAIL"; then
         echo "$CP_ID: PREFLIGHT_FAIL -- baseline tests failing before generation. See $TASKS_DIR/$CP_ID.log"
         FAILED=$((FAILED + 1))
-        echo "$CP_ID: Worktree preserved at $REPO_ROOT/.worktrees/$CP_ID for inspection."
-
-    elif echo "$STATUS" | grep -q "^CT_FAIL"; then
-        # CT-writer HALT or non-zero exit -- surfaces as a hard
-        # failure, no retry (D16). The ct_author HALTs on spec
-        # ambiguity rather than emitting an AMEND, so a failure
-        # here points at either an architect defect or an
-        # agent-execution defect; both warrant human triage.
-        # Classify as MECHANICAL_FAIL-family for the escalation
-        # flag so the next session surfaces it prominently, same
-        # as EVAL_FAIL / "MISSING" paths.
-        echo "$CP_ID: $STATUS -- see $TASKS_DIR/$CP_ID.log"
-        FAILED=$((FAILED + 1))
-        mkdir -p "$REPO_ROOT/.iocane"
-        echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" > "$REPO_ROOT/.iocane/escalation.flag"
-        echo "[BATCH] $CP_ID: CT-writer failed -- $STATUS" >> "$REPO_ROOT/.iocane/escalation.log"
         echo "$CP_ID: Worktree preserved at $REPO_ROOT/.worktrees/$CP_ID for inspection."
 
     elif echo "$STATUS" | grep -q "^EVAL_FAIL"; then

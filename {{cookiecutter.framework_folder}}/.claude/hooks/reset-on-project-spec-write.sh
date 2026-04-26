@@ -2,47 +2,49 @@
 # PostToolUse hook: Edit | Write
 # Resets the Approved stamp in plans/project-spec.md after any substantive write.
 #
-# Exempt: if .iocane/validating sentinel file exists, the write is a stamp-only
-# update (e.g. /io-architect setting Approved: True) and must NOT be reset.
-# The sentinel is created before the stamp write and deleted after. It persists
-# across tool calls within a session because it is shared filesystem state.
+# Bypass: if a capability grant covers write:plans/project-spec.md for
+# this session, the write is authored (e.g. /validate-spec Step F or
+# /auto-architect Step F.9 setting **Approved:** True). Inside the
+# bypass, content detection drives the workflow-state transition --
+# legitimate state-machine logic, not a sentinel workaround.
 #
 # NOTE: Designed to run from a generated project root.
 # This script is a harness template artifact.
 
 INPUT=$(cat)
 
-if [ -f ".iocane/validating" ]; then
-    # If this write IS the Approved stamp itself, the sentinel's job is done.
-    # Auto-delete so the agent does not need an explicit cleanup step.
-    NEW_CONTENT=$(printf '%s' "$INPUT" | uv run python -c "
+EXTRACT=$(printf '%s' "$INPUT" | uv run python -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
-    ti = d.get('tool_input', {})
-    print(ti.get('new_string', '') or ti.get('content', ''))
 except Exception:
-    print('')
-")
-    if echo "$NEW_CONTENT" | grep -q "\*\*Approved:\*\* True"; then
-        rm -f .iocane/validating
-        # State derivation: Approved stamp just set -> ready for checkpoint planning
-        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
-        mkdir -p .iocane
-        printf '{"next":"io-checkpoint","trigger":"project-spec.md (Approved: True)","timestamp":"%s"}\n' \
-            "$TIMESTAMP" > .iocane/workflow-state.json
-    fi
-    exit 0
-fi
+    print('\\n\\n'); sys.exit(0)
+sid = d.get('session_id', '') or ''
+ti = d.get('tool_input') or {}
+fp = ti.get('file_path', '') or ''
+content = ti.get('new_string', '') or ti.get('content', '') or ''
+print(sid)
+print(fp)
+print(content)
+" 2>/dev/null)
 
-FILE_PATH=$(printf '%s' "$INPUT" | uv run python -c "
-import sys, json
-try:
-    d = json.load(sys.stdin)
-    print(d.get('tool_input', {}).get('file_path', ''))
-except Exception:
-    print('')
-")
+SID=$(printf '%s' "$EXTRACT" | sed -n '1p')
+FILE_PATH=$(printf '%s' "$EXTRACT" | sed -n '2p')
+NEW_CONTENT=$(printf '%s' "$EXTRACT" | sed -n '3,$p')
+
+if [ -n "$SID" ] && [ -n "$FILE_PATH" ]; then
+    if bash .claude/scripts/capability-covers.sh "$SID" "write" "$FILE_PATH"; then
+        # Authored write. If this is the Approved:True stamp, drive
+        # the workflow-state transition toward io-checkpoint.
+        if echo "$NEW_CONTENT" | grep -q "\*\*Approved:\*\* True"; then
+            TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
+            mkdir -p .iocane
+            printf '{"next":"io-checkpoint","trigger":"project-spec.md (Approved: True)","timestamp":"%s"}\n' \
+                "$TIMESTAMP" > .iocane/workflow-state.json
+        fi
+        exit 0
+    fi
+fi
 
 if [ -z "$FILE_PATH" ]; then
     exit 0
@@ -57,7 +59,7 @@ print('yes' if p.endswith('plans/project-spec.md') else 'no')
 if [ "$MATCH" = "yes" ] && [ -f "plans/project-spec.md" ]; then
     sed -i 's/\*\*Approved:\*\* True/\*\*Approved:\*\* False/g' "plans/project-spec.md"
 
-    # --- State derivation: Approved reset -> needs architect review ---
+    # State derivation: Approved reset -> needs architect review
     TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
     mkdir -p .iocane
     printf '{"next":"io-architect","trigger":"project-spec.md (Approved: False)","timestamp":"%s"}\n' \

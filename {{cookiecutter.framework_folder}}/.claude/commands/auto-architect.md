@@ -165,7 +165,7 @@ Dispatch an Opus evaluator agent with:
 
 ## Step E.5: [MECHANICAL] CRC BUDGET PRE-GATE
 
-After Step E filters the batch, and BEFORE Step F writes anything to `plans/` or `interfaces/`, serialize the proposed CRC state and run the deterministic budget gate. This mirrors `/io-architect` Step G-pre; invoking `/auto-architect` must never be a way to sidestep the A.1 caps.
+After Step E filters the batch, and BEFORE Step F writes anything to `plans/` or `interfaces/`, serialize the proposed CRC state and run the deterministic budget gate. This mirrors `/io-architect` Step G; invoking `/auto-architect` must never be a way to sidestep the A.1 caps.
 
 1. Build the proposed `ComponentContractsFile`: start from the current `plans/component-contracts.yaml` and apply every remaining (post-Step-E) item's CRC changes in memory.
 2. Write the proposed state to the staging path `.iocane/crc-budget-staging.yaml` using `contract_parser.save_contracts()`.
@@ -184,16 +184,16 @@ uv run python .claude/scripts/validate_crc_budget.py \
 2. On exit 2 (load error): HALT and surface the error -- something is wrong with the staging serialization.
 3. On exit 0: delete `.iocane/crc-budget-staging.yaml` and proceed to Step F.
 
-The staging path isolates the gate from `plans/component-contracts.yaml`, so a failed pre-gate does not leave partially-approved contracts on disk or perturb `hooks/design-before-contract.sh`.
+The staging path isolates the gate from `plans/component-contracts.yaml`, so a failed pre-gate does not leave partially-approved contracts on disk.
 
 ---
 
 ## Step F: EXECUTE (sequential)
 
-### F.0: Create sentinel
+### F.0: Grant capability
 
 ```bash
-mkdir -p .iocane && touch .iocane/validating
+uv run python .claude/scripts/capability.py grant --template auto-architect.architect
 ```
 
 ### F.1: REFACTOR mode enforcement
@@ -205,7 +205,7 @@ For each REFACTOR item in the batch, set context:
 
 If failure modes or DI receivers changed. Use `seam_parser.update_component()` and `save_seams()`.
 
-**Appendix A §A.3b.** If an item modifies a component whose `component-contracts.yaml` entry has `composition_root: true`, also update `receives_di_protocols` to enumerate every Protocol injected (Protocol class names from `interfaces/*.pyi`, not collaborator component names). The `receives_di` field is retained as a deprecated collaborator-level alias; new code must populate `receives_di_protocols` on composition roots so `/io-checkpoint` Step D can emit one CT per injected Protocol.
+**Appendix A §A.3b.** If an item modifies a component whose `component-contracts.yaml` entry has `composition_root: true`, also update `injected_contracts` to enumerate every Protocol injected (Protocol class names from `interfaces/*.pyi`, not collaborator component names). The `receives_di` field is retained as a deprecated collaborator-level alias; new code must populate `injected_contracts` on composition roots so `/io-checkpoint` Step D can emit one CT per injected Protocol.
 
 ### F.3: Write CRC card changes
 
@@ -261,10 +261,10 @@ Remove all `<!-- CHANGED -->` markers from project-spec.md.
 
 Write `**Approved:** True` to plans/project-spec.md.
 
-### F.10: Delete sentinel
+### F.10: Revoke capability
 
 ```bash
-rm -f .iocane/validating
+uv run python .claude/scripts/capability.py revoke --template auto-architect.architect
 ```
 
 ---
