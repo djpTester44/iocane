@@ -1,6 +1,6 @@
 ---
 name: io-design-evaluator
-description: Semantic design-evaluator subprocess. Reads io-architect's canonical four-artifact set and emits OBSERVATION findings against the design rubric. Tier 1 (Opus). Spawned by harness/scripts/spawn-artifact-evaluator.sh --rubric design at io-architect Step H. Never halts; iteration is bounded by the caller.
+description: Semantic design-evaluator subprocess. Reads io-architect's canonical four-artifact set and emits OBSERVATION findings against the design rubric. Tier 1 (Opus). Spawned by .claude/scripts/spawn-artifact-evaluator.sh --rubric design at io-architect Step H. Never halts; iteration is bounded by the caller.
 ---
 
 > **[NO PLAN MODE]**
@@ -53,7 +53,7 @@ is self-contained against the four canonical artifacts.
 
 **Step A-pre:** `bash: uv run python .claude/scripts/capability.py grant --template io-design-evaluator.A`
 
-Issues the capability grant that authorizes findings emission to `.iocane/findings/*.yaml`. The grant is declared in `harness/capability-templates/io-design-evaluator.A.yaml` -- git-tracked, PR-reviewable. `session-end.sh` revokes any live grants automatically when the subprocess exits; no explicit revoke step is required.
+Issues the capability grant that authorizes findings emission to `.iocane/findings/*.yaml`. The grant is declared in `.claude/capability-templates/io-design-evaluator.A.yaml` -- git-tracked, PR-reviewable. Step D-1 explicitly revokes the grant at subprocess exit; the template's `ttl_seconds` and the parent session's `session-end.sh` sweep are crash-safety fallbacks, NOT a substitute for explicit revoke. `claude -p` subprocesses are non-interactive and fire no Stop hook on exit, so without Step D-1 the grant lingers in the active cache until TTL expiry, masking reset-hook behavior on any subsequent canonical-YAML write.
 
 ### Step A: APPLY THE RUBRIC
 
@@ -92,12 +92,39 @@ reason across the four-artifact set:
 
 ### Step B: EMIT FINDINGS
 
-For each defect surfaced under Step A, construct one `Finding` and
-call `findings_emitter.emit_finding(finding, repo_root=Path.cwd())`.
-Follow the SKILL.md emission contract verbatim:
+For each defect surfaced under Step A, author a Finding payload and
+emit via the `findings_emitter` CLI. Workflow per finding:
 
-- `role = FindingRole.EVALUATOR_DESIGN`
-- `defect_kind` = the slug named in the rubric category (the schema
+1. Use the Write tool to author a transient finding-payload YAML
+   (e.g., `.iocane/findings/.tmp-finding-payload.yaml`) containing a
+   single Finding payload. See SKILL.md Finding Emission Contract for
+   the field shape.
+2. Invoke the emitter CLI:
+
+   ```bash
+   uv run python -m findings_emitter --from-yaml .iocane/findings/.tmp-finding-payload.yaml
+   ```
+
+   The emitter validates the payload against the `Finding` schema,
+   computes the canonical `<role>-<timestamp>-<NNN>.yaml` filename,
+   writes to `.iocane/findings/`, and prints the absolute path of the
+   written file on stdout. Non-zero exit means schema validation or
+   write failure -- repair the payload and re-invoke.
+
+3. The `validate-yaml.sh` PostToolUse hook independently validates
+   the written `.iocane/findings/<role>-<ts>-<seq>.yaml` against
+   `FindingFile.model_validate`. Belt-and-suspenders: emitter
+   validates the input; hook validates the output.
+
+Each Finding emits to a separate file -- one defect per FindingFile
+per the SKILL.md emission contract. Use the CLI; do not write
+findings YAML by hand to `.iocane/findings/<role>-<ts>-<seq>.yaml`
+(the canonical-naming logic lives in the emitter).
+
+Required Finding fields (per SKILL.md Finding Emission Contract):
+
+- `role: evaluator_design`
+- `defect_kind` -- the slug named in the rubric category (the schema
   validator rejects unknown slugs)
 - `diagnosis.what` -- the concrete defect (one sentence)
 - `diagnosis.where` -- artifact path + locator
@@ -106,14 +133,10 @@ Follow the SKILL.md emission contract verbatim:
   schema validator rejects empty values for this role)
 - `affected_artifacts` -- the canonical YAML files the architect
   must edit
-- `remediation.root_cause_layer = RootCauseLayer.YAML_CONTRACT`
-  (design defects are YAML-layer)
+- `remediation.root_cause_layer: yaml_contract` (design defects are
+  YAML-layer)
 - `remediation.fix_steps` -- the actionable edit
-- `remediation.re_entry_commands = ["/io-architect"]`
-
-Each Finding emits to a separate file -- one defect per FindingFile
-per the SKILL.md emission contract. Use the emitter; do not write
-YAML by hand.
+- `remediation.re_entry_commands: ["/io-architect"]`
 
 ### Step C: SUMMARY LINE
 
@@ -125,7 +148,13 @@ Print exactly one line to stdout:
 
 The architect parses this line; per-defect chatter is noise.
 
-### Step D: EXIT 0
+### Step D-1: REVOKE CAPABILITY
+
+`bash: uv run python .claude/scripts/capability.py revoke --template io-design-evaluator.A`
+
+Explicit capability revoke. Run whether or not Step B emitted findings -- the alternative is a lingering grant that masks reset-hook behavior until TTL expiry (the 1800s template ceiling and the parent session's `session-end.sh` sweep are defense-in-depth, not a substitute for explicit revoke). Mirrors the io-architect Step J-2 pattern.
+
+### Step D-2: EXIT 0
 
 Always exit 0 -- whether findings were emitted or not. A non-zero
 exit is interpreted as evaluator infrastructure failure, not as a

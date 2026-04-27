@@ -47,51 +47,59 @@ the corresponding finding must carry.
 
 ## Finding Emission Contract
 
-Findings are written via `harness/scripts/findings_emitter.py` --
-**never** by writing YAML directly. The emitter centralizes the
-filename pattern, sequence disambiguation, and Pydantic round-trip
-validation; bypassing it produces unparseable artifacts and breaks the
-architect's read path.
+Findings are emitted via the `findings_emitter` CLI -- **never** by
+writing finding YAML directly to `.iocane/findings/`. The CLI
+centralizes the canonical filename pattern (`<role>-<UTC
+YYYYMMDDTHHMMSS>-<NNN>.yaml`), sequence disambiguation, and Pydantic
+schema validation; bypassing it produces unparseable artifacts and
+breaks the architect's read path.
 
-```python
-from pathlib import Path
-import sys
+### Emission workflow per finding
 
-sys.path.insert(0, ".claude/scripts")
+1. Author the Finding payload as YAML at a transient path (e.g.,
+   `.iocane/findings/.tmp-finding-payload.yaml`) via the Write tool.
+   The payload is a single Finding -- one defect per emission.
 
-from findings_emitter import emit_finding
-from schemas import (
-    Finding,
-    FindingContext,
-    FindingDiagnosis,
-    FindingRemediation,
-    FindingRole,
-    RootCauseLayer,
-)
+2. Invoke the emitter CLI:
 
-finding = Finding(
-    role=FindingRole.EVALUATOR_DESIGN,  # or EVALUATOR_CDT / EVALUATOR_CT
-    context=FindingContext(cp_id="CP-XX"),
-    defect_kind="<slug from rubric reference>",
-    affected_artifacts=["plans/<file>.yaml"],
-    diagnosis=FindingDiagnosis(
-        what="<concrete defect>",
-        where="<artifact path + locator>",
-        why="<specific reasoning, never the empty string>",
-    ),
-    remediation=FindingRemediation(
-        root_cause_layer=RootCauseLayer.YAML_CONTRACT,
-        fix_steps=["<actionable edit>"],
-        re_entry_commands=["/io-architect"],
-    ),
-)
-path = emit_finding(finding, repo_root=Path.cwd())
+   ```bash
+   uv run python -m findings_emitter --from-yaml <path-to-payload>
+   ```
+
+   On success, the CLI prints the absolute path of the written
+   canonical findings file on stdout. On failure (payload schema
+   error, filesystem error), exit-1 with stderr context.
+
+3. The `validate-yaml.sh` PostToolUse hook independently validates
+   the written `.iocane/findings/<role>-<ts>-<seq>.yaml` against
+   `FindingFile.model_validate`. The hook is defense-in-depth on the
+   emitter's own validation.
+
+### Payload schema (single Finding YAML)
+
+```yaml
+role: evaluator_design          # or evaluator_cdt / evaluator_ct
+context:
+  cp_id: CP-XX
+defect_kind: <slug from rubric reference>
+affected_artifacts:
+  - plans/<file>.yaml
+diagnosis:
+  what: <concrete defect>
+  where: <artifact path + locator>
+  why: <specific reasoning, never the empty string>
+remediation:
+  root_cause_layer: yaml_contract
+  fix_steps:
+    - <actionable edit>
+  re_entry_commands:
+    - /io-architect
 ```
 
 The schema enforces:
 
 - `defect_kind` is in the allowed set for the role (rubric drift fails
-  loudly at construction).
+  loudly at validation).
 - `diagnosis.why` is non-empty for semantic roles (an empty value
   strips the human remediator's only context for the call).
 - One Finding per FindingFile -- one observable defect per emission.

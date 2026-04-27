@@ -18,7 +18,6 @@ from schemas import MissingCtSeam, SeamComponent, SeamEntry, SeamsFile
 
 # Fields where empty lists can be stripped for readability.
 _STRIPPABLE_LISTS = {
-    "receives_di",
     "injected_contracts",
     "key_failure_modes",
     "backlog_refs",
@@ -49,8 +48,10 @@ def save_seams(path: str, seams: SeamsFile) -> None:
             data["components"],
             key=lambda c: (c.get("layer", 0), c.get("component", "")),
         )
-    # Strip empty lists for readability
+    # Strip empty lists for readability; always drop receives_di
+    # (deprecated alias; injected_contracts is canonical).
     for comp in data.get("components", []):
+        comp.pop("receives_di", None)
         for key in _STRIPPABLE_LISTS:
             if key in comp and not comp[key]:
                 del comp[key]

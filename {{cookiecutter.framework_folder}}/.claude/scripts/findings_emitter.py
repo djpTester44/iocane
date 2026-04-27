@@ -15,6 +15,7 @@ spawn at a time per io-architect Step H 5-cycle bound).
 from __future__ import annotations
 
 import re
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -83,3 +84,63 @@ def emit_finding(finding: Finding, repo_root: Path | None = None) -> Path:
     )
     path.write_text(payload, encoding="utf-8")
     return path
+
+
+def _cli() -> int:
+    """Module CLI entry point.
+
+    Loads a Finding payload from a YAML file, validates as a single-Finding
+    schema, and emits via emit_finding(). Prints the absolute path of the
+    written findings file on stdout.
+
+    Invocation:
+        uv run python -m findings_emitter --from-yaml <path> [--repo-root <path>]
+
+    Exits 1 on payload load failure, schema validation failure, or write
+    failure. Stderr carries the Pydantic ValidationError or filesystem
+    error.
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="findings_emitter",
+        description=(
+            "Emit a single Finding from a YAML payload to .iocane/findings/."
+        ),
+    )
+    parser.add_argument(
+        "--from-yaml",
+        required=True,
+        type=Path,
+        help="Path to a YAML file containing a single Finding payload.",
+    )
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        default=None,
+        help="Repo root for findings emission. Defaults to cwd.",
+    )
+    args = parser.parse_args()
+
+    try:
+        payload_text = args.from_yaml.read_text(encoding="utf-8")
+        payload = yaml.safe_load(payload_text)
+        finding = Finding.model_validate(payload)
+    except Exception as exc:
+        sys.stderr.write(
+            f"findings_emitter: payload validation failed: {exc}\n",
+        )
+        return 1
+
+    try:
+        path = emit_finding(finding, repo_root=args.repo_root)
+    except Exception as exc:
+        sys.stderr.write(f"findings_emitter: emission failed: {exc}\n")
+        return 1
+
+    sys.stdout.write(f"{path}\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(_cli())

@@ -61,6 +61,6 @@ The three-tier model ensures no generated code reaches the codebase without huma
 
 ## Capability-Gate State
 
-Workflow-authored write authorization is modeled as time-bounded capability grants, not as boolean sentinel files. Reset and guard hooks consult the per-session cache at `.iocane/sessions/<session_id>.active.txt` and bypass their resets when a write pattern is covered. Primer: [`references/capability-gate.md`](../references/capability-gate.md). Grant templates: `harness/capability-templates/<workflow>.<step>.yaml` (git-tracked, PR-reviewable catalog of what each step writes).
+Workflow-authored write authorization is modeled as time-bounded capability grants, not as boolean sentinel files. Reset and guard hooks consult the per-session cache at `.iocane/sessions/<session_id>.active.txt` and bypass their resets when a write pattern is covered. Primer: [`references/capability-gate.md`](../references/capability-gate.md). Grant templates: `.claude/capability-templates/<workflow>.<step>.yaml` (git-tracked, PR-reviewable catalog of what each step writes).
 
 ---

@@ -1,5 +1,5 @@
 {
-  "_description": "Additive PreToolUse registration snippet for the capability-gate refactor. Consumer-repo migration (user-owned) merges these two hooks entries into the project's existing .claude/settings.json under hooks.PreToolUse[].hooks. Use this file if your migration pipeline is additive (preserves existing hook chains). If your migration is a full-copy of harness/settings.json, this file is redundant -- the canonical harness/settings.json already carries both registrations (see commit c3442b7).",
+  "_description": "Additive PreToolUse registration snippet for the capability-gate refactor. Consumer-repo migration (user-owned) merges these two hooks entries into the project's existing .claude/settings.json under hooks.PreToolUse[].hooks. Use this file if your migration pipeline is additive (preserves existing hook chains). If your migration is a full-copy of .claude/settings.json, this file is redundant -- the canonical .claude/settings.json already carries both registrations (see commit c3442b7).",
   "hooks": {
     "PreToolUse": [
       {

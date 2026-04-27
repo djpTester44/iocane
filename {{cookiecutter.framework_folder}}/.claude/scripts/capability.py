@@ -103,7 +103,7 @@ def archive_dir(root: pathlib.Path) -> pathlib.Path:
 
 
 def template_dir(root: pathlib.Path) -> pathlib.Path:
-    return root / "harness" / "capability-templates"
+    return root / ".claude" / "capability-templates"
 
 
 @contextlib.contextmanager
@@ -160,9 +160,9 @@ def parse_iso(stamp: str | None) -> int | None:
     if not stamp:
         return None
     try:
-        dt = datetime.datetime.strptime(
-            stamp, "%Y-%m-%dT%H:%M:%SZ"
-        ).replace(tzinfo=datetime.UTC)
+        dt = datetime.datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(
+            tzinfo=datetime.UTC
+        )
     except ValueError:
         return None
     return int(dt.timestamp())
@@ -178,9 +178,7 @@ def load_template(root: pathlib.Path, name: str) -> dict[str, Any]:
         raise ValueError(f"template must be a mapping: {path}")
     missing = {"workflow", "step", "grants"} - data.keys()
     if missing:
-        raise ValueError(
-            f"template {name} missing required keys: {sorted(missing)}"
-        )
+        raise ValueError(f"template {name} missing required keys: {sorted(missing)}")
     return data
 
 
@@ -240,9 +238,7 @@ def active_grants(root: pathlib.Path, sid: str) -> list[dict[str, Any]]:
         granted_at = parse_iso(grant.get("granted_at"))
         if granted_at is None:
             continue
-        declared_ttl = int(
-            grant.get("declared_ttl_seconds") or DEFAULT_TTL_SECONDS
-        )
+        declared_ttl = int(grant.get("declared_ttl_seconds") or DEFAULT_TTL_SECONDS)
         effective_ttl = min(declared_ttl, TTL_HARD_CEILING_SECONDS)
         if now > granted_at + effective_ttl:
             continue
@@ -273,9 +269,7 @@ def rewrite_active_cache(root: pathlib.Path, sid: str) -> None:
     os.replace(tmp, path)
 
 
-def append_jsonl(
-    root: pathlib.Path, sid: str, record: dict[str, Any]
-) -> None:
+def append_jsonl(root: pathlib.Path, sid: str, record: dict[str, Any]) -> None:
     sessions_dir(root).mkdir(parents=True, exist_ok=True)
     path = session_jsonl_path(root, sid)
     with path.open("a", encoding="utf-8") as f:
@@ -295,9 +289,7 @@ def cmd_grant(args: argparse.Namespace) -> int:
         "step": str(template["step"]),
         "grants": template.get("grants") or {"write": [], "rm": []},
         "granted_at": now_iso(),
-        "declared_ttl_seconds": int(
-            template.get("ttl_seconds") or DEFAULT_TTL_SECONDS
-        ),
+        "declared_ttl_seconds": int(template.get("ttl_seconds") or DEFAULT_TTL_SECONDS),
         "authored_by": AUTHOR_TAG,
         "cp_id": args.cp_id or None,
         "is_subagent": bool(args.subagent),
@@ -339,9 +331,7 @@ def cmd_revoke(args: argparse.Namespace) -> int:
             f"revoked {len(revoked)} grant(s) matching template={args.template}\n"
         )
     else:
-        sys.stdout.write(
-            f"no active grants matched template={args.template}\n"
-        )
+        sys.stdout.write(f"no active grants matched template={args.template}\n")
     return 0
 
 
@@ -432,9 +422,7 @@ def cmd_migrate_legacy(args: argparse.Namespace) -> int:
         if legacy.exists():
             legacy.unlink()
             removed.append(str(legacy))
-    sys.stdout.write(
-        f"migrate-legacy: removed {len(removed)} legacy artifact(s)\n"
-    )
+    sys.stdout.write(f"migrate-legacy: removed {len(removed)} legacy artifact(s)\n")
     for path in removed:
         sys.stdout.write(f"  {path}\n")
     return 0
@@ -488,9 +476,7 @@ def manifest_add_entry(
         "keywords": [],
         "is_subagent": is_subagent,
     }
-    sessions = [
-        s for s in (data.get("sessions") or []) if s.get("session_id") != sid
-    ]
+    sessions = [s for s in (data.get("sessions") or []) if s.get("session_id") != sid]
     sessions.insert(0, entry)
     max_entries = int(data.get("max_entries") or MANIFEST_MAX_ENTRIES)
     data["sessions"] = sessions[:max_entries]
@@ -609,9 +595,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_common_args(so)
     so.set_defaults(func=cmd_sweep_orphans)
 
-    ml = sub.add_parser(
-        "migrate-legacy", help="remove pre-refactor sentinel state"
-    )
+    ml = sub.add_parser("migrate-legacy", help="remove pre-refactor sentinel state")
     add_common_args(ml)
     ml.set_defaults(func=cmd_migrate_legacy)
 

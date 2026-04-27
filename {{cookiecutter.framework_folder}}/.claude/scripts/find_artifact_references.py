@@ -47,14 +47,22 @@ from markdown_reference_parser import parse_markdown  # noqa: E402
 
 _DEFAULT_ROOTS: tuple[str, ...] = ("harness", "tests")
 _SKIP_DIR_NAMES: frozenset[str] = frozenset(
-    {".git", "__pycache__", ".iocane", ".venv", "node_modules", ".mypy_cache",
-     ".pytest_cache", ".ruff_cache"},
+    {
+        ".git",
+        "__pycache__",
+        ".iocane",
+        ".venv",
+        "node_modules",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+    },
 )
 # Self-skip: the finder and its own parser/tests describe the search, so any
 # match in them is by construction not an artifact reference.
 _SKIP_POSIX_SUFFIXES: tuple[str, ...] = (
-    "harness/scripts/find_artifact_references.py",
-    "harness/scripts/markdown_reference_parser.py",
+    ".claude/scripts/find_artifact_references.py",
+    ".claude/scripts/markdown_reference_parser.py",
     "tests/test_find_artifact_references.py",
     "tests/test_markdown_reference_parser.py",
 )
@@ -88,7 +96,8 @@ class ReferenceHit:
 
 
 def find_references(
-    artifact: str, roots: list[Path],
+    artifact: str,
+    roots: list[Path],
 ) -> list[ReferenceHit]:
     """Scan ``roots`` for word-boundary occurrences of ``artifact``."""
     if not artifact:
@@ -129,7 +138,8 @@ def _should_skip(file: Path) -> bool:
 
 
 def _scan_file(
-    file: Path, pattern: re.Pattern[str],
+    file: Path,
+    pattern: re.Pattern[str],
 ) -> list[ReferenceHit]:
     """Dispatch to the appropriate per-extension scanner."""
     suffix = file.suffix.lower()
@@ -147,7 +157,8 @@ def _scan_file(
 
 
 def _scan_python(
-    file: Path, pattern: re.Pattern[str],
+    file: Path,
+    pattern: re.Pattern[str],
 ) -> list[ReferenceHit]:
     """AST walk + tokenize pass for comments."""
     try:
@@ -194,14 +205,18 @@ def _scan_python(
 def _iter_py_comments(file: Path) -> list[tokenize.TokenInfo]:
     try:
         with open(file, "rb") as fh:
-            return [t for t in tokenize.tokenize(fh.readline)
-                    if t.type == tokenize.COMMENT]
+            return [
+                t for t in tokenize.tokenize(fh.readline) if t.type == tokenize.COMMENT
+            ]
     except (tokenize.TokenError, SyntaxError, OSError):
         return []
 
 
 def _classify_python_node(
-    node: ast.AST, pattern: re.Pattern[str], rel: str, lines: list[str],
+    node: ast.AST,
+    pattern: re.Pattern[str],
+    rel: str,
+    lines: list[str],
 ) -> list[ReferenceHit]:
     line_no = getattr(node, "lineno", None)
     if line_no is None:
@@ -251,7 +266,10 @@ def _classify_python_node(
 
 
 def _build_hit(
-    rel: str, line: int, kind: str, lines: list[str],
+    rel: str,
+    line: int,
+    kind: str,
+    lines: list[str],
 ) -> ReferenceHit:
     line_text = lines[line - 1] if 0 < line <= len(lines) else ""
     return ReferenceHit(
@@ -263,7 +281,8 @@ def _build_hit(
 
 
 def _scan_markdown(
-    file: Path, pattern: re.Pattern[str],
+    file: Path,
+    pattern: re.Pattern[str],
 ) -> list[ReferenceHit]:
     try:
         parsed = parse_markdown(file)
@@ -364,7 +383,9 @@ def _scan_shell(file: Path, pattern: re.Pattern[str]) -> list[ReferenceHit]:
 
 
 def emit_manifest(
-    artifact: str, hits: list[ReferenceHit], fmt: str,
+    artifact: str,
+    hits: list[ReferenceHit],
+    fmt: str,
 ) -> str:
     """Serialize the manifest as YAML (default) or JSON."""
     payload = {
@@ -374,7 +395,10 @@ def emit_manifest(
     if fmt == "json":
         return json.dumps(payload, indent=2) + "\n"
     return yaml.dump(
-        payload, default_flow_style=False, sort_keys=False, allow_unicode=True,
+        payload,
+        default_flow_style=False,
+        sort_keys=False,
+        allow_unicode=True,
     )
 
 
@@ -386,18 +410,23 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
-        "--artifact", required=True,
+        "--artifact",
+        required=True,
         help="Anchor name to search for (word-boundary match).",
     )
     parser.add_argument(
-        "--root", action="append", default=[],
+        "--root",
+        action="append",
+        default=[],
         help=(
             "File or directory to scan (repeatable). "
             f"Defaults to: {', '.join(_DEFAULT_ROOTS)}."
         ),
     )
     parser.add_argument(
-        "--format", choices=("yaml", "json"), default="yaml",
+        "--format",
+        choices=("yaml", "json"),
+        default="yaml",
         help="Output format (default: yaml).",
     )
     args = parser.parse_args(argv)

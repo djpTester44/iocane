@@ -5,7 +5,7 @@
 # Called by /io-init (Step C / C1) after the layer map is resolved.
 #
 # Deployed location (consumer repo): .claude/scripts/scaffold-greenfield.sh
-# Source location (iocane_build):    harness/scripts/scaffold-greenfield.sh
+# Source location (iocane_build):    .claude/scripts/scaffold-greenfield.sh
 # Templates resolved relative to the script via ../templates/.
 #
 # Usage:

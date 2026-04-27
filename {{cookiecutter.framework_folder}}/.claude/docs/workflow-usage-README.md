@@ -206,7 +206,7 @@ Notes:
 
 ### Exempting a write from stamp reset
 
-Workflow steps that write canonical artifacts (stamps or substantive content) bracket their writes in a **capability grant** that declares the exact paths they will write. Reset hooks consult the per-session cache at `.iocane/sessions/<session_id>.active.txt` and bypass when a matching write pattern is covered. See `harness/references/capability-gate.md` for the primitive.
+Workflow steps that write canonical artifacts (stamps or substantive content) bracket their writes in a **capability grant** that declares the exact paths they will write. Reset hooks consult the per-session cache at `.iocane/sessions/<session_id>.active.txt` and bypass when a matching write pattern is covered. See `.claude/references/capability-gate.md` for the primitive.
 
 #### Pattern
 
@@ -214,7 +214,7 @@ Workflow steps that write canonical artifacts (stamps or substantive content) br
     Step N:      [Edit/Write operations -- strictly sequential, never parallel]
     Step N-post: bash: uv run python .claude/scripts/capability.py revoke --template <workflow>.<step>
 
-The grant covers ALL writes declared in the template. Grant templates live at `harness/capability-templates/<workflow>.<step>.yaml` and are git-tracked + PR-reviewable (the authoritative catalog of what each step writes).
+The grant covers ALL writes declared in the template. Grant templates live at `.claude/capability-templates/<workflow>.<step>.yaml` and are git-tracked + PR-reviewable (the authoritative catalog of what each step writes).
 
 **Migrated workflows + their templates:**
 
@@ -254,6 +254,7 @@ The grant covers ALL writes declared in the template. Grant templates live at `h
 | `/io-backlog-triage` | Drain staging + triage open backlog items with approved routing decisions | `plans/backlog.yaml` (reads `plans/review-output.yaml` staging) |
 | `/io-ct-remediate` | Remediation flow: create missing connectivity test(s) from CT spec for archived checkpoints. Imports both sides real; runs gate; closes backlog entry. | CT file path from `plans/plan.yaml`, `plans/backlog.yaml` |
 | `/gap-analysis` | Identify gaps between implementation and spec | `plans/review-output.yaml` (via `stage_review_findings.py`) |
+| `/run-state-snapshot` | Workflow-agnostic mid-run state capture: host-authored draft + mechanical enumeration composed into a snapshot doc | `.iocane/drafts/run-state-draft.yaml`, `.iocane/findings/<datestamp>_<workflow>-state.md` |
 
 ---
 

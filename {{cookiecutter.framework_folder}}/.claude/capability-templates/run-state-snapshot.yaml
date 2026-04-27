@@ -1,0 +1,23 @@
+# /run-state-snapshot writes a draft YAML the host agent fills with the
+# reasoning-tier sections, then composes the full snapshot to
+# .iocane/findings/ via compose_run_state.py. Operator can invoke
+# mid-run, at workflow exit, or on interrupt -- workflow-agnostic.
+#
+# Two grant targets:
+#   .iocane/drafts/run-state-draft.yaml    -- the host-authored input
+#   .iocane/findings/*-state.md            -- the composed output
+#
+# ttl_seconds is the crash-safety floor. Snapshot authoring is bounded
+# work (one draft + one compose call); explicit revoke at command end
+# is the primary cleanup.
+
+workflow: run-state-snapshot
+step: A
+ttl_seconds: 600
+grants:
+  write:
+    - .iocane/drafts/run-state-draft.yaml
+    - .iocane/findings/*-state.md
+  rm: []
+keywords: [run-state, snapshot, mid-run-capture, handoff]
+context: "/run-state-snapshot: emit a workflow-agnostic run-state snapshot to .iocane/findings/."

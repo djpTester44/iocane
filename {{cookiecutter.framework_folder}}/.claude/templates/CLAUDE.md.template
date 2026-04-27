@@ -27,7 +27,7 @@ Core workflow files are Pydantic-validated YAML. Schema violations are rejected 
 | Seams | `plans/seams.yaml` | `SeamsFile` | `seam_parser.py` |
 
 - `schemas.py` is the canonical schema — as binding as `plans/component-contracts.yaml`.
-- Prefer parser modules for mutations — raw YAML edits bypass immutability guarantees.
+- Canonical YAML under `plans/` must satisfy parser invariants on write. The `validate-yaml.sh` PostToolUse hook enforces this by routing each path to its parser's `load_<X>()` and exiting non-zero on schema failure. Two valid authoring paths: **(a)** Write/Edit the YAML directly — the hook validates and surfaces line context on failure; **(b)** construct via Pydantic models and call `save_<X>()` — validation fires at construction. Path (a) is preferred (no producer-side artifact, edit-in-place across cycles). The constraint is validated output, not authoring mechanism.
 - `.claude/templates/*.yaml` for canonical format reference.
 
 ---

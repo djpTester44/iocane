@@ -68,6 +68,10 @@
           {
             "command": "bash .claude/hooks/escalation-gate.sh",
             "type": "command"
+          },
+          {
+            "command": "bash .claude/hooks/regrant-on-evaluator-return.sh",
+            "type": "command"
           }
         ],
         "matcher": "Bash"

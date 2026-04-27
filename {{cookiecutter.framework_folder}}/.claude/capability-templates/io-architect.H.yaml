@@ -8,8 +8,13 @@
 # during Step F would re-reset the stamps Step G sets.
 #
 # Template name retains the .H stable identifier to keep grant lookups
-# stable across the workflow restructure; the bracket spans Step F-pre
-# (grant) through Step J-2 (revoke).
+# stable across the workflow restructure. The bracket spans Step F-pre
+# (grant, re-issued at each H-loop cycle entry: deterministically by
+# regrant-on-evaluator-return.sh for evaluator-driven re-entry, or by
+# explicit F-pre invocation for Step I correction re-entry) through
+# Step J-2 (template-matched revoke clears all accumulated grants at
+# workflow end). ttl_seconds bounds the per-cycle crash-safety floor,
+# not the workflow span.
 
 workflow: io-architect
 step: H

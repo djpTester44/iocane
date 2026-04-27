@@ -45,17 +45,17 @@ Code transcript log).
 
 ## Components
 
-- **`harness/scripts/capability.py`** -- sole writer for capability state.
+- **`.claude/scripts/capability.py`** -- sole writer for capability state.
   File-locked via atomic `O_CREAT|O_EXCL` lockfile with retry; same script
   handles grant, revoke, session-start, session-end, sweep-orphans,
   list-active, migrate-legacy. Reads no env vars (entrypoint hygiene);
   callers pass `--repo-root`, `--cp-id`, `--parent-session-id`, `--subagent`
   explicitly.
-- **`harness/hooks/capability-gate.sh`** -- PreToolUse hot-path hook.
+- **`.claude/hooks/capability-gate.sh`** -- PreToolUse hot-path hook.
   Bash-only. Hardcoded catastrophic-rm deny list (minimal, evidence-added
   only). Fails OPEN otherwise. Does not consult the capability cache in
   Phase 1: cache consumers are the reset-on-\*.sh hooks, not this gate.
-- **`harness/capability-templates/<workflow>.<step>.yaml`** -- static grant
+- **`.claude/capability-templates/<workflow>.<step>.yaml`** -- static grant
   templates. Agents never author grant payloads at runtime; they invoke
   by template name only (`capability.py grant --template io-architect.H`).
   Templates are git-tracked, PR-reviewable, serve as the authoritative
@@ -74,7 +74,17 @@ Code transcript log).
 4. **Session end:** any still-active grants are revoked; JSONL + manifest
    entry move to `archive/YYYY-MM/`.
 
+Workflows that iterate (e.g., io-architect's H-loop) re-issue the grant
+at each cycle entry. Each re-grant produces a fresh `entry_id`; a single
+`revoke --template` at workflow end clears all accumulated grants matching
+the template name. Cycle re-entry can be deterministic (a PostToolUse
+hook re-grants on the workflow's known boundary tool call, e.g.,
+`regrant-on-evaluator-return.sh` fires on architect's return from
+`spawn-artifact-evaluator.sh`) or prose-driven (the agent re-invokes the
+grant command at the cycle-entry step).
+
 A grant is **live** iff:
+
 - a `type:grant` record with entry_id X exists,
 - no `type:revoke` record with entry_id X follows,
 - `now < granted_at + min(declared_ttl, 86400)` (24h hard ceiling clamps
@@ -94,7 +104,7 @@ the log alone cannot authorize.
 ## Template Schema
 
 ```yaml
-# harness/capability-templates/io-architect.H.yaml
+# .claude/capability-templates/io-architect.H.yaml
 workflow: io-architect
 step: H
 ttl_seconds: 1800                     # 30 min; optional (default 3600)
@@ -120,14 +130,15 @@ fail (agent crashes mid-step without revoking).
 
 Suggested template values:
 
-| Template                | ttl_seconds |
-|-------------------------|-------------|
-| io-clarify.7            |  600        |
-| validate-plan.13        |  600        |
-| io-architect.H          | 1800        |
-| io-checkpoint.H         | 1800        |
-| io-design-evaluator.A   | 1800        |
-| auto-architect.architect| 1800        |
+| Template                 | ttl_seconds |
+|--------------------------|-------------|
+| io-clarify.7             |  600        |
+| run-state-snapshot       |  600        |
+| validate-plan.13         |  600        |
+| io-architect.H           | 1800        |
+| io-checkpoint.H          | 1800        |
+| io-design-evaluator.A    | 1800        |
+| auto-architect.architect | 1800        |
 
 None approach the 24h ceiling under normal operation.
 

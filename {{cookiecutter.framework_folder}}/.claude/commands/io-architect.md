@@ -1,6 +1,8 @@
 ---
 name: io-architect
 description: Design CRC cards, Protocols, cross-CP symbols, and component contract behavioral invariants. Tier 1 -- plan mode required. Highest-value gate in the workflow.
+model: claude-opus-4-7
+effort: xhigh
 ---
 
 > **[CRITICAL] PLAN MODE**
@@ -127,16 +129,9 @@ On reaching Step F, execute the following sub-steps in strict sequence. Do NOT p
 
 **Step F-pre:** `bash: uv run python .claude/scripts/capability.py grant --template io-architect.H`
 
-Issues the capability grant that authorizes the canonical-YAML write sequence (Steps F-3, F-4, F-5, F-6, and the Step G `test-plan.yaml` validated stamp). The grant is declared in `harness/capability-templates/io-architect.H.yaml` -- git-tracked, PR-reviewable. `reset-on-symbols-write.sh` and `reset-on-test-plan-write.sh` consult the active capability cache and bypass their resets when a matching write pattern is covered. Step J explicitly revokes the grant.
+Issues the capability grant that authorizes the canonical-YAML write sequence (Steps F-3, F-4, F-5, F-6, the Step F-7 `pyproject.toml` regeneration, and the Step G `test-plan.yaml` validated stamp). The grant is declared in `.claude/capability-templates/io-architect.H.yaml` -- git-tracked, PR-reviewable. `reset-on-symbols-write.sh` and `reset-on-test-plan-write.sh` consult the active capability cache and bypass their resets when a matching write pattern is covered.
 
-**Step F-1:** Append `[[tool.importlinter.contracts]]` to `pyproject.toml`:
-
-Derive contract structure from `component-contracts.yaml` (package file paths via `file: src/...`) and Step D layer reasoning.
-
-- One `[[tool.importlinter.contracts]]` block for the layer hierarchy, ordered top-to-bottom (entrypoint -> domain -> utility -> foundation)
-- Additional `[[tool.importlinter.contracts]]` blocks for any independence contracts between peer packages
-- Remove the `# [[tool.importlinter.contracts]] populated by /io-architect` comment placeholder
-- If `pyproject.toml` does not exist (brownfield adoption), create it from `.claude/templates/pyproject.toml` first, then append contracts
+**Per-cycle re-grant.** The H-loop re-enters Step F after Step H FINDINGS or Step I corrections; the bracket extends through every cycle. For evaluator-driven re-entry, `.claude/hooks/regrant-on-evaluator-return.sh` (PostToolUse Bash) re-issues this grant deterministically when `spawn-artifact-evaluator.sh` returns. For Step I correction-driven re-entry (operator feedback at the human gate), explicitly re-invoke this F-pre command. The template's `ttl_seconds` is the per-cycle crash-safety floor, not the workflow-span ceiling. Step J-2's template-matched revoke clears all accumulated grants at workflow end.
 
 **Step F-2:** Scaffold `src/` package directories from the Step D dependency-map reasoning:
 
@@ -144,7 +139,7 @@ Derive contract structure from `component-contracts.yaml` (package file paths vi
 - Write a minimal `__init__.py` (empty or with a module docstring) to each new directory
 - Skip directories that already exist -- do not overwrite existing `__init__.py` files
 
-**Step F-3:** Write `plans/component-contracts.yaml` using `contract_parser.save_contracts()`:
+**Step F-3:** Author `plans/component-contracts.yaml` directly via the Write tool. The `validate-yaml.sh` PostToolUse hook validates the file against `ComponentContractsFile` schema on every write; schema violations surface as exit-2 with Pydantic ValidationError context. On failure, Edit `plans/component-contracts.yaml` to correct and re-save.
 
 - Build a `ComponentContractsFile` with one `ComponentContract` per component. Populate structural, behavioral, roadmap, and raises sections as described below; for field shapes beyond this summary, consult `schemas.py` (ComponentContract model) and `.claude/references/symbols-schema.md`:
   - **Structural:** `file: src/...` (implementation path), `collaborators: [...]` (from the CRC card, `[]` if none), `composition_root: true` (Entrypoint Layer only; omit for others)
@@ -152,18 +147,17 @@ Derive contract structure from `component-contracts.yaml` (package file paths vi
   - **Roadmap:** `features: [F-XX, ...]` (roadmap feature IDs from `plans/roadmap.md` this component supports). Required for every component that carries feature logic. Empty is reserved for shared infrastructure without direct feature fan-out; the budget validator emits a warning (not a failure) if a behavioral component leaves this empty, so the A.1b cap cannot be bypassed by omission.
   - **Raises-list:** `raises: [...]` declares the component-level exception surface -- bare class names (e.g. `RouteNotFound`) or dotted stdlib names (e.g. `subprocess.CalledProcessError`). Composition-root components typically leave this empty. The raises-list is the authoritative record of exceptions a component can propagate; `test-plan.yaml` `error_propagation` invariants must cover each entry.
     - **Validator scope:** Pydantic field-validators on `ComponentContract` enforce identifier-safe names at construction and at `ComponentContractsFile.model_validate(...)` load; `save_contracts()` round-trips its dump through `model_validate()` to catch state that became invalid between construction and save. Step G runs `validate_symbols_coverage.py` to close the cross-YAML reference loop between every component's raises-list and `symbols.yaml` `exception_class` entries.
-- Call `save_contracts()` to write -- this validates the model before serialization.
 - Overwrite if the file already exists -- it is always regenerated from the current design.
 
-**Step F-4:** Write `plans/symbols.yaml` using `symbols_parser.save_symbols()`:
+**Step F-4:** Author `plans/symbols.yaml` directly via the Write tool. The `validate-yaml.sh` PostToolUse hook validates against `SymbolsFile` schema on every write; failures surface with line context. Edit and re-save on failure.
 
 - For every cross-CP identifier that must be spelled and typed consistently across more than one checkpoint, add a `Symbol` entry. Consult `.claude/references/symbols-schema.md` for the `SymbolKind` catalogue, per-kind field requirements, and `declared_in` zone rules.
 - Populate `used_by:` with the COMPONENT NAMES (from CRC collaborator analysis) that reference each symbol. Do NOT populate `used_by_cps:` -- that field is checkpoint-backfilled at `/io-checkpoint` and stays empty until then.
 - Conflict detection (`detect_env_var_conflicts`, `detect_message_pattern_conflicts`) runs at Step G and at `/validate-plan`.
 
-**Step F-5:** Write `plans/test-plan.yaml` using `test_plan_parser.save_test_plan()`:
+**Step F-5:** Author `plans/test-plan.yaml` directly via the Write tool. The `validate-yaml.sh` PostToolUse hook validates against `TestPlanFile` schema on every write; failures surface with line context. Edit and re-save on failure.
 
-- For every component contract authored in Step F-3 (excluding pure composition roots that declare no responsibilities and no raises), create one `TestPlanEntry` keyed by the component name. `TestPlanFile.entries` is a component-keyed dict that mirrors `ComponentContractsFile.components`; each entry's `component` field must match its dict key (a Pydantic model_validator enforces this).
+- For every component contract authored in Step F-3, create one `TestPlanEntry` keyed by the component name. `TestPlanFile.entries` is a component-keyed dict that mirrors `ComponentContractsFile.components`; each entry's `component` field must match its dict key (a Pydantic model_validator enforces this).
 - Populate the entry's `invariants` to cover (a) every behavioral commitment derivable from the component's `responsibilities`, and (b) every name in the component's `raises` list. Each invariant carries:
   - `id` in `INV-NNN` format (zero-padded, project-unique)
   - `kind` chosen from the `InvariantKind` catalogue
@@ -174,21 +168,12 @@ Derive contract structure from `component-contracts.yaml` (package file paths vi
 - **Rule:** every contract postcondition (observable side effect, return shape constraint, state transition) SHOULD have at least one invariant covering it. Gaps are non-blocking at authoring time but are surfaced by `validate_test_plan_completeness.py` at `/validate-plan`.
 - Consult `.claude/references/test-plan-schema.md` for the invariant taxonomy and worked examples.
 
-**Step F-6:** Write `plans/seams.yaml` using `seam_parser` functions:
+**Step F-6:** Update `plans/seams.yaml` via the seam_parser delta-merge interface.
 
-For each component added or modified in this architect run (identified from the `component-contracts.yaml` delta), update its entry in `plans/seams.yaml`:
+Seams uses incremental per-component delta-merge rather than full-file regeneration: only components added or modified in this architect run (identified from the `component-contracts.yaml` delta) update their entries. Use `add_component()` for new entries and `update_component()` for existing ones from `seam_parser`. The `validate-yaml.sh` PostToolUse hook validates the resulting file against `SeamsFile` schema on every write.
 
-```bash
-uv run python -c "
-import sys; sys.path.insert(0, '.claude/scripts')
-from seam_parser import load_seams, save_seams, add_component, update_component
-from schemas import SeamComponent
-seams = load_seams('plans/seams.yaml')
-# Use add_component() for new entries, update_component() for existing
-"
-```
+Per-component fields:
 
-- `receives_di`: derive from the CRC card Collaborators list (deprecated alias; retained for readers that have not migrated to contract-level DI graphs)
 - `injected_contracts`: **Appendix A §A.3b.** Required for every component whose `component-contracts.yaml` entry has `composition_root: true`. Enumerate every contract the component injects -- these are the contract names (as declared in `component-contracts.yaml`), not collaborator component names. This list drives the composition-root CT emission in `/io-checkpoint` Step D. For non-composition components, leave empty.
 - `external_terminal`: derive from CRC card Responsibilities (any external system explicitly mentioned) and Must NOT constraints
 - `key_failure_modes`: derive from the raises-list declared on the component's contract
@@ -197,6 +182,16 @@ seams = load_seams('plans/seams.yaml')
 
 If `plans/seams.yaml` does not exist, create it from `.claude/templates/seams.yaml`.
 Derive from the Step C-D reasoning only -- do not read source code.
+
+**Step F-7:** Regenerate `pyproject.toml` `[[tool.importlinter.contracts]]` blocks via `compose_importlinter_contracts.py`:
+
+```bash
+uv run python .claude/scripts/compose_importlinter_contracts.py
+```
+
+The script reads `plans/component-contracts.yaml` (`file:` paths via parser) and `plans/seams.yaml` (`layer:` field per component, peer-package detection). It strips any existing `[[tool.importlinter.contracts]]` blocks and regenerates them from the canonical YAMLs (layer hierarchy + connector independence). Non-importlinter pyproject sections (`[build-system]`, `[project]`, `[tool.ruff]`, etc.) are preserved via tomlkit. Idempotent: byte-identical output for identical inputs from the second run forward.
+
+Brownfield projects without `pyproject.toml` pass `--bootstrap` to copy from `.claude/templates/pyproject.toml` first. The script also handles the "pyproject.toml exists but lacks `[tool.importlinter]` section" case via strip-zero-or-more + always-append semantics; no special flag needed.
 
 ---
 

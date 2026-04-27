@@ -17,7 +17,7 @@ io-architect's canonical four-artifact set:
 
 Each category below names a `defect_kind` slug. The slugs are
 schema-validated against `ROLE_TO_DEFECT_KINDS[EVALUATOR_DESIGN]`
-in `harness/scripts/schemas.py`. **A slug here that is missing from
+in `.claude/scripts/schemas.py`. **A slug here that is missing from
 the schema map breaks Finding construction at runtime** -- the rubric
 prose and the schema map must be co-authored.
 
@@ -250,7 +250,7 @@ per `validate_crc_budget.py`).
 ## Slug Catalog (schema-co-authored)
 
 The eight `defect_kind` slugs above MUST match the frozenset at
-`harness/scripts/schemas.py` `ROLE_TO_DEFECT_KINDS[FindingRole.EVALUATOR_DESIGN]`:
+`.claude/scripts/schemas.py` `ROLE_TO_DEFECT_KINDS[FindingRole.EVALUATOR_DESIGN]`:
 
 | Slug |
 |---|
