@@ -1,1 +1,0 @@
-Read and execute the workflow defined in `.agent/workflows/review.md`. Follow every step in that file exactly, including loading CRC and Protocol anchors, running all three pre-scan scripts, and the mandatory handoff to `/review-capture` after producing the findings table.

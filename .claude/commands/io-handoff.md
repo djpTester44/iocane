@@ -1,1 +1,0 @@
-Read and execute the workflow defined in `.agent/workflows/io-handoff.md`. Follow every step in that file exactly, including all hard gates, scope boundary rules, and the required output format for `plans/execution-handoff-bundle.md`.
