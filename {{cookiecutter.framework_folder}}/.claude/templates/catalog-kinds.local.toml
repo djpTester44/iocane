@@ -1,0 +1,22 @@
+# L0 catalog kind enums -- project-additive extensions.
+#
+# Optional. Land extensions here for unusual domains the harness
+# defaults in .claude/catalog-kinds.toml don't cover. The parser
+# unions this file's lists with the harness defaults; duplicates are
+# silently deduplicated.
+#
+# Gitignored: yes (project-local).
+#
+# Schema:   .claude/scripts/schemas.py (CatalogKindsFile)
+# Parser:   .claude/scripts/catalog_parser.py
+# Defaults: .claude/catalog-kinds.toml (do NOT edit defaults here;
+#           those propagate to every consumer project)
+#
+# Format: same as catalog-kinds.toml -- one list per category. Empty
+# lists or missing categories are valid (no extension for that
+# category).
+
+data_stores = []
+external_systems = []
+user_surfaces = []
+nfr_axes = []

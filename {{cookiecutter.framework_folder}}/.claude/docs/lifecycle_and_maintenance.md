@@ -14,16 +14,24 @@ Execution follows a strict chronology. Design is locked before any code is writt
 [Tier 1 -- Human + Plan Mode]
   1. /io-clarify      -- resolve PRD ambiguities, stamp Clarified: True
   2. /io-init         -- bootstrap project structure and stub roadmap from clarified PRD
-  3. /io-specify      -- PLAN MODE -- propose roadmap.md, human approves
+  3. /io-specify      -- PLAN MODE -- scan PRD for Trust Edges (Step B.5) + propose
+                        roadmap.md (Trust Edges section mandatory; "no trust edges"
+                        statement satisfies if none). Step E pre-approval sub-phase
+                        offers an operator-invokable /challenge menu (D-05/D-06)
+                        targeting declaration QUALITY. Human approves.
   4. /io-architect    -- PLAN MODE -- produce full canonical set (component-contracts.yaml,
-                        symbols.yaml, test-plan.yaml, seams.yaml), human approves (contract
-                        lock). Step G runs deterministic gates and stamps
-                        test-plan.yaml validated: true.
+                        symbols.yaml, seams.yaml), human approves (contract
+                        lock). Step F authors symbols.yaml before component-contracts.yaml
+                        (F-3/F-4 ordering); Step G runs five deterministic gates including
+                        validate_trust_edge_chain.py (PRD keyword scan + roadmap section
+                        chain + Settings parameterization). Step H surfaces design-evaluator
+                        findings single-pass per architect attempt (R2-narrow + D-04 clause-5
+                        option a); architect halts at Step I for operator triage.
+                        Re-attempts are operator-initiated, not auto-loops.
   5. /io-checkpoint   -- PLAN MODE -- propose plan.yaml + CT signatures, human approves.
-                        Step G-symbols backfills symbols.yaml used_by_cps under the validating
-                        sentinel (protects test-plan.yaml.validated from spurious reset).
+                        Step G-symbols backfills symbols.yaml used_by_cps under a capability
+                        grant to prevent spurious plan.yaml stamp resets.
   6. /validate-plan   -- validate plan.yaml CDD compliance, stamp plan.yaml validated: true.
-                        Does NOT touch test-plan.yaml.validated -- that stamp is architect-owned.
 
 [Tier 2 -- Harness Autonomous]
   7. /io-plan-batch   -- compose batch, score confidence rubric [HARD GATE], generate task files, human approves [HUMAN GATE]
@@ -45,6 +53,22 @@ Execution follows a strict chronology. Design is locked before any code is writt
   13. /gap-analysis    -- integration correctness across entire codebase
   14. /doc-sync        -- reconcile project-spec.md + roadmap.md with codebase state
 ```
+
+### Wire-Tests Sub-State (state 3 entry)
+
+Before `/io-checkpoint` slicing converges, the wire-tests sub-state runs:
+
+1. **CDT wave** (`/io-wire-tests-cdt`) -- per-component contract-driven tests at
+   `.claude/tests/contracts/test_<id>.py`.
+2. **CT wave** (`/io-wire-tests-ct`) -- per-seam connectivity tests at
+   `.claude/tests/connectivity/test_<id>.py`. STRICT precondition: matching CDTs at STATUS=PASS.
+3. **Calibration ship-gate** (`run_critic_audit.py`) -- N=5 PASS verdicts per test-type
+   audited against the 4-item checklist before `/io-checkpoint` slicing unblocks.
+
+Wire-tests output is the slicing input for `/io-checkpoint`: per-CP scope is computed from
+the test-file set covering each component/seam.
+
+Authoritative spec: `plans/v5-meso-pivot/wire-tests-payload-contracts.md` (D-09).
 
 ### Human Attention Contract
 
@@ -284,3 +308,24 @@ Doc-sync reconciles `project-spec.md` and `roadmap.md` with actual codebase stat
 6. **Directory navigation sync:** Verify `sync_dir_claude.py` ran and `src/*/CLAUDE.md` files reflect current Key files and Public via state.
 
 **Constraint:** `project-spec.md` reflects current codebase state only. No future-state items, no debt tracking artifacts.
+
+---
+
+## 7. Session Lesson Capture (/lessons-retro)
+
+Outside the orchestration chain, the harness captures per-session learnings (corrections, preferences, friction patterns) into rule files via a manually-triggered two-pass pipeline. This is a maintenance function distinct from `/io-review`, `/gap-analysis`, and the backlog: it captures **how the agent and user worked together this session**, not what was implemented.
+
+**Two-step manual loop:**
+
+1. `/lessons-retro` -- Pass 1 (Sonnet) extracts raw lesson candidates from the current session's JSONL transcript; Pass 2 (Opus, extended thinking) classifies each candidate as GLOBAL or WORKSPACE and writes a human-reviewable proposal to `.lessons/retro-review/<stamp>-proposal.md`.
+2. `/lessons-retro-review` -- user marks `**Decision:**` checkboxes (PROMOTE / DEFER / DISCARD) in the proposal; slash command applies promoted items, registers deferred items in `.lessons/deferred.yaml` for later, archives the proposal.
+
+**State separation:**
+
+- **GLOBAL** lessons -> `.claude/rules/learned-rules.md` -- committed, propagates via migration to consumer repos.
+- **WORKSPACE** lessons -> `.lessons/workspace-rules/<topic>-learned.md` -- gitignored, local-only by design. Two developers in the same repo will have divergent workspace rule sets.
+- **DEFERRED** items -> `.lessons/deferred.yaml` -- registry pointing into archived proposals; pruning is user-driven.
+
+The pipeline is gated by a 5-minute cooldown (skipped invocations logged to `.lessons/.skip-log`) and a hard-coded `auto_promote: 0` invariant -- nothing is ever applied to rule files without explicit `/lessons-retro-review` confirmation. See `harness/docs/workflow-usage-README.md` -- Lesson Capture section -- for full state layout, schema, and config knobs.
+
+**Auto-trigger on `/clear`:** not currently wired. Manual-only operation until pipeline quality is verified across multiple test runs.

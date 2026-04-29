@@ -3,9 +3,14 @@
 # fires at Step A-pre and is revoked automatically by session-end.sh
 # when the subprocess exits.
 #
+# Single-pass per architect attempt (R2-narrow); no inter-attempt
+# re-evaluation. Each /io-architect invocation spawns this subprocess
+# at most once on the design path; re-attempts are operator-initiated
+# at Step I (D-04 clause-5 option a).
+#
 # Granted writes: .iocane/findings/*.yaml. The design-evaluator never
 # writes anywhere else; canonical artifacts (component-contracts /
-# seams / symbols / test-plan) are read-only inside this subprocess.
+# seams / symbols) are read-only inside this subprocess.
 #
 # Same shape will repeat in A5 (io-cdt-evaluator.A.yaml) and A6
 # (io-ct-evaluator.A.yaml). All three roles share the

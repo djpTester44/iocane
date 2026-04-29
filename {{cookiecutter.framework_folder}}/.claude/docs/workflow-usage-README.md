@@ -41,7 +41,7 @@ Omit `-f --no-input` if you want cookiecutter to prompt for each variable intera
 Primary Path:
 /io-clarify -> /io-init -> /io-specify -> /io-architect -> /io-checkpoint -> /validate-plan -> /io-plan-batch -> /validate-tasks -> dispatch-agents.sh [per CP: io-execute (generator) -> evaluator] -> /io-review
 
-Test-authoring is deferred to Plan B (`/io-wire-tests`, not yet shipped).
+Test-authoring runs at state 3 entry via `/io-wire-tests-cdt` and `/io-wire-tests-ct` (see Wire-Tests Command Lifecycle below).
 
 
 Remediation Path (after /io-backlog-triage routes DESIGN/REFACTOR items):
@@ -56,6 +56,38 @@ Closeout (after final batch review):
 Recovery Path (only for out-of-band component-contracts.yaml changes):
 /io-architect -> /validate-spec -> /io-checkpoint
 ```
+
+---
+
+## Wire-Tests Command Lifecycle
+
+Wire-tests are the empirical-validation site for component contracts (CDT) and seam edges (CT). Execution follows this sequence per state 3 entry:
+
+1. `/io-wire-tests-cdt` -- enumerates ComponentContract targets from `plans/component-contracts.yaml`; runs per-target Actor-Critic loop authoring `tests/contracts/test_<target>.py`; converges to STATUS=PASS / FAIL / AMBIGUOUS per target. No precondition.
+
+2. `/io-wire-tests-ct` -- enumerates seam edges from `plans/seams.yaml`; **STRICT precondition:** matching CDT eval YAMLs STATUS=PASS + no collision-tainted markers; runs per-target Actor-Critic loop authoring `tests/connectivity/test_<edge>.py`.
+
+3. Calibration ship-gate: `run_critic_audit.py --test-type <cdt|ct> --sample-size 5` audits N=5 PASS verdicts per test-type. State 3 (`/io-checkpoint`) does NOT unblock until both 5-sets clear human review.
+
+**Authoritative spec for Author/Critic context-payload contracts:** `plans/v5-meso-pivot/wire-tests-payload-contracts.md` (D-09 supersedes plan-B.md §-1.4).
+
+### Configuration
+
+Wire-tests obey two configuration knobs in `.claude/iocane.config.yaml`:
+
+- `wire_tests.max_turns` -- per-target inner-loop bound (default 5).
+- `wire_tests.parallel.limit` -- per-batch parallelism cap (default 4).
+
+### State Surfaces
+
+Wire-tests emit and read from the following artifact surfaces:
+
+- `tests/contracts/test_<id>.py`, `tests/connectivity/test_<id>.py` -- test files (capability templates `io-wire-tests.cdt` / `io-wire-tests.ct`).
+- `.iocane/wire-tests/eval_<id>.yaml` -- Critic verdict per target (capability `io-wire-tests.critic`).
+- `.iocane/wire-tests/spawn-log/<sid>/<id>-<role>-<attempt>.json` -- machine-parseable audit log (per-sid scoped).
+- `.iocane/wire-tests/archive/<sid>/test_<id>-attempt-<N-1>.py` -- per-attempt test archive (D-18 R5 read-window; per-sid scoped).
+- `.iocane/wire-tests/lifetime/<id>.json` -- cross-invocation AMBIGUOUS counter (D-19).
+- `.iocane/findings/wire_test_*.yaml` -- FindingFiles emitted on halts.
 
 ---
 
@@ -144,7 +176,7 @@ These are hook-driven and configured in `.claude/settings.json`. They are execut
 - `UserPromptSubmit`: `.claude/hooks/prompt-submit.sh`
 - `PreToolUse (Edit|Write)`: `.claude/hooks/workflow-state-gate.sh`, `.claude/hooks/write-gate.sh`, `.claude/hooks/secret-scan.sh`, `.claude/hooks/environ-gate.sh`, `.claude/hooks/py-create-context.sh` *(async)*, `.claude/hooks/backslash-path.sh`, `.claude/hooks/emoji-scan.sh`, `.claude/hooks/architect-boundary.sh`
 - `PreToolUse (Bash)`: `.claude/hooks/forbidden-tools.sh`, `.claude/hooks/rtk-enforce.sh`
-- `PostToolUse (Edit|Write)`: `.claude/hooks/reset-on-prd-write.sh`, `.claude/hooks/reset-on-project-spec-write.sh`, `.claude/hooks/reset-on-plan-write.sh`, `.claude/hooks/reset-on-symbols-write.sh`, `.claude/hooks/reset-on-test-plan-write.sh`, `.claude/hooks/backlog-id-assign.sh`, `.claude/hooks/backlog-tag-validate.sh`, `.claude/hooks/archive-sync.sh` *(async)*, `.claude/hooks/validate-yaml.sh`, `.claude/hooks/task-validation-report-write.sh`
+- `PostToolUse (Edit|Write)`: `.claude/hooks/reset-on-prd-write.sh`, `.claude/hooks/reset-on-project-spec-write.sh`, `.claude/hooks/reset-on-plan-write.sh`, `.claude/hooks/reset-on-symbols-write.sh`, `.claude/hooks/backlog-id-assign.sh`, `.claude/hooks/backlog-tag-validate.sh`, `.claude/hooks/archive-sync.sh` *(async)*, `.claude/hooks/validate-yaml.sh`, `.claude/hooks/task-validation-report-write.sh`
 - `PostToolUse (Bash)`: `.claude/hooks/escalation-gate.sh`
 - `PostToolUseFailure`: `.claude/hooks/tool-failure.sh`
 
@@ -194,14 +226,13 @@ Tier 1 artifacts carry validation stamps that gate downstream workflows. Any sub
 | Artifact | Stamp | Gating Workflow | Gates |
 |----------|-------|-----------------|-------|
 | `plans/PRD.md` | `**Clarified:** True/False` (markdown) | `/io-clarify` | `/io-specify` |
-| `plans/test-plan.yaml` | `validated: true/false` (YAML field) | `/io-architect` Step G | `/io-checkpoint` |
 | `plans/plan.yaml` | `validated: true/false` (YAML field) | `/validate-plan` Step 13 | `/io-plan-batch` |
 
 Notes:
 
-- `test-plan.yaml.validated` is set by `/io-architect` after its two deterministic gates pass (`validate_symbols_coverage.py` + `validate_test_plan_completeness.py`). `/validate-plan` does NOT touch this stamp -- the architect is the only authority.
+- `/io-architect` Step G also runs `validate_trust_edge_chain.py`: a cross-artifact validator that enforces the PRD Trust Edges <-> component-contracts raises <-> symbols Settings parameterization chain. Distinct exit codes (1 presence / 2 chain / 3 parameterization) per check; non-zero halts back to Step F. Authoring discipline lives in /io-specify Step B.5 (Trust Edges section requirement).
 - `plan.yaml.validated` is set by `/validate-plan` Step 13 under an `io-architect.H`-class capability grant.
-- Reset chain: component-contracts.yaml writes reset both plan.yaml and test-plan.yaml; symbols.yaml writes reset both; test-plan.yaml writes reset plan.yaml only. See `docs/enforcement-mapping.md` for the full table.
+- Reset chain: symbols.yaml writes reset plan.yaml. See `docs/enforcement-mapping.md` for the full table.
 - `plans/project-spec.md` is retired as a canonical artifact -- no agent reads or writes it. `/validate-spec` is retired with it (Phase 9 of the rebuild plan).
 
 ### Exempting a write from stamp reset
@@ -236,7 +267,7 @@ The grant covers ALL writes declared in the template. Grant templates live at `.
 | `/io-clarify` | Clarify PRD ambiguities and critique against quality rubric | `plans/PRD.md` |
 | `/io-adopt` | Adopt an existing codebase into Iocane with extracted current-state + draft PRD | `plans/current-state.md`, `plans/PRD.md` |
 | `/io-init` | Bootstrap project structure and stub roadmap from clarified PRD | `plans/roadmap.md`, `plans/backlog.yaml` |
-| `/io-specify` | Propose feature roadmap from clarified PRD | `plans/roadmap.md` |
+| `/io-specify` | Propose feature roadmap from clarified PRD; identify Trust Edges (Step B.5) and render Trust Edges / Security Boundaries section in roadmap; offer operator-invokable /challenge menu at Step E pre-approval | `plans/roadmap.md` |
 | `/io-architect` | Design CRC cards, component contracts, Interface Registry | `plans/project-spec.md`, `plans/component-contracts.yaml`, `plans/seams.yaml`, `src/*/CLAUDE.md` |
 | `/io-replan` | Propagate PRD deltas into roadmap/spec and route impacts | `plans/roadmap.md`, `plans/project-spec.md`, `plans/backlog.yaml` |
 | `/io-checkpoint` | Define atomic checkpoints and connectivity tests | `plans/plan.yaml`, `plans/backlog.yaml` (remediation: Routed annotation via script) |
@@ -255,6 +286,8 @@ The grant covers ALL writes declared in the template. Grant templates live at `.
 | `/io-ct-remediate` | Remediation flow: create missing connectivity test(s) from CT spec for archived checkpoints. Imports both sides real; runs gate; closes backlog entry. | CT file path from `plans/plan.yaml`, `plans/backlog.yaml` |
 | `/gap-analysis` | Identify gaps between implementation and spec | `plans/review-output.yaml` (via `stage_review_findings.py`) |
 | `/run-state-snapshot` | Workflow-agnostic mid-run state capture: host-authored draft + mechanical enumeration composed into a snapshot doc | `.iocane/drafts/run-state-draft.yaml`, `.iocane/findings/<datestamp>_<workflow>-state.md` |
+| `/lessons-retro` | Manually trigger two-pass lesson extraction (Sonnet -> Opus xhigh) against current session transcript | `.lessons/retro-review/<stamp>-proposal.md`, `.lessons/.pending-review` |
+| `/lessons-retro-review` | Review and apply most recent `/lessons-retro` proposal; route lessons to GLOBAL/WORKSPACE rule files | `.claude/rules/learned-rules.md`, `.lessons/workspace-rules/<topic>-learned.md`, `.lessons/deferred.yaml` |
 
 ---
 
@@ -267,6 +300,41 @@ These workflows are part of the full lifecycle and are intentionally outside the
 - Post-review backlog routing: `/io-review` -> `stage_review_findings.py` (staging) -> `/io-backlog-triage` (drain to backlog) -> (`/auto-architect` | `/auto-checkpoint` | `/validate-plan` | `/io-ct-remediate`) based on tag/risk.
 - Archived checkpoint CT recovery: `/io-review` (detect missing CT) -> `/io-ct-remediate` -> backlog item resolved.
 - PRD-change replan path (non-linear): `/io-replan` when requirements change after initial planning.
+
+---
+
+## Lesson Capture (manual)
+
+Outside the orchestration chain, the harness provides a manual learning-extraction loop for capturing per-session lessons (corrections, preferences, friction patterns) into rule files. Local-only by design: workspace-scoped lessons live in gitignored `.lessons/` and never propagate via migration. Only items promoted to `.claude/rules/learned-rules.md` (Global section) are committed.
+
+**Pipeline (two slash commands, manual sequence):**
+
+1. `/lessons-retro` -- runs a two-pass extraction pipeline against the current session's JSONL transcript:
+   - Pass 1 (Sonnet, standard tier) walks the transcript and emits raw lesson candidates as JSONL records (corrections, preferences, friction, implicit signals).
+   - Pass 2 (Opus, extended thinking) classifies each candidate into GLOBAL or WORKSPACE tier, sanitizes source quotes, and writes a Markdown proposal to `.lessons/retro-review/<stamp>-proposal.md`.
+   - Pipeline runs synchronously (~1-3 min). Sets `.lessons/.pending-review` flag on completion.
+
+2. `/lessons-retro-review` -- review and apply the most recent proposal:
+   - User edits `**Decision:**` checkboxes in the proposal Markdown to mark each item PROMOTE / DEFER / DISCARD (unmarked items are treated as DISCARD by default with a warning at confirmation).
+   - Slash command parses decisions, shows summary across the four buckets, asks for a single y/N confirmation.
+   - On approval: GLOBAL items appended to `.claude/rules/learned-rules.md`; WORKSPACE items written to `.lessons/workspace-rules/<topic>-learned.md`; DEFER items registered in `.lessons/deferred.yaml`; proposal archived to `.lessons/retro-review/archive/`.
+   - At start of every run, prior deferred entries from `.lessons/deferred.yaml` are surfaced as a heads-up.
+
+**State layout (`.lessons/`, gitignored):**
+
+- `tmp/` -- Pass 1 output JSONL (transient; removed by `promote.sh` on finalize)
+- `retro-review/` -- live proposals awaiting review
+- `retro-review/archive/` -- archived proposals (kept indefinitely; cross-referenced from `deferred.yaml`)
+- `workspace-rules/` -- topic-scoped local-only rule files
+- `debug/` -- pipeline log + raw `claude -p` envelope JSONs
+- `deferred.yaml` -- registry of DEFERRED items pointing into archive
+- `.cooldown` -- timestamp file (5 min default; bypassed in manual mode)
+- `.skip-log` -- record of cooldown-skipped invocations
+- `.pending-review` -- flag file present when a proposal awaits review
+
+**Optional config override:** `.lessons/config.yaml` accepts simple `key: value` overrides for `enabled`, `cooldown_minutes`, `review_reminder_hours`. Defaults are baked into `invoke-retro.sh`. `auto_promote` is hard-coded to `0` and not overridable from config.
+
+**Auto-trigger on `/clear`:** not currently wired. The single-script trigger (modification to `session-start.sh` to fork `invoke-retro.sh` detached on `source==clear` SessionStart) is documented in the build plan and deferred pending operator decision.
 
 ---
 

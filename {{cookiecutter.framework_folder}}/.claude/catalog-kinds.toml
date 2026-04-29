@@ -1,0 +1,74 @@
+# L0 catalog kind enums -- harness-shipped defaults.
+#
+# Each category lists the allowed `kind` string values for entries in
+# `<project>/catalog.toml`. Projects extend this set additively via
+# `<project>/catalog-kinds.local.toml` (gitignored optional file) for
+# unusual domains the harness defaults don't cover. The parser merges
+# defaults + project extensions; the merged set is the validation set.
+#
+# Schema owner: .claude/scripts/schemas.py (CatalogKindsFile)
+# Parser:       .claude/scripts/catalog_parser.py
+# Consumer:     validate_crc_budget.py (typed <category>.<entry_name>
+#               citation distinct count enforcing MAX_DOMAIN_CONCERNS)
+#
+# Editing this file modifies harness defaults for every consumer
+# project. To add a kind for ONE project only, edit
+# `<project>/catalog-kinds.local.toml` instead.
+
+data_stores = [
+    "relational_db",
+    "document_db",
+    "key_value_store",
+    "object_store",
+    "cache",
+    "message_queue",
+    "search_index",
+    "time_series_db",
+    "graph_db",
+    "file_system",
+    "embedded_db",
+]
+
+external_systems = [
+    "payment_provider",
+    "auth_provider",
+    "email_provider",
+    "sms_provider",
+    "analytics_provider",
+    "cdn",
+    "geocoder",
+    "webhook_consumer",
+    "llm_provider",
+    "monitoring",
+    "feature_flag_service",
+    "secrets_manager",
+    "object_storage_provider",
+    "search_provider",
+]
+
+user_surfaces = [
+    "web_app",
+    "mobile_app",
+    "cli",
+    "api",
+    "admin_console",
+    "dashboard",
+    "embed_widget",
+    "email",
+    "chat_bot",
+    "ide_extension",
+]
+
+nfr_axes = [
+    "latency",
+    "throughput",
+    "availability",
+    "durability",
+    "consistency",
+    "security",
+    "privacy",
+    "compliance",
+    "cost",
+    "accessibility",
+    "observability",
+]

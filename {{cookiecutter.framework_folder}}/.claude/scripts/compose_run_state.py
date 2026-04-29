@@ -252,7 +252,6 @@ def render_capability(draft: RunStateDraft, repo_root: pathlib.Path) -> str:
 _CANONICAL_YAMLS: tuple[tuple[str, str, str], ...] = (
     ("Component contracts", "plans/component-contracts.yaml", "components"),
     ("Symbols registry", "plans/symbols.yaml", "symbols"),
-    ("Test plan", "plans/test-plan.yaml", "entries"),
     ("Seams", "plans/seams.yaml", "components"),
 )
 
@@ -271,14 +270,7 @@ def _yaml_count(path: pathlib.Path, key: str) -> str:
         n = len(container)
     else:
         return "(unknown shape)"
-    suffix = ""
-    if path.name == "test-plan.yaml":
-        validated = data.get("validated")
-        if validated is True:
-            suffix = " (**validated: true**)"
-        elif validated is False:
-            suffix = " (validated: false)"
-    return f"{n} {key}{suffix}"
+    return f"{n} {key}"
 
 
 def render_canonical_artifacts(

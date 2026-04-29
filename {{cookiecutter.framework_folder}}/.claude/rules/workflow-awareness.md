@@ -5,7 +5,6 @@ paths:
   - "plans/component-contracts.yaml"
   - "plans/seams.yaml"
   - "plans/symbols.yaml"
-  - "plans/test-plan.yaml"
   - "plans/plan.yaml"
   - "plans/backlog.yaml"
   - "tests/contracts/**"
@@ -29,7 +28,6 @@ The three-tier model ensures no generated code reaches the codebase without huma
 | CRC Contracts | `plans/component-contracts.yaml` | Human (via /io-architect) | Component contracts: CRC behavioral data (responsibilities, must_not, features) with component-level `raises` declarations |
 | Integration Seams | `plans/seams.yaml` | Human (via /io-architect) | DI graph, external terminals, key failure modes |
 | Symbols Registry | `plans/symbols.yaml` | Human (via /io-architect Step F) | Cross-CP identifiers: Settings fields, exception classes, shared types, fixtures, error messages. `used_by_cps` is backfilled by /io-checkpoint. |
-| Test Plan | `plans/test-plan.yaml` | Human (via /io-architect Step F) | Behavioral invariants per component contract; stamped `validated: true` by architect Step G |
 | Checkpoint Plan | `plans/plan.yaml` | Human (via /io-checkpoint) | Atomic checkpoints, connectivity test signatures; stamped `validated: true` by /validate-plan Step 13 |
 | Task Files | `plans/tasks/[CP-ID].yaml` | Orchestrator | Per-checkpoint sub-agent work packages |
 | Dispatch Script | `plans/tasks/run.sh` | Orchestrator | Worktree setup and sub-agent invocation |
@@ -41,7 +39,6 @@ The three-tier model ensures no generated code reaches the codebase without huma
 | Task Parser | `.claude/scripts/task_parser.py` | Harness | Load/save/query `plans/tasks/CP-*.yaml` |
 | Seam Parser | `.claude/scripts/seam_parser.py` | Harness | Load/save/query `plans/seams.yaml` |
 | Symbols Parser | `.claude/scripts/symbols_parser.py` | Harness | Load/save/query `plans/symbols.yaml`; conflict detection (env_var + message_pattern) |
-| Test Plan Parser | `.claude/scripts/test_plan_parser.py` | Harness | Load/save/query `plans/test-plan.yaml` |
 | Contract Parser | `.claude/scripts/contract_parser.py` | Harness | Load/save/query `plans/component-contracts.yaml` |
 | Workflow State | `.iocane/workflow-state.json` | Hook | Deterministic workflow state derived from artifact writes; consumed by `workflow-state-gate.sh` |
 | Escalation Flag | `.iocane/escalation.flag` | Hook | Sentinel written by `escalation-gate.sh`; blocks dispatch and implementation writes |

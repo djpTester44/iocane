@@ -9,6 +9,7 @@ agents:
 ci:
   enabled: true
   timeout: 5m
+harness_version: 5
 models:
   ct_author: claude-sonnet-4-6
   tier1: claude-opus-4-7
@@ -23,3 +24,7 @@ pipeline:
 validation:
   tasks:
     max_regen_cycles: 3
+wire_tests:
+  max_turns: 5
+  parallel:
+    limit: 4

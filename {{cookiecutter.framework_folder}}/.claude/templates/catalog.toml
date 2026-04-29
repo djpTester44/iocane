@@ -1,0 +1,48 @@
+# L0 catalog -- project-authored entries naming concrete bounded
+# contexts this project spans.
+#
+# Schema:   .claude/scripts/schemas.py (Catalog)
+# Parser:   .claude/scripts/catalog_parser.py
+# Consumer: validate_crc_budget.py (counts distinct typed
+#           <category>.<entry_name> citations in
+#           ComponentContract.domain_concerns; enforces
+#           MAX_DOMAIN_CONCERNS cap per decisions.md D-13)
+#
+# Four categories. Entry `name` keys must match the table key (the
+# parser enforces this). `kind` must be in the merged kind-enum set
+# from .claude/catalog-kinds.toml + ./catalog-kinds.local.toml (if
+# present). Citations from component contracts use typed
+# `<category>.<entry_name>` form.
+#
+# Greenfield: seed at /io-init or PRD authoring time.
+# Brownfield: seed during /io-adopt by walking PRD intent +
+#             current-state.md inventory.
+
+[data_stores]
+# Example -- delete and replace with project-specific entries:
+# [data_stores.user_db]
+# name = "user_db"
+# kind = "relational_db"
+# description = "Primary user/account store; identity + auth metadata."
+
+[external_systems]
+# Example with the trust_boundary structured-index flag:
+# [external_systems.payment_provider]
+# name = "payment_provider"
+# kind = "payment_provider"
+# description = "Stripe Checkout + webhook signature verification."
+# trust_boundary = true   # webhook signatures cross an untrusted edge
+
+[user_surfaces]
+# Example -- delete and replace with project-specific entries:
+# [user_surfaces.admin_console]
+# name = "admin_console"
+# kind = "admin_console"
+# description = "Internal-only ops console for tenant lifecycle."
+
+[nfr_axes]
+# Example -- delete and replace with project-specific entries:
+# [nfr_axes.latency_p99]
+# name = "latency_p99"
+# kind = "latency"
+# description = "Public API request p99 budget; SLA-bound."

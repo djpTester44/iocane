@@ -13,7 +13,7 @@ Maps every harness constraint to its enforcement mechanism.
 | No cd .. traversal in sub-agent context | `forbidden-tools.sh` | PreToolUse Bash | |
 | RTK prefix required for CLI tools | `rtk-enforce.sh` | PreToolUse Bash | |
 | No .py writes during /io-architect phase | `architect-boundary.sh` | PreToolUse Edit/Write | |
-| Implementation writes gated by workflow state | `workflow-state-gate.sh` | PreToolUse Edit/Write | |
+| Implementation writes gated by workflow state (capability-grant bypass via β-delegation to `capability-covers.sh`) | `workflow-state-gate.sh` | PreToolUse Edit/Write | |
 | Write targets scoped to checkpoint | `write-gate.sh` | PreToolUse Edit/Write | |
 | No secrets in written files | `secret-scan.sh` | PreToolUse Edit/Write | |
 | No backslash paths in written files | `backslash-path.sh` | PreToolUse Edit/Write | |
@@ -24,13 +24,12 @@ Maps every harness constraint to its enforcement mechanism.
 | Validation stamp reset on PRD write | `reset-on-prd-write.sh` | PostToolUse Edit/Write | |
 | Validation stamp reset on project-spec write | `reset-on-project-spec-write.sh` | PostToolUse Edit/Write | |
 | Validation stamp reset on plan.yaml write | `reset-on-plan-write.sh` | PostToolUse Edit/Write | |
-| Validation stamp reset on symbols.yaml write (resets plan.yaml + test-plan.yaml) | `reset-on-symbols-write.sh` | PostToolUse Edit/Write | |
-| Validation stamp reset on test-plan.yaml write (resets plan.yaml) | `reset-on-test-plan-write.sh` | PostToolUse Edit/Write | |
+| Validation stamp reset on symbols.yaml write (resets plan.yaml) | `reset-on-symbols-write.sh` | PostToolUse Edit/Write | |
 | Within-session sentinel staleness guard (60-min TTL) | `scripts/check-validating-sentinel.sh` (DEPRECATED 2026-04-22; unregistered, no longer consulted by any active hook -- retained in-place for rollback reference) | -- | |
 | Workflow write-authorization (capability grant + hot-path cache + catastrophic-rm deny) | `scripts/capability.py` (sole writer) + `hooks/capability-gate.sh` (PreToolUse Bash + Edit/Write, hardcoded catastrophic deny, fail-open baseline) + `scripts/capability-covers.sh` (helper invoked by reset-on-* hooks) | PreToolUse Bash, Edit/Write | |
 | BL-NNN assignment on backlog write | `backlog-id-assign.sh` -> `assign_backlog_ids.py` | PostToolUse Edit/Write | |
 | Backlog tag validation (blocking on schema failure) | `backlog-tag-validate.sh` -> `backlog_parser.load_backlog()` | PostToolUse Edit/Write | |
-| YAML schema validation (task, plan, backlog, seams, component-contracts, symbols, test-plan) | `validate-yaml.sh` | PostToolUse Edit/Write | |
+| YAML schema validation (task, plan, backlog, seams, component-contracts, symbols); routes `.iocane/wire-tests/eval_*.yaml` writes to `eval_parser.load_eval_report` for EvalReport schema validation | `validate-yaml.sh` | PostToolUse Edit/Write | |
 | Archive sync on checkpoint approval | `archive-sync.sh` | PostToolUse Edit/Write | yes |
 | Workflow state derivation from validation report | `task-validation-report-write.sh` | PostToolUse Edit/Write | |
 | Escalation capture on command failure | `escalation-gate.sh` | PostToolUse Bash | |
@@ -50,10 +49,10 @@ Maps every harness constraint to its enforcement mechanism.
 
 | Constraint | Command | When |
 |------------|---------|------|
-| CRC budget caps (responsibilities, features, composition-root fan-out) | `validate_crc_budget.py` | io-architect Step G [HARD GATE] |
+| CRC budget caps (responsibilities, domain_concerns, features, composition-root fan-out) | `validate_crc_budget.py` | io-architect Step G [HARD GATE] |
 | Symbols coverage (every Protocol Raises type declared as exception_class) | `validate_symbols_coverage.py` | io-architect Step G [HARD GATE] |
 | Symbol conflict detection (env_var + message_pattern) | `symbols_parser.detect_env_var_conflicts` / `detect_message_pattern_conflicts` | io-architect Step G [HARD GATE] |
-| Test-plan completeness (every Protocol method has TestPlanEntry) | `validate_test_plan_completeness.py` | io-architect Step G [HARD GATE] |
+| Trust-edge cross-artifact chain (PRD keyword presence + roadmap Trust Edges section + contract raises adversarial coverage + Settings parameterization) | `validate_trust_edge_chain.py` | io-architect Step G [HARD GATE] |
 | Write-target collision detection | `check_write_target_overlap.py` (includes CT files owned by target_cp) | io-plan-batch Step C [HARD GATE] |
 | CT seam completeness (covers source + target sides) | `check_ct_completeness.py` | validate-plan Step 9 [HARD GATE] |
 | CT dependency invariant | `check_ct_depends_on.py` | validate-plan Step 9B [HARD GATE] |
@@ -69,6 +68,8 @@ Maps every harness constraint to its enforcement mechanism.
 | Bandit security scan (optional) | `run-compliance.sh` → `bandit -q -ll` (WARN if not installed) | io-review Step D, gap-analysis Step C |
 | DI compliance (full run) | `run-compliance.sh` → `check_di_compliance.py` | io-review Step D, gap-analysis Step C |
 | `ci-sidecar.sh post-wave` | Advisory | Post-dispatch regression diff -- appends `[CI-REGRESSION]` / `[CI-COLLECTION-ERROR]` findings to `plans/backlog.yaml` |
+| CDT wire-test evaluation | `/io-wire-tests-cdt` | Capability-bracketed Author + Critic spawns; per-target Actor-Critic loop bounded by `wire_tests.max_turns`; resolved-suffix sweep on all-PASS gated by no-collision; post-batch collision detection emits FindingFile (defect_kind=`parallel_write_collision`) per affected target |
+| CT wire-test precondition validation | `/io-wire-tests-ct` | Same as CDT, plus STRICT precondition: matching CDT eval YAMLs (src + dst) STATUS=PASS and not `.collision-tainted`; precondition-FAIL emits FindingFile (defect_kind=`ct_precondition_cdt_missing` / `ct_precondition_cdt_not_pass` / `ct_precondition_cdt_collision_tainted`) |
 
 ---
 

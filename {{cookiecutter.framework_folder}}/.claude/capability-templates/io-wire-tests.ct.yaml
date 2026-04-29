@@ -1,0 +1,16 @@
+# /io-wire-tests-ct spawns parallel Author and Critic subprocesses per CT
+# target. Authors write tests/connectivity/test_<target_id>.py against
+# seams.yaml fan-in/out edges. Strict precondition: matching CDTs must
+# already converge to STATUS=PASS (D-20) and not be collision-tainted
+# (D-21 rev 4). Same trust premise + compensating controls as the cdt
+# template.
+
+workflow: io-wire-tests
+step: ct
+ttl_seconds: 600
+grants:
+  write:
+    - tests/connectivity/test_*.py
+  rm: []
+keywords: [wire-tests, ct, connectivity-test, author]
+context: "/io-wire-tests-ct Author: write tests/connectivity/test_<target_id>.py per seams.yaml."

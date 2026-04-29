@@ -13,6 +13,9 @@ Checks applied to every component in plans/component-contracts.yaml:
         MAX_COMP_ROOT_L23_COLLABORATORS Layer-2/3 collaborators must
         decompose into resource-scoped sub-components. seams.yaml
         layer assignments (authored at Step F-6) are required input.
+  A.1d: max MAX_DOMAIN_CONCERNS distinct typed <category>.<entry_name>
+        citations in the domain_concerns list (R3 catalog-citation cap;
+        orthogonal to A.1a per decisions.md D-13).
 
 In addition, non-blocking warnings are emitted for behavioral components
 (those with declared responsibilities or marked composition_root) that
@@ -49,6 +52,7 @@ logger = logging.getLogger(__name__)
 
 # Budget thresholds -- policy constants, exposed for per-project tuning.
 MAX_RESPONSIBILITIES: int = 3
+MAX_DOMAIN_CONCERNS: int = 3
 MAX_FEATURES: int = 2
 MAX_COMP_ROOT_L23_COLLABORATORS: int = 2  # threshold is > cap (i.e. >= 3 fails)
 
@@ -133,6 +137,20 @@ def check_budget(
             violations.append(
                 f"A.1a {name}: {resp_count} responsibilities "
                 f"(cap {MAX_RESPONSIBILITIES}) -- split the component",
+            )
+
+        # A.1d -- distinct typed <category>.<entry_name> citations.
+        # Duplicate citations are deduplicated before counting so an
+        # author can't bypass the cap by listing the same catalog
+        # entry twice. Untyped entries (no '.' separator) still count
+        # but will be surfaced separately by catalog_parser-side
+        # validation; here we only enforce the cap.
+        dc_count = len(set(contract.domain_concerns))
+        if dc_count > MAX_DOMAIN_CONCERNS:
+            violations.append(
+                f"A.1d {name}: {dc_count} distinct domain_concerns "
+                f"(cap {MAX_DOMAIN_CONCERNS}) -- the component spans too "
+                "many bounded contexts; split by domain boundary",
             )
 
         feat_count = len(contract.features)

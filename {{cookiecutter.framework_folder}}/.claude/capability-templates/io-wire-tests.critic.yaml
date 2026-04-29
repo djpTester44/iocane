@@ -1,0 +1,23 @@
+# Critic role for /io-wire-tests-cdt and /io-wire-tests-ct. Writes the
+# per-target eval YAML at .iocane/wire-tests/eval_<target_id>.yaml --
+# the authoritative "what does Critic currently think" surface
+# consumed by the orchestrator and Author retry. EvalReport schema +
+# cross-field validator live in .claude/scripts/schemas.py.
+#
+# Independence per R5: Critic spawn does NOT see Author self-assessment;
+# only the just-written test file + matching rubric + plans/component-
+# contracts.yaml + plans/symbols.yaml + (CT only) plans/seams.yaml.
+#
+# Shorter ttl_seconds than Author (300 vs 600): Critic eval pass is
+# bounded prompt-length work; explicit revoke after each Critic spawn
+# is primary cleanup.
+
+workflow: io-wire-tests
+step: critic
+ttl_seconds: 300
+grants:
+  write:
+    - .iocane/wire-tests/eval_*.yaml
+  rm: []
+keywords: [wire-tests, critic, eval-report, independence]
+context: "/io-wire-tests Critic: emit EvalReport YAML to .iocane/wire-tests/eval_<target_id>.yaml."

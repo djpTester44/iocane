@@ -1,6 +1,6 @@
 ---
 name: challenge
-description: Adversarial stress-test of the current plan. Spawns two Opus sub-agents as Devil's Advocates -- one broad, one targeted -- to surface failure modes, unexamined assumptions, and the strongest argument against proceeding.
+description: Adversarial stress-test of the current plan. By default spawns one Opus sub-agent as a targeted Devil's Advocate to surface failure modes, unexamined assumptions, and the strongest argument against proceeding. Pass --broad for a broad-only scan, or --both for broad + targeted in parallel. Findings only -- no fixes, no rewrites.
 ---
 
 # CHALLENGE: Adversarial Plan Review
@@ -9,15 +9,37 @@ description: Adversarial stress-test of the current plan. Spawns two Opus sub-ag
 
 ## When to Use
 
-- Before approving a CDD checkpoint plan (`/io-checkpoint` Step E)
-- Before approving any ad-hoc plan produced in plan mode
-- Whenever a plan feels "too clean" and you want to pressure-test it
+* Before approving a CDD checkpoint plan (`/io-checkpoint` Step E)
+* Before approving any ad-hoc plan produced in plan mode
+* Whenever a plan feels "too clean" and you want to pressure-test it
+
+## Flags
+
+| Flag | Behavior |
+|------|----------|
+| *(none)* | **Targeted only** (default) — one scan with specific failure-category lenses |
+| `--broad` | **Broad only** — one scan with unconstrained directional exploration |
+| `--both` | **Broad + Targeted** — both scans in parallel, full dual-agent review |
+
+When the user provides prose alongside `--targeted` (or the default), pass that prose to the targeted agent as additional directional context (see targeted brief below).
 
 ## Execution
 
-Spawn two **Opus sub-agents** in parallel with the briefs below. The broad scan explores freely with no directional priming; the targeted scan applies specific failure-category lenses. Present both outputs.
+### Determining which agents to spawn
 
-### Broad scan
+```
+if flag == "--both":
+    spawn broad agent + targeted agent in parallel
+elif flag == "--broad":
+    spawn broad agent only
+else:  # default or --targeted
+    spawn targeted agent only
+    if user provided prose: pass it as additional context (see targeted brief)
+```
+
+---
+
+### Broad scan agent brief
 
 ```
 You are a Devil's Advocate reviewing a plan. Your job is to find what breaks, not to help. You are FORBIDDEN from suggesting improvements, alternative designs, or rewrites. You surface problems -- the human decides what to do about them.
@@ -52,12 +74,16 @@ HARD CONSTRAINTS:
 - If the plan is genuinely sound, say so briefly and explain why the obvious attack vectors do not apply
 ```
 
-### Targeted scan
+---
+
+### Targeted scan agent brief
 
 ```
 You are a Devil's Advocate reviewing a plan. Your job is to find what breaks, not to help. You are FORBIDDEN from suggesting improvements, alternative designs, or rewrites. You surface problems -- the human decides what to do about them.
 
 Read the plan from the current conversation context.
+
+{{TARGETED_CONTEXT}}
 
 Plans fail in predictable ways that are easy to overlook: steps that execute out of order or concurrently when the plan assumed sequence; check-then-act gaps where a concurrent actor invalidates the check before the act; data crossing a trust boundary with identifiers the caller controls; dependencies that are slow, down, or returning stale results. Not every plan has all of these -- but when one applies and is missed, it is usually the thing that breaks production. Look there first, then look everywhere else.
 
@@ -91,9 +117,37 @@ HARD CONSTRAINTS:
 - If the plan is genuinely sound, say so briefly and explain why the obvious attack vectors do not apply
 ```
 
+**Note on `{{TARGETED_CONTEXT}}`:** Replace this placeholder before spawning the agent:
+- If the user provided prose with their invocation (e.g. `/challenge --targeted focus on the auth boundary`), inject it as: `The user has flagged a specific area of concern: "<their prose>". Weight your investigation toward this area, but do not ignore other critical failure modes.`
+- Otherwise, omit the line entirely.
+
+---
+
 ## Output
 
-Present both sub-agents' findings to the user, labeled by scan type:
+### Targeted only (default / `--targeted`)
+
+```
+--- TARGETED SCAN ---
+[targeted scan findings]
+
+CHALLENGE COMPLETE. One adversarial review above.
+
+These are adversarial findings. Decide which (if any) warrant plan changes before approving.
+```
+
+### Broad only (`--broad`)
+
+```
+--- BROAD SCAN ---
+[broad scan findings]
+
+CHALLENGE COMPLETE. One adversarial review above.
+
+These are adversarial findings. Decide which (if any) warrant plan changes before approving.
+```
+
+### Both (`--both`)
 
 ```
 --- BROAD SCAN ---
@@ -106,3 +160,13 @@ CHALLENGE COMPLETE. Two independent adversarial reviews above.
 
 These are adversarial findings from different angles, not recommendations. Decide which (if any) warrant plan changes before approving.
 ```
+
+## Follow-up prompt (all modes)
+
+After presenting output, immediately call `sendPrompt` to route the follow-up back to the orchestrating agent:
+
+```javascript
+sendPrompt("Review the output of the adversarial challenge against your plan and provide feedback and suggestions.")
+```
+
+This fires automatically — do not ask the human first, do not narrate it.

@@ -110,7 +110,51 @@ Dual-source: if the brownfield repo already had a PRD (archived to `OLD_plans/PR
 
 Other archived plan artifacts (e.g., `OLD_plans/backlog.md`, `OLD_plans/plan.md`, `OLD_plans/seams.md`, `OLD_plans/roadmap.md`) are currently NOT consumed by `/io-adopt`. They remain in the archive for manual reference. If automated consumption of any such artifact is added later, the correct location is this step -- add a new sub-branch for each artifact alongside Branch A and Branch B.
 
-### 4. HANDOFF
+### 4. CATALOG SEEDING
+
+* **Goal:** Author a draft `catalog.toml` enumerating the bounded contexts this project spans. Consumed by `validate_crc_budget.py` (component-contract `domain_concerns` distinct-citation count enforcing the `MAX_DOMAIN_CONCERNS` cap per `decisions.md` D-13).
+* **Placement rationale (per `decisions.md` D-16):** This step runs AFTER Step 3 PRD synthesis because `nfr_axes` entries are sourced from PRD NFR content; the other three categories (`data_stores`, `external_systems`, `user_surfaces`) draw from `plans/current-state.md` (already on disk after Step 2). Both inputs must exist before catalog seeding can populate all four categories.
+
+#### Step 4a: REVIEW KIND ENUMS
+
+* **Action:** Read `.claude/catalog-kinds.toml` to learn the allowed `kind` values per category. The merged validation set is `.claude/catalog-kinds.toml` defaults UNIONED with `./catalog-kinds.local.toml` (project-additive extension; optional, gitignored). Entry-level `kind` validation runs at Step 4c against the merged set.
+
+* **Note:** If a kind value needed for this project is absent from harness defaults, add it to `./catalog-kinds.local.toml` (do NOT edit `.claude/catalog-kinds.toml`; that file is harness-shipped and propagates to every consumer). Use the scaffold at `.claude/templates/catalog-kinds.local.toml`.
+
+#### Step 4b: SEED `catalog.toml`
+
+* **Action:** Read `.claude/templates/catalog.toml` for the file shape.
+* **Action:** Create `catalog.toml` at the repo root, populated from the four input sources below. Use typed entry names (lowercase, identifier-safe) that match the project's domain language.
+
+  | Category | Source | Inference protocol |
+  |---|---|---|
+  | `data_stores` | `plans/current-state.md` Configuration Sources section | Connection strings, ORM URLs, DB driver imports → infer `kind` by URL scheme (`postgres://` → `relational_db`, `mongodb://` → `document_db`, `redis://` → `cache` or `key_value_store`, etc.). Name from config key or domain meaning ("primary_db", "session_cache"). |
+  | `external_systems` | `plans/current-state.md` Wiring Snapshot section | API client instantiations (`Stripe(...)`, `boto3.client('s3')`, `httpx` clients to named hosts, etc.) → infer `kind` by client class or service host. Set `trust_boundary = false` by default (see Note below). |
+  | `user_surfaces` | `plans/current-state.md` Wiring Snapshot section | Entrypoint patterns (`cli.py` → `cli`, FastAPI/Flask app entrypoint → `web_app` or `api`, admin route group → `admin_console`). |
+  | `nfr_axes` | `plans/PRD.md` Non-Functional Requirements section | NFR axes named in PRD prose (latency budgets, throughput targets, durability tiers, security boundaries, etc.) → one entry per distinct axis. |
+
+* **Rule for `external_systems.trust_boundary`:** Default to `false` for ALL inferred entries. The flag is a structured-index optimization for the Phase 1 roadmap-tier trust-edge gate (`validate_trust_edge_chain.py`); it is NOT the source of truth for adversarial-edge declarations. The roadmap (`plans/roadmap.md` Trust Edges section) remains authoritative. Per `decisions.md` D-03 + 00-framework-adoption.md §4.5 row 4, Phase 3 implementation MUST NOT compete with the Phase 1 roadmap-tier gate. Operator review post-seeding (Step 5 handoff) is the moment to flip `trust_boundary = true` only on entries the roadmap already declares as trust edges.
+
+* **Rule:** Mark `catalog.toml` as a DRAFT in this step's output. The operator must review it before `/io-clarify`. Inferred names, descriptions, and especially `trust_boundary` flags benefit from human judgment about domain language and adversarial-edge classification.
+
+#### Step 4c: VALIDATE
+
+* **Action:** Run the catalog parser to confirm the seeded file parses cleanly against the schema + kind enums:
+
+  ```bash
+  uv run python -c "
+  import sys; sys.path.insert(0, '.claude/scripts')
+  from catalog_parser import load_catalog
+  c = load_catalog('catalog.toml')
+  print(f'data_stores: {len(c.data_stores)}, external_systems: {len(c.external_systems)}, user_surfaces: {len(c.user_surfaces)}, nfr_axes: {len(c.nfr_axes)}')
+  "
+  ```
+
+* **Goal:** Confirm round-trip parses; no kind-outside-enum errors; entry names match dict keys.
+
+* **Failure mode:** If validation fails, fix the catalog entries (or extend `./catalog-kinds.local.toml` if the offending kind is project-specific) and re-run before proceeding to Step 5.
+
+### 5. HANDOFF
 
 * **Stop:** Explicitly ask the user to review `plans/PRD.md` AND the archived artifacts before running `/io-clarify`.
 
@@ -129,6 +173,14 @@ Other archived plan artifacts (e.g., `OLD_plans/backlog.md`, `OLD_plans/plan.md`
     Source: [OLD_plans/PRD.md carryover + current-state reconciliation]  -- if Branch A
             [reverse-engineered from plans/current-state.md]              -- if Branch B
 
+  Draft catalog created at catalog.toml.
+    Sources: plans/current-state.md (data_stores, external_systems, user_surfaces)
+             plans/PRD.md NFRs (nfr_axes)
+    NOTE: external_systems.trust_boundary defaults to false on every entry; the
+          roadmap-tier trust-edge gate (validate_trust_edge_chain.py) remains the
+          source of truth for adversarial-edge declarations. Flip true ONLY on
+          entries the roadmap explicitly declares as trust edges.
+
   Archived artifacts for review:
     - OLD_CLAUDE.md    (diff against CLAUDE.md; preserve non-System-Context content)
     - OLD_AGENTS.md    (review lessons; skip ones now enforced by hooks/rules)
@@ -136,7 +188,8 @@ Other archived plan artifacts (e.g., `OLD_plans/backlog.md`, `OLD_plans/plan.md`
 
   REVIEW REQUIRED. Do not proceed until:
     1. plans/PRD.md is approved.
-    2. Archives have been reviewed and anything worth merging has been merged.
+    2. catalog.toml is reviewed (entry names + descriptions + trust_boundary flags).
+    3. Archives have been reviewed and anything worth merging has been merged.
 
   Next: /io-clarify to resolve ambiguities, then /io-init for macro-architecture.
   ```

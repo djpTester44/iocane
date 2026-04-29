@@ -50,7 +50,7 @@ Write `.iocane/drafts/run-state-draft.yaml` with the reasoning-tier sections. Sc
 
 ```yaml
 # Required fields
-workflow_label: "<short label>"        # e.g., "/io-architect cycle 4 H-loop interrupted"
+workflow_label: "<short label>"        # e.g., "/io-architect Step H interrupted"
 generated_note: "<one-sentence>"       # optional; rendered under the H1
 run_state:                             # bullets for §1
   - "..."
@@ -71,7 +71,7 @@ agent_decisions:                       # optional but encouraged for any deliber
 
 **Authoring guidance (host agent reads this BEFORE filling the draft):**
 
-- **`workflow_label`** -- short label naming the workflow + state (e.g., `/io-architect cycle 4 H-loop interrupted`, `/io-checkpoint Step D in progress`, `idle / mid-session`).
+- **`workflow_label`** -- short label naming the workflow + state (e.g., `/io-architect Step H interrupted`, `/io-checkpoint Step D in progress`, `idle / mid-session`).
 - **`run_state`** (§1) -- one bullet per load-bearing fact about *where the workflow is right now*: active cycle, last completed step, in-flight subprocess at interrupt, approximate remaining context. Mechanical-section data (canonical YAML counts, finding counts, capability state) does NOT belong here -- those render mechanically. §1 is what the operator needs to know that the disk does not show.
 - **`anomalies`** (§8) -- categorical, labeled observations. Use stable labels: `INFRASTRUCTURE`, `EVALUATOR FINDING DELIVERY`, `EVALUATOR PROGRESS PATTERN`, `STAMP STATE`, `INDEX MAY BE OUT OF SYNC`, `OUTSTANDING`. Each entry is a load-bearing concern that future-you needs to act on; if it is just colorful narration, drop it.
 - **`recommended_continuation`** (§9) -- numbered checklist of concrete next moves a continuation session should run. Each item is an executable action (`Glob ...`, `re-spawn ...`, `view_file ...`), not a status statement. Aim for 3-6 items; this is the handoff payload.

@@ -1,7 +1,7 @@
 # Design Evaluator Rubric
 
 Eight reasoning categories applied semantically against
-io-architect's canonical four-artifact set:
+io-architect's canonical three-artifact set:
 
 - `plans/component-contracts.yaml` -- `ComponentContractsFile` /
   `ComponentContract` (component-level `raises: list[str]`,
@@ -10,10 +10,6 @@ io-architect's canonical four-artifact set:
   (`injected_contracts`, layer assignment, external-terminal status)
 - `plans/symbols.yaml` -- `SymbolsFile` / per-symbol metadata
   (`declared_in`, `kind`, exception classes)
-- `plans/test-plan.yaml` -- `TestPlanFile.entries: dict[str,
-  TestPlanEntry]` keyed by component; each entry carries
-  `invariants: list[TestInvariant]` with optional
-  `TestInvariant.method` scope hint
 
 Each category below names a `defect_kind` slug. The slugs are
 schema-validated against `ROLE_TO_DEFECT_KINDS[EVALUATOR_DESIGN]`
@@ -27,44 +23,65 @@ findings, revises, and re-runs.
 
 ---
 
+## R6-Narrow Residue Scope (Phase 1)
+
+These eight categories are the R6-narrow residue: defect classes the
+A5 (CDT) and A6 (CT) meso-tier evaluators provably cannot reach.
+A5/A6 validate implementation-to-contract conformance via axes:
+payload-shape coverage, per-contract-field invariant assertions,
+mock-factory completeness, raises-coverage parity. None of those axes
+reach specification-quality defects (tautological invariant CONTENT,
+trigger SPECIFICITY, symbol CLASSIFICATION correctness, adversarial
+DECLARATION, symbol-name drift, TYPE ABSTRACTION level, docstring
+COUPLING, or cohesion GRAPH SHAPE). All eight categories remain as
+the narrowed design-tier critic's responsibility under R6-narrow.
+
+**Category 4 (`design_missing_adversarial_coverage`) is INVARIANT
+(non-trimmable in Phase 1).** Per decisions.md D-03 alpha: trim
+flexibility applies to all other categories; this axis is pinned
+because the security-class defect (F3: missing adversarial coverage
+on trust-boundary surfaces) must retain a semantic backstop alongside
+the deterministic cross-artifact validator
+(`validate_trust_edge_chain.py`). Do not remove this category in
+Phase 1 breakout trim passes or future substage reviews without an
+explicit D-NN supersession of D-03 alpha.
+
+---
+
 ## 1. Tautological Invariants -- `design_tautological_invariant`
 
-**What to look for.** A `TestInvariant.statement` (or `narrative`)
-that restates a type signature, name, or framework-provided guarantee
-without asserting actual behavior. The invariant gives no behavioral
-guarantee under test -- the test can pass without exercising the
-component's contract.
+**What to look for.** A `ComponentContract.responsibilities` item
+or `raises` trigger that restates a type signature, method name, or
+framework-provided guarantee without asserting actual behavior. The
+entry gives no behavioral constraint -- the implementation can satisfy
+it without doing anything meaningful.
 
-**Why it matters.** Tautological invariants are silent
-test-coverage holes. The CDT writer cites the invariant ID, the test
-runs, the runner reports green -- but no real behavior was checked.
-The defect surfaces in production.
+**Why it matters.** Tautological entries are silent contract holes.
+They pass schema validation and look complete, but give the test
+author nothing concrete to assert. The defect surfaces when
+implementation diverges silently.
 
-**Bad example** (in `plans/test-plan.yaml`):
+**Bad example** (in `plans/component-contracts.yaml`):
 
 ```yaml
-entries:
+components:
   router:
-    component: router
-    invariants:
-      - id: INV-001
-        statement: "router has a route() method"
-        # The contract already declares route -- restating it as an
-        # invariant gives the test nothing to assert.
+    responsibilities:
+      - "router has a route() method"
+      # The class already declares route -- restating it as a
+      # responsibility gives the test nothing to assert.
 ```
 
 **Good example.**
 
 ```yaml
-entries:
+components:
   router:
-    component: router
-    invariants:
-      - id: INV-001
-        statement: >-
-          route() with an unknown destination raises UnknownRouteError;
-          known destinations resolve to the registered handler before
-          the handler is invoked.
+    responsibilities:
+      - >-
+        route() with an unknown destination raises UnknownRouteError;
+        known destinations resolve to the registered handler before
+        the handler is invoked.
 ```
 
 ---
@@ -125,29 +142,61 @@ module path; cross-referencing the two yields no contradictions.
 
 ---
 
-## 4. Missing Adversarial Coverage -- `design_missing_adversarial_coverage`
+## 4. Missing Adversarial Coverage -- `design_missing_adversarial_coverage` [INVARIANT: non-trimmable in Phase 1]
 
 **What to look for.** A `ComponentContract` whose
 `responsibilities` describe a security-sensitive or
 input-validation surface (auth checks, path resolution, deserialization,
 url construction, sql, shell), but whose `raises` list contains zero
-adversarial-input triggers and whose `entries[component].invariants`
-contains zero invariants asserting rejection paths.
+adversarial-input triggers.
 
 **Why it matters.** The test surface ends up only covering happy
 path. Adversarial inputs (malformed payloads, traversal sequences,
-oversized strings, type confusion) don't have a corresponding
-invariant ID, so the CDT critic can't request coverage. The defect
-ships.
+oversized strings, type confusion) don't have a corresponding raises
+trigger, so the CDT critic can't request coverage. The defect ships.
 
 **Bad example.** `component-contracts.yaml` `path_resolver`
 component has responsibilities mentioning "resolve user-provided path
 to absolute filesystem location" but no raises entry for traversal
-inputs and no INV-NNN asserting traversal rejection.
+inputs.
 
 **Good example.** Same component lists raises like
 `"PathTraversalError when resolved path escapes the configured root"`
-and the test-plan entry has an invariant asserting that behavior.
+with a trigger specific enough that a test author can construct an
+adversarial input to exercise it.
+
+### 4a. Trust-Edge Cross-Artifact Sub-Clause
+
+**Additional axis: PRD Trust Edges -> contract raises -> symbols
+Settings parameterization chain.** When a component is named in the
+roadmap's Trust Edges section (structured sub-fields: `component`,
+`attack_vectors`, `thresholds_settings`), verify the following chain
+holds across the four-artifact set:
+
+1. **Declaration present.** The Trust Edge declaration names this
+   component explicitly with at least one `attack_vectors` entry and
+   at least one `thresholds_settings` symbol.
+2. **Raises chain complete.** The component's `raises` list in
+   `component-contracts.yaml` includes at least one entry whose
+   trigger text names an adversarial-rejection condition matching the
+   declared `attack_vectors` (regex match on: `invalid`, `malformed`,
+   `oversize`, `traversal`, `forbidden`, `unauthorized`, `tamper`,
+   `replay`).
+3. **Parameterization discipline.** The component's `responsibilities`
+   and `raises` bodies do NOT contain bare numeric literals
+   (threshold values, sizes, timeouts, counts) without an adjacent
+   `Settings.<symbol>` reference, where the symbol name matches a
+   `thresholds_settings` entry from the Trust Edge declaration.
+
+**Why this sub-clause exists.** The deterministic validator
+`validate_trust_edge_chain.py` (invoked at io-architect Step G)
+mechanically checks chain presence and parameterization. This rubric
+axis is the semantic backstop: it catches QUALITY gaps the
+deterministic check cannot reach (a raises trigger that technically
+names a condition but is so vague that no adversarial test can be
+derived from it; a `thresholds_settings` symbol that exists but is
+never used in the corresponding raises description). Emit a finding
+when the chain is formally present but semantically inadequate.
 
 ---
 
@@ -198,11 +247,11 @@ boundary values for each field.
 
 ## 7. Implementation-Leaking Docstrings -- `design_impl_leaking_docstring`
 
-**What to look for.** A `ComponentContract.responsibilities` or
-`narrative` field in test-plan.yaml that describes HOW the component
-works (the algorithm, internal data structure, library used) instead
-of WHAT it guarantees. The contract surface should read like a
-user-facing API doc, not like a code comment.
+**What to look for.** A `ComponentContract.responsibilities` field
+that describes HOW the component works (the algorithm, internal data
+structure, library used) instead of WHAT it guarantees. The contract
+surface should read like a user-facing API doc, not like a code
+comment.
 
 **Why it matters.** Implementation leakage couples the contract to
 one implementation. A future refactor that preserves behavior but
@@ -249,20 +298,28 @@ per `validate_crc_budget.py`).
 
 ## Slug Catalog (schema-co-authored)
 
-The eight `defect_kind` slugs above MUST match the frozenset at
-`.claude/scripts/schemas.py` `ROLE_TO_DEFECT_KINDS[FindingRole.EVALUATOR_DESIGN]`:
+The eight `defect_kind` slugs below MUST match the frozenset at
+`.claude/scripts/schemas.py` `ROLE_TO_DEFECT_KINDS[FindingRole.EVALUATOR_DESIGN]`.
+All eight slugs are retained under the Phase 1 R6-narrow trim pass
+(no retirements). The schema map is unchanged.
 
-| Slug |
-|---|
-| `design_tautological_invariant` |
-| `design_vague_raises_trigger` |
-| `design_symbol_classification_drift` |
-| `design_missing_adversarial_coverage` |
-| `design_duplicate_symbols` |
-| `design_over_abstracted_param_type` |
-| `design_impl_leaking_docstring` |
-| `design_responsibility_cohesion_drift` |
+| Slug | Phase 1 disposition |
+|---|---|
+| `design_tautological_invariant` | KEEP -- A5 invariant-assertions axis does not reach spec-content quality |
+| `design_vague_raises_trigger` | KEEP -- A5 raises-coverage parity does not reach trigger specificity |
+| `design_symbol_classification_drift` | KEEP -- no A5/A6 cross-file symbol-classification axis |
+| `design_missing_adversarial_coverage` | INVARIANT-PINNED (D-03 alpha; non-trimmable in Phase 1) |
+| `design_duplicate_symbols` | KEEP -- no A5/A6 cross-artifact symbol-name drift axis |
+| `design_over_abstracted_param_type` | KEEP -- A5 payload-shape axis works within a type's bounds, not against abstraction level |
+| `design_impl_leaking_docstring` | KEEP -- A5/A6 cannot reach spec-prose coupling quality |
+| `design_responsibility_cohesion_drift` | KEEP -- cohesion graph shape is unreachable by meso-tier conformance checks |
 
 A new category requires a same-changeset addition to the schema map.
 The Finding model_validator rejects unknown slugs at construction
 time -- catching rubric drift before the file hits disk.
+
+Retiring a slug requires: (1) a same-changeset edit removing it from
+`ROLE_TO_DEFECT_KINDS[FindingRole.EVALUATOR_DESIGN]` in
+`.claude/scripts/schemas.py`; (2) a D-NN decisions-log entry
+documenting the retirement rationale and citing the A5/A6 axis that
+supersedes it.

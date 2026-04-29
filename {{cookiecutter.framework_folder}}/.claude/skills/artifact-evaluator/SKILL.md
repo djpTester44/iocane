@@ -3,7 +3,7 @@ name: artifact-evaluator
 description: >-
   Semantic-evaluator methodology for io-architect's canonical artifact set.
   Use when running design / CDT / CT evaluator subprocesses against
-  component-contracts.yaml, seams.yaml, symbols.yaml, or test-plan.yaml.
+  component-contracts.yaml, seams.yaml, or symbols.yaml.
   Carries the verdict-vs-observation discipline, the finding-emission
   contract, and the OBSERVATION-only halt rule shared by every rubric.
   Per-rubric reasoning categories live in references/<rubric>-eval-rubric.md.
@@ -23,9 +23,10 @@ The evaluator's verdict surface is binary at the artifact-set level:
 
 - **PASS** -- no findings emitted; printed to stdout. The architect proceeds.
 - **OBSERVATION** -- one or more findings emitted to `.iocane/findings/`.
-  The architect reads them, revises the artifact set, and re-runs the
-  upstream gate. Iteration is bounded by the caller (io-architect Step H
-  enforces a 5-cycle ceiling).
+  Single-pass per architect attempt (R2-narrow): the architect halts at
+  Step I with findings + canonical artifacts surfaced; the operator
+  triages and decides next action. Each re-attempt is a fresh
+  /io-architect invocation, not an auto-loop (D-04 clause-5 option a).
 
 OBSERVATION is the only escalation the evaluator authors. There is no
 HARD verdict, no halt-the-pipeline path, no architect-bypass channel.

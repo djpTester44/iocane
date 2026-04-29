@@ -1,13 +1,16 @@
 # Canonical Artifacts
 
-The four YAML files produced by `/io-architect` and consumed by every downstream workflow. These are the source of truth -- sub-agent execution, validators, and remediation flows all bind against them.
+The architect-authored YAML triple plus the project-authored catalog. These are the source of truth -- sub-agent execution, validators, and remediation flows all bind against them.
 
-| Artifact | Answers |
-|---|---|
-| `plans/component-contracts.yaml` | What does each component contractually promise to do? |
-| `plans/seams.yaml` | How do components fit together, and where does the system meet the outside world? |
-| `plans/symbols.yaml` | Which identifiers must be spelled and typed identically across more than one CP? |
-| `plans/test-plan.yaml` | What behavioral invariants must each component satisfy under test? |
+| Artifact | Authored by | Answers |
+|---|---|---|
+| `plans/component-contracts.yaml` | `/io-architect` | What does each component contractually promise to do? |
+| `plans/seams.yaml` | `/io-architect` | How do components fit together, and where does the system meet the outside world? |
+| `plans/symbols.yaml` | `/io-architect` | Which identifiers must be spelled and typed identically across more than one CP? |
+| `catalog.toml` | `/io-adopt` (brownfield seeding) + operator review | Which bounded contexts (data_stores, external_systems, user_surfaces, nfr_axes) does the project span? |
+| `tests/contracts/test_*.py` | `/io-wire-tests` (CDT Author spawn) | What does each contract surface require from the implementation? |
+| `tests/connectivity/test_*.py` | `/io-wire-tests` (CT Author spawn) | Does each seam integration point connect correctly end-to-end? |
+| `.iocane/wire-tests/eval_<id>.yaml` | `/io-wire-tests` (Critic spawn) | How well does the test implementation match its contract specification? |
 
 Schema shape and field-level validators live in `.claude/scripts/schemas.py`. This doc covers purpose and scope -- what belongs in each artifact, what doesn't, and who reads it.
 
@@ -20,7 +23,8 @@ Schema shape and field-level validators live in `.claude/scripts/schemas.py`. Th
 **Belongs:**
 
 - One entry per component
-- Behavioral commitments (`responsibilities`, `must_not`)
+- Behavioral commitments (`responsibilities` -- verb prose; `must_not`)
+- Bounded-context citations (`domain_concerns` -- typed `<category>.<entry_name>` references into `catalog.toml`; orthogonal to `responsibilities` per `decisions.md` D-13; consumed by `validate_crc_budget.py` MAX_DOMAIN_CONCERNS cap)
 - Component-level raises-list (`raises`)
 - Roadmap traceability (`features`)
 - Composition-root flag for entrypoint-tier components
@@ -31,7 +35,6 @@ Schema shape and field-level validators live in `.claude/scripts/schemas.py`. Th
 - DI wiring (-> `seams.yaml` `receives_di`)
 - External-system terminals (-> `seams.yaml` `external_terminal`)
 - Cross-CP shared identifiers (-> `symbols.yaml`)
-- Test invariants (-> `test-plan.yaml`)
 
 **Authored by:** `/io-architect`, `/auto-architect` (under capability grant).
 **Read by:** `/io-checkpoint`, `/io-execute`, `/validate-plan`, `/io-review`, `/doc-sync`.
@@ -54,7 +57,6 @@ Schema shape and field-level validators live in `.claude/scripts/schemas.py`. Th
 
 - Component behavioral surface (-> `component-contracts.yaml`)
 - Cross-CP shared identifiers (-> `symbols.yaml`)
-- Test invariants (-> `test-plan.yaml`)
 
 **Authored by:** `/io-architect`, `/auto-architect`.
 **Read by:** `/io-checkpoint` (CT generation), `/validate-plan` (DI wiring + `HARDCODED_DEPENDENCY` check), `/io-execute`, `/io-review`, `/io-ct-remediate`, `/task-recovery`.
@@ -86,33 +88,108 @@ Schema-mechanic detail (kind catalogue, `declared_in` zone rules, conflict detec
 
 ---
 
-## test-plan.yaml
+## catalog.toml
 
-**Purpose.** Behavioral-invariant manifest per component. Each component contract has one TestPlanEntry whose invariants describe what a conforming implementation must do. The Test Author writes tests to assert these invariants.
+**Purpose.** Project-authored enumeration of bounded contexts the project spans. Citation target for `ComponentContract.domain_concerns` typed `<category>.<entry_name>` references; consumed by `validate_crc_budget.py` to enforce the `MAX_DOMAIN_CONCERNS` cap (R3 catalog-citation count per `decisions.md` D-13).
 
 **Belongs:**
 
-- One `TestPlanEntry` per component, keyed by component name in `TestPlanFile.entries` (a dict mirroring `ComponentContractsFile.components`)
-- One or more `TestInvariant` items per entry: `id` (INV-NNN format), `kind`, `description`, `pass_criteria`, optional `method`
-- Coverage of every component-level raises entry with at least one `error_propagation` invariant
-- Coverage of contract postconditions (return shape, observable side effects, state transitions)
-- Optional `TestInvariant.method` -- architect-supplied method scope when an invariant covers a specific raises entry
+- Four categories: `data_stores`, `external_systems`, `user_surfaces`, `nfr_axes`
+- One entry per concrete bounded context the project spans
+- `external_systems` entries carry an optional `trust_boundary: bool` flag (structured-index optimization for the Phase 1 roadmap-tier trust-edge gate; NOT authority -- the `roadmap.md` Trust Edges section remains source of truth)
 
 **Does not belong:**
 
-- Implementation detail (the Test Author writes the test; the invariant states the claim)
-- Tests for behavior outside the component's contract
-- Component structural data (-> `component-contracts.yaml`)
+- Behavioral prose (-> `component-contracts.yaml` `responsibilities`)
+- Trust-edge declarations as first-class authority (-> `roadmap.md` Trust Edges)
 
-**Authored by:** `/io-architect`, `/auto-architect`.
-**Read by:** Test Author (CDT/CT authoring), `/validate-plan` (completeness check), `/io-checkpoint` (test-coverage scoping), `/io-review` (raises-coverage audit).
+**Authored by:** `/io-adopt` Step 4 (brownfield seeding from `current-state.md` + PRD NFRs); operator review before `/io-clarify` is mandatory. Greenfield seeding (at `/io-init` / PRD authoring time) is deferred to a future phase per `decisions.md` D-16.
 
-Schema-mechanic detail (InvariantKind catalogue, INV id format): see `.claude/references/test-plan-schema.md`.
+**Read by:** `validate_crc_budget.py` (distinct-citation count for `MAX_DOMAIN_CONCERNS`); future `/io-architect` integration may consume the typed citations directly.
+
+**Kind enums:** allowed `kind` values are unioned from `.claude/catalog-kinds.toml` (harness defaults) + optional `./catalog-kinds.local.toml` (project additive extension; gitignored).
+
+---
+
+## tests/contracts/test_*.py
+
+**Purpose.** Contract-Driven Tests (CDTs). Each test file validates that a component's implementation conforms to the contract surface declared in `component-contracts.yaml` -- method signatures, parameter types, exception raises, and behavioral invariants.
+
+**Belongs:**
+
+- One test file per component under test
+- Parametrized test cases covering all declared `raises` exception paths
+- Inline collaborator mocking via `unittest.mock.Mock(spec=[...method names...])` per `component-contracts.yaml` collaborator declarations (no shared module imports; CT Author reads CDT files to mirror mock construction shape).
+- Assertions on return type, parameter name, and exception wording
+- Four evaluation axes (`payload_shape_covered`, `invariants_asserted`, `collaborator_mocks_speced`, `raises_coverage_complete`)
+
+**Does not belong:**
+
+- Integration-point testing (-> `tests/connectivity/test_*.py`)
+- Cross-component seam validation (-> CT)
+- Cross-test shared fixture modules (rev 5 dropped S1 fixture-builders; mocks are inline per spec(method-name) at the test-file tier)
+
+**Authority:** `io-wire-tests.cdt` capability template (write scope: `tests/contracts/test_*.py`).
+**Authored by:** CDT Author spawn (`spawn-test-author.sh --target-type cdt`).
+**Read by:** CDT Critic, CT Author (mock-factory pattern reuse), `/io-checkpoint` (slicing for CT generation).
+**Spec:** `plans/v5-meso-pivot/wire-tests-payload-contracts.md` Author contract (D-09).
+
+---
+
+## tests/connectivity/test_*.py
+
+**Purpose.** Connectivity Tests (CTs). Each test file validates that seam integration points described in `seams.yaml` connect correctly end-to-end: dependency injection wiring, external-terminal mocking, failure-mode propagation, and cross-component data flow.
+
+**Belongs:**
+
+- One test file per integration point / seam
+- Parametrized test cases covering each declared `key_failure_modes` per component
+- DI wiring validation (collaborators injected correctly, no missing dependencies)
+- External-terminal mocking via inline `Mock(spec=[...])` constructions consistent with the matching CDT files (`cdt_ct_mock_spec_consistent` axis; pattern-consistency at the spec(method-name) tier, not shared-module-import).
+- Three evaluation axes (`seam_fan_coverage`, `cdt_ct_mock_spec_consistent`, `integration_path_asserted`)
+
+**Does not belong:**
+
+- Single-component contract validation (-> `tests/contracts/test_*.py`)
+- Component behavioral semantics (belongs in CDT)
+
+**Precondition:** Matching CDT eval YAMLs must have STATUS=PASS (D-20).
+
+**Authority:** `io-wire-tests.ct` capability template (write scope: `tests/connectivity/test_*.py`).
+**Authored by:** CT Author spawn (`spawn-test-author.sh --target-type ct`).
+**Read by:** CT Critic, `/io-checkpoint` (slicing for further wave generation).
+**Spec:** `plans/v5-meso-pivot/wire-tests-payload-contracts.md` Author contract (D-09).
+
+---
+
+## .iocane/wire-tests/eval_<id>.yaml
+
+**Purpose.** Critic EvalReport. Each report evaluates how well a test file (CDT or CT) matches its contract specification. Structured evaluation across multiple axes with a three-state verdict (PASS / FAIL / AMBIGUOUS).
+
+**Belongs:**
+
+- STATUS field (one of PASS, FAIL, AMBIGUOUS)
+- Axis-level evaluations (4 axes for CDT: signature, behavior, exception-path coverage, mocking-harness; 3 axes for CT: DI correctness, seam resilience, terminal-isolation)
+- `critique_notes` (cross-field validator enforces coupling with STATUS and axis verdicts)
+- Evidence citations tying findings back to specific test assertions or mock-factory patterns
+- Author retry context (findings surface in `/io-wire-tests` step for Author decision)
+
+**Does not belong:**
+
+- Patch recommendations (Critic surfaces findings; Author decides revision shape)
+- Test execution results (test runs produce pytest output, separate channel)
+
+**Schema:** `EvalReport` (Pydantic, `frozen=True`, `extra="forbid"`; defined in `.claude/scripts/schemas.py`).
+
+**Authority:** `io-wire-tests.critic` capability template (write scope: `.iocane/wire-tests/eval_*.yaml`).
+**Produced by:** Critic spawn (`spawn-test-critic.sh`).
+**Read by:** Orchestrator (`run_actor_critic_loop.sh`), Author retry path, `run_critic_audit.py`.
+**Spec:** `plans/v5-meso-pivot/wire-tests-payload-contracts.md` Critic contract.
 
 ---
 
 ## Authoring sequence
 
-The four artifacts are co-authored by `/io-architect` as a single design pass. The artifact-evaluator runs against the complete 4-file set; if it finds violations, the architect revises and re-runs the evaluator. The human approval gate sees only an evaluator-passed design.
+The three architect-authored artifacts are co-authored by `/io-architect` as a single design pass. Step G runs five deterministic gates (CRC budget, symbols coverage, symbol-conflict detection, path-references, trust-edge chain). Step H runs the design-evaluator subprocess single-pass per architect attempt (R2-narrow); the evaluator emits findings or PASS and exits, then the architect halts at Step I with findings + canonical artifacts surfaced. The human approval gate at Step I triages findings and decides next action (approve / in-place correction / upstream revision request); each re-attempt is a fresh /io-architect invocation, not an auto-loop (D-04 clause-5 option a).
 
 Once approved, the canonical set is the binding source of truth. Modifications outside `/io-architect` (or `/auto-architect` under capability grant) trigger reset hooks that flip downstream validation stamps to false, forcing re-architect on any post-blessing mutation. See `.claude/docs/enforcement-mapping.md` for the full reset chain.

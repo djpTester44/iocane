@@ -9,7 +9,9 @@ Filename pattern: ``<role>-<UTC YYYYMMDDTHHMMSS>-<NNN>.yaml``. Sequence
 NNN is derived from the directory listing at write time -- next integer
 above the highest matching <role>-<timestamp>-<NNN>.yaml in the
 directory. Singleton-correct in the architect-subprocess context (one
-spawn at a time per io-architect Step H 5-cycle bound).
+spawn at a time: design rubric is single-pass per architect attempt
+under R2-narrow + D-04 clause-5 option a; cdt/ct rubric subprocesses
+serialize per Plan B Phase 5 wire-test bounded retries).
 """
 
 from __future__ import annotations

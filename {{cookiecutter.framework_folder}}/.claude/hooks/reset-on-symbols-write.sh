@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
 # PostToolUse hook: Edit | Write
-# Resets plan.yaml and test-plan.yaml validated stamps after any write
-# to plans/symbols.yaml.
+# Resets plan.yaml validated stamp after any write to plans/symbols.yaml.
 #
 # Rationale: symbols.yaml declares every cross-CP identifier. A change
 # to a symbol name, env var, type, fixture, or error message invalidates:
 #   - plan.yaml: CPs that reference the renamed/retyped symbol may no
 #     longer be coherent
-#   - test-plan.yaml: invariants whose pass_criteria reference the symbol
-#     may no longer be enforceable as written
 #
 # Bypass: if a capability grant covers write:plans/symbols.yaml for this
 # session, the write is authored (e.g. /io-architect Step F or
@@ -55,20 +52,6 @@ if [ "$IS_SYMBOLS" = "yes" ]; then
         uv run python -c "
 import yaml
 path = 'plans/plan.yaml'
-with open(path, 'r', encoding='utf-8') as f:
-    data = yaml.safe_load(f)
-if data and data.get('validated') is True:
-    data['validated'] = False
-    data.pop('validated_date', None)
-    data.pop('validated_note', None)
-    with open(path, 'w', encoding='utf-8') as f:
-        yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
-"
-    fi
-    if [ -f "plans/test-plan.yaml" ]; then
-        uv run python -c "
-import yaml
-path = 'plans/test-plan.yaml'
 with open(path, 'r', encoding='utf-8') as f:
     data = yaml.safe_load(f)
 if data and data.get('validated') is True:

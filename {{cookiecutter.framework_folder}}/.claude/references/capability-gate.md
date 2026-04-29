@@ -74,14 +74,18 @@ Code transcript log).
 4. **Session end:** any still-active grants are revoked; JSONL + manifest
    entry move to `archive/YYYY-MM/`.
 
-Workflows that iterate (e.g., io-architect's H-loop) re-issue the grant
+Workflows that iterate at the impl tier (e.g., io-architect's bounded
+A5/A6 wire-test critic retries per Plan B Phase 5) re-issue the grant
 at each cycle entry. Each re-grant produces a fresh `entry_id`; a single
 `revoke --template` at workflow end clears all accumulated grants matching
 the template name. Cycle re-entry can be deterministic (a PostToolUse
 hook re-grants on the workflow's known boundary tool call, e.g.,
 `regrant-on-evaluator-return.sh` fires on architect's return from
-`spawn-artifact-evaluator.sh`) or prose-driven (the agent re-invokes the
-grant command at the cycle-entry step).
+`spawn-artifact-evaluator.sh` -- but only on `--rubric cdt`/`--rubric ct`
+paths; the `--rubric design` path is single-pass per architect attempt
+under R2-narrow + D-04 clause-5 option a, with no auto-regrant) or
+prose-driven (the agent re-invokes the grant command at the cycle-entry
+step).
 
 A grant is **live** iff:
 
@@ -111,7 +115,6 @@ ttl_seconds: 1800                     # 30 min; optional (default 3600)
 grants:
   write:
     - plans/symbols.yaml
-    - plans/test-plan.yaml
     - plans/plan.yaml
   rm: []
 keywords: [architect, canonical-yaml-write]

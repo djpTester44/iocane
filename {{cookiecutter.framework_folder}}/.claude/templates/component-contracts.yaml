@@ -2,6 +2,20 @@
 # Schema: .claude/scripts/schemas.py (ComponentContractsFile)
 # Hook: .claude/hooks/validate-yaml.sh
 # Writer: .claude/scripts/contract_parser.py
+#
+# Two component-layer fields capture distinct authoring intents
+# (orthogonal semantics per decisions.md D-13):
+#   responsibilities -- behavioral prose: verbs/behaviors describing
+#                       what the component does. Substrate for CRC
+#                       cards, mini-spec source-of-truth, and the
+#                       design-eval rubric scan field.
+#   domain_concerns  -- catalog citations in typed
+#                       <category>.<entry_name> form. Enumerates which
+#                       bounded contexts (data_stores, external_systems,
+#                       user_surfaces, nfr_axes) the component spans.
+#                       Consumed by validate_crc_budget.py to enforce
+#                       the MAX_DOMAIN_CONCERNS cap (distinct citation
+#                       count).
 
 components: {}
 
@@ -12,6 +26,8 @@ components: {}
 #     collaborators: []
 #     responsibilities:
 #       - Load and validate application configuration
+#     domain_concerns:
+#       - data_stores.app_config        # typed <category>.<entry_name>
 #     must_not:
 #       - Import from domain or entrypoint layer
 #   Router:
@@ -19,6 +35,9 @@ components: {}
 #     collaborators: [Settings, Geocoder]
 #     responsibilities:
 #       - Route incoming requests to the correct handler
+#     domain_concerns:
+#       - data_stores.route_registry
+#       - external_systems.dispatcher
 #     must_not:
 #       - Access configuration directly (use Settings via DI)
 #     composition_root: false

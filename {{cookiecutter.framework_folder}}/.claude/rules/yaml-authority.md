@@ -23,7 +23,8 @@ When a component's responsibilities, raises-list, exception name, shared-type sh
 |---|---|
 | Component responsibilities, must_not, features, or raises-list wrong | `plans/component-contracts.yaml` |
 | Exception class, shared type, Settings field, or error-message symbol wrong | `plans/symbols.yaml` |
-| Test invariant wrong or missing | `plans/test-plan.yaml` |
 | Seam / layer assignment / external-terminal drift | `plans/seams.yaml` |
 
-After the YAML edit: `validate_symbols_coverage.py` + `validate_test_plan_completeness.py` re-verify the cross-YAML reference loop; the re-run is the evidence the fix landed.
+After the YAML edit: `validate_symbols_coverage.py` re-verifies the cross-YAML reference loop; the re-run is the evidence the fix landed.
+
+Note: `seams.yaml.allowed_layers` and `seams.yaml.external_terminals` are written by `/io-plan-batch` Step X (Phase 5+) and consumed by the scope-cap cache materializer at State 5. Treat as authority within the `seams.yaml` owning surface -- no duplication into derived files.

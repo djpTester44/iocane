@@ -279,7 +279,6 @@ The `PostToolUse` hook will detect the non-zero exit or FAIL status and append t
 - Files listed in your task file's `context_files` field
 - The Protocol `.pyi` named in your task file's `contract` field
 - `tests/contracts/*.py` and `tests/connectivity/*.py` (pre-existing; read-only context for your impl)
-- `plans/test-plan.yaml` (invariants that constrain impl beyond the contract surface)
 - `plans/symbols.yaml` (exception classes, settings fields, fixture names your impl must use)
 
 **Write scope:**

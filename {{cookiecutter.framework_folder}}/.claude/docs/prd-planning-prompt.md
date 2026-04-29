@@ -50,7 +50,7 @@ Here is the required template format you must use for the final output:
 
 ## 4. Core Components & Interfaces (The "Nouns")
 
-[Define the distinct logical blocks of the system. /io-architect will use these to generate CRC cards and component contracts in `plans/component-contracts.yaml`.]
+[Define the distinct logical blocks of the system. /io-architect will use these to generate CRC cards and component contracts in `plans/component-contracts.yaml`. When a component sits at a trust boundary -- accepting untrusted external input (webhooks, payloads, user-uploaded files), deserializing untrusted data, resolving external paths, or handling secret material -- describe the boundary plainly in `Business Logic/Rules`. /io-specify Step B.5 reads this prose to synthesize the roadmap's Trust Edges section; validate_trust_edge_chain.py later checks that the synthesis happened.]
 
 ### 4.1. [Component Name, e.g., DataLoader]
 

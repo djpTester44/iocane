@@ -200,7 +200,7 @@ After running Steps 4, 7, 8, 9, 9B, 9C, 9D, and 9E:
 * If all Phase 1 violations are auto-remediable: apply auto-fixes, mark `[AUTO-AMENDED]`, and re-run Steps 4, 7, 8, 9, 9B only (no Phase 2 reload per self-heal iteration). Steps 9C, 9D, and 9E always emit OBSERVATION-severity findings -- never VIOLATION -- so they do not participate in the self-heal loop.
 * Only when Phase 1 is clean (zero Phase 1 VIOLATIONs): proceed to Phase 2.
 
-> **Note on symbol/test-plan coverage:** these checks live at `/io-architect` Step G, NOT here. The architect is the authority that can act on a coverage failure cheaply (just amend the artifact being held in mind); re-checking here would only halt-and-route back to architect, which is the same round-trip the architect already closed. The reset-hook chain forces re-architect on any post-blessing mutation to `symbols.yaml` or `test-plan.yaml`, so by the time `/validate-plan` runs the architect's coverage stamp is current.
+> **Note on symbol coverage:** these checks live at `/io-architect` Step G, NOT here. The architect is the authority that can act on a coverage failure cheaply (just amend the artifact being held in mind); re-checking here would only halt-and-route back to architect, which is the same round-trip the architect already closed. The reset-hook chain forces re-architect on any post-blessing mutation to `symbols.yaml`, so by the time `/validate-plan` runs the architect's coverage stamp is current.
 
 ---
 
@@ -366,7 +366,7 @@ Write the stamp using the following strictly sequential steps. Do NOT paralleliz
 
 * **Step 13-post:** `bash: uv run python .claude/scripts/capability.py revoke --template validate-plan.13`
 
-The capability grant prevents `reset-on-plan-write.sh` from reverting the PASS stamp. Explicit revoke at Step 13-post is required so the grant does not persist across the gate boundary (the 24h hard TTL ceiling and session-end sweep are crash-safety floors, not substitutes for explicit revoke). `plans/test-plan.yaml.validated` is owned by `/io-architect` Step G -- this gate does NOT touch it.
+The capability grant prevents `reset-on-plan-write.sh` from reverting the PASS stamp. Explicit revoke at Step 13-post is required so the grant does not persist across the gate boundary (the 24h hard TTL ceiling and session-end sweep are crash-safety floors, not substitutes for explicit revoke).
 
 * `/io-plan-batch` **MUST** check for `validated: true` before composing the batch. If missing or false, halt and recommend `/validate-plan`.
 

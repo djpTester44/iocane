@@ -4,7 +4,6 @@ paths:
   - "plans/component-contracts.yaml"
   - "plans/seams.yaml"
   - "plans/symbols.yaml"
-  - "plans/test-plan.yaml"
   - "plans/plan.yaml"
 ---
 
@@ -12,7 +11,7 @@ paths:
 
 ## [HARD] State Management & Architecture
 
-1. **Canonical set**: The project's design state is the combined content of `plans/component-contracts.yaml` (CRC behavioral data + component-level raises-list), `plans/symbols.yaml` (cross-CP identifiers: exception classes, shared types, settings fields, fixtures, error messages), `plans/test-plan.yaml` (per-component invariants), and `plans/seams.yaml` (DI graph). No single file is "the" authority -- they are mutually consistent by design, with the architect stamping `test-plan.yaml.validated: true` after the H-post-validate gates pass.
+1. **Canonical set**: The project's design state is the combined content of `plans/component-contracts.yaml` (CRC behavioral data + component-level raises-list), `plans/symbols.yaml` (cross-CP identifiers: exception classes, shared types, settings fields, fixtures, error messages), and `plans/seams.yaml` (DI graph). No single file is "the" authority -- they are mutually consistent by design.
 2. **Atomic Scope**: Each component represents a single responsibility, mapping to one CRC card.
 
 ## DESIGN PRINCIPLES

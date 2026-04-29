@@ -1,20 +1,23 @@
 # Step F of /io-architect writes the canonical artifact set:
-# component-contracts.yaml (F-3), symbols.yaml (F-4), test-plan.yaml (F-5),
-# seams.yaml (F-6), and the pyproject.toml import-linter contracts (F-1).
-# Step G then stamps test-plan.yaml.validated under the same grant.
+# component-contracts.yaml, symbols.yaml, seams.yaml, and the
+# pyproject.toml import-linter contracts (F-1). Step G stamps the
+# component-contracts/seams/symbols .validated entries under the same
+# grant.
 #
-# Reset hooks for symbols.yaml and test-plan.yaml cascade into plan.yaml
-# validated-stamp resets. Without this capability, authoring those files
-# during Step F would re-reset the stamps Step G sets.
+# Reset hooks for symbols.yaml cascade into plan.yaml validated-stamp
+# resets. Without this capability, authoring those files during Step F
+# would re-reset the stamps Step G sets.
 #
 # Template name retains the .H stable identifier to keep grant lookups
 # stable across the workflow restructure. The bracket spans Step F-pre
-# (grant, re-issued at each H-loop cycle entry: deterministically by
-# regrant-on-evaluator-return.sh for evaluator-driven re-entry, or by
-# explicit F-pre invocation for Step I correction re-entry) through
-# Step J-2 (template-matched revoke clears all accumulated grants at
-# workflow end). ttl_seconds bounds the per-cycle crash-safety floor,
-# not the workflow span.
+# (grant) through Step J-2 (template-matched revoke clears all
+# accumulated grants at workflow end). Re-entry on Step I in-place
+# correction is operator-initiated (D-04 clause-5 option a) and
+# requires explicit F-pre invocation. The cdt/ct rubric paths retain
+# regrant-on-evaluator-return.sh deterministic re-grant per Plan B
+# Phase 5 wire-tests; the design rubric path runs single-pass per
+# architect attempt with no auto-regrant. ttl_seconds bounds the
+# per-cycle crash-safety floor, not the workflow span.
 
 workflow: io-architect
 step: H
@@ -24,9 +27,8 @@ grants:
     - plans/component-contracts.yaml
     - plans/seams.yaml
     - plans/symbols.yaml
-    - plans/test-plan.yaml
     - plans/plan.yaml
     - pyproject.toml
   rm: []
 keywords: [architect, canonical-yaml-write, step-f, step-g]
-context: "Architect Steps F-G: canonical artifact write sequence (component-contracts, seams, symbols, test-plan, pyproject.toml import-linter contracts, plan.yaml stamp)."
+context: "Architect Steps F-G: canonical artifact write sequence (component-contracts, seams, symbols, pyproject.toml import-linter contracts, plan.yaml stamp)."

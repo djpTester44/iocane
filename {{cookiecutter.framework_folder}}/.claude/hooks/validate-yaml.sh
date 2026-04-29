@@ -58,11 +58,11 @@ case "$FILE_PATH" in
   plans/symbols.yaml | */plans/symbols.yaml)
     $HELPER --path "$FILE_PATH" --module symbols_parser --function load_symbols || exit 2
     ;;
-  plans/test-plan.yaml | */plans/test-plan.yaml)
-    $HELPER --path "$FILE_PATH" --module test_plan_parser --function load_test_plan || exit 2
-    ;;
   .iocane/findings/*.yaml | */.iocane/findings/*.yaml)
     $HELPER --path "$FILE_PATH" --module schemas --function FindingFile.model_validate || exit 2
+    ;;
+  .iocane/wire-tests/eval_*.yaml | */.iocane/wire-tests/eval_*.yaml)
+    $HELPER --path "$FILE_PATH" --module eval_parser --function load_eval_report || exit 2
     ;;
   *)
     # Not a schema-validated YAML file -- pass through

@@ -35,6 +35,26 @@ if [[ "$FILE_PATH" != src/* && "$FILE_PATH" != tests/* ]]; then
     exit 0
 fi
 
+# β-extension: capability-grant bypass for wire-tests writes.
+# See .claude/references/capability-gate.md for grant lifecycle details.
+SESSION_ID=$(printf '%s' "$INPUT" | uv run python -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    print(d.get('session_id', ''))
+except Exception:
+    print('')
+")
+
+REPO_ROOT="${IOCANE_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null)}"
+
+if [ -n "$SESSION_ID" ] && [ -n "$REPO_ROOT" ]; then
+    if bash "$REPO_ROOT/.claude/scripts/capability-covers.sh" "$SESSION_ID" write "$FILE_PATH" 2>/dev/null; then
+        exit 0  # capability grant covers; allow write
+    fi
+    # exit 1 from helper = no matching grant; fall through to state-based logic
+fi
+
 # Escape hatch: manual override sentinel
 if [ -f ".iocane/manual-override" ]; then
     exit 0

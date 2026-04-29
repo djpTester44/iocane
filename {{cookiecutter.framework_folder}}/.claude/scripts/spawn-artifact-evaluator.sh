@@ -3,18 +3,24 @@
 #
 # Spawns a semantic artifact-evaluator subprocess against a canonical
 # YAML artifact set. Invoked from io-architect Step H against the
-# 4-file design surface (component-contracts, seams, symbols, test-plan).
+# 3-file design surface (component-contracts, seams, symbols).
 #
-# Substage A4 wires the --rubric design path. --rubric cdt and
-# --rubric ct stub-exit non-zero with deferral messages; A5 and A6
-# fill those branches by extending this script (no arg-parser change).
+# Single-pass per architect attempt (R2-narrow). The subprocess emits
+# findings or PASS and exits; the architect halts at Step I for the
+# operator gate (D-04 clause-5 option a). MAX_TURNS below is the
+# per-invocation LLM tool-call budget for ONE subprocess run, not a
+# multi-cycle iteration loop.
+#
+# --rubric design wires the design-evaluator path. --rubric cdt and
+# --rubric ct stub-exit non-zero pending Plan B Phase 5 wire-tests
+# (carried over to v5 Phase 4); A5 and A6 fill those branches by
+# extending this script (no arg-parser change).
 #
 # Usage:
 #   bash .claude/scripts/spawn-artifact-evaluator.sh --rubric design \
 #     --contracts plans/component-contracts.yaml \
 #     --seams plans/seams.yaml \
 #     --symbols plans/symbols.yaml \
-#     --test-plan plans/test-plan.yaml \
 #     [--dry-run]
 #
 # Environment overrides (each takes precedence over iocane.config.yaml):
@@ -28,7 +34,7 @@ set -euo pipefail
 usage() {
     cat >&2 <<'EOF'
 Usage: spawn-artifact-evaluator.sh --rubric {design|cdt|ct} \
-    --contracts <path> --seams <path> --symbols <path> --test-plan <path> \
+    --contracts <path> --seams <path> --symbols <path> \
     [--dry-run]
 EOF
 }
@@ -37,7 +43,6 @@ RUBRIC=""
 CONTRACTS=""
 SEAMS=""
 SYMBOLS=""
-TEST_PLAN=""
 DRY_RUN=0
 
 while [ $# -gt 0 ]; do
@@ -61,10 +66,6 @@ while [ $# -gt 0 ]; do
             ;;
         --symbols)
             SYMBOLS="${2:-}"
-            shift 2
-            ;;
-        --test-plan)
-            TEST_PLAN="${2:-}"
             shift 2
             ;;
         --dry-run)
@@ -112,7 +113,6 @@ MISSING=()
 [ -n "$CONTRACTS" ] || MISSING+=("--contracts")
 [ -n "$SEAMS" ] || MISSING+=("--seams")
 [ -n "$SYMBOLS" ] || MISSING+=("--symbols")
-[ -n "$TEST_PLAN" ] || MISSING+=("--test-plan")
 if [ ${#MISSING[@]} -gt 0 ]; then
     echo "ERROR: --rubric design requires: ${MISSING[*]}" >&2
     usage
@@ -169,7 +169,7 @@ else
 fi
 
 COMMAND_FILE=".claude/commands/io-design-evaluator.md"
-PROMPT="Read and execute the workflow defined in ${COMMAND_FILE}. Canonical artifacts: contracts=${CONTRACTS}; seams=${SEAMS}; symbols=${SYMBOLS}; test-plan=${TEST_PLAN}. Apply the design-evaluator rubric. Emit OBSERVATION findings via findings_emitter; do not halt."
+PROMPT="Read and execute the workflow defined in ${COMMAND_FILE}. Canonical artifacts: contracts=${CONTRACTS}; seams=${SEAMS}; symbols=${SYMBOLS}. Apply the design-evaluator rubric. Emit OBSERVATION findings via findings_emitter; do not halt."
 
 if [ "$DRY_RUN" -eq 1 ]; then
     cat <<EOF
@@ -181,7 +181,6 @@ command_file: ${COMMAND_FILE}
 contracts: ${CONTRACTS}
 seams: ${SEAMS}
 symbols: ${SYMBOLS}
-test_plan: ${TEST_PLAN}
 EOF
     exit 0
 fi

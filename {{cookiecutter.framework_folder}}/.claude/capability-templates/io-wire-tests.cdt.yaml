@@ -1,0 +1,21 @@
+# /io-wire-tests-cdt spawns parallel Author and Critic subprocesses per CDT
+# target. Authors write tests/contracts/test_<target_id>.py; Critics write
+# .iocane/wire-tests/eval_<target_id>.yaml under the io-wire-tests.critic
+# template. Honest-agent trust premise per plan-B.md §-1.5 v4 ratification
+# (re-ratified for v5 by D-21); broad prefix is scoped by orchestrator-side
+# regex + per-spawn write-target instruction + machine-parseable spawn-log
+# audit (compensating controls 1, 2, 3).
+#
+# ttl_seconds is the crash-safety floor; explicit revoke after each
+# Actor-Critic loop attempt is the primary cleanup. Per-target inner loop
+# bounded by MAX_TURNS=5 (see harness/iocane.config.yaml wire_tests.max_turns).
+
+workflow: io-wire-tests
+step: cdt
+ttl_seconds: 600
+grants:
+  write:
+    - tests/contracts/test_*.py
+  rm: []
+keywords: [wire-tests, cdt, contract-driven-test, author]
+context: "/io-wire-tests-cdt Author: write tests/contracts/test_<target_id>.py per component-contracts.yaml."

@@ -8,9 +8,9 @@ contract_parser.py, hooks, and scripts for validation and serialization.
 
 import re
 from enum import StrEnum
-from typing import ClassVar
+from typing import Literal
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class BacklogTag(StrEnum):
@@ -404,24 +404,32 @@ class SeamsFile(BaseModel, frozen=True):
 
 _PY_IDENT_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
 _RAISES_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
+_CATALOG_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
 class ComponentContract(BaseModel, frozen=True):
     """A single component entry in plans/component-contracts.yaml.
 
     Behavioral commitments live at the component layer: ``responsibilities``
-    name what the component owns; ``raises`` declares the component-level
-    exception surface (bare class names like ``RouteNotFound`` or dotted
-    stdlib names like ``subprocess.CalledProcessError``). Each name in
-    ``raises`` must resolve to a Symbol of ``kind=exception_class`` in
-    ``plans/symbols.yaml`` (enforced by ``validate_symbols_coverage.py``);
-    builtin and stdlib-module exceptions are skipped.
+    name what the component owns (behavioral prose — verbs/behaviors describing
+    what the component does; substrate for CRC card content and design-eval
+    rubric scans). ``domain_concerns`` enumerates catalog citations in typed
+    ``<category>.<entry_name>`` form (e.g. ``data_stores.user_db``,
+    ``external_systems.payment_provider``) — orthogonal to ``responsibilities``;
+    consumed by ``validate_crc_budget.py`` to enforce the ``MAX_DOMAIN_CONCERNS``
+    cap. ``raises`` declares the component-level exception surface (bare class
+    names like ``RouteNotFound`` or dotted stdlib names like
+    ``subprocess.CalledProcessError``). Each name in ``raises`` must resolve to
+    a Symbol of ``kind=exception_class`` in ``plans/symbols.yaml`` (enforced by
+    ``validate_symbols_coverage.py``); builtin and stdlib-module exceptions are
+    skipped.
     """
 
     file: str
     collaborators: list[str] = []
     composition_root: bool = False
     responsibilities: list[str] = []
+    domain_concerns: list[str] = []
     must_not: list[str] = []
     features: list[str] = []
     raises: list[str] = []
@@ -503,6 +511,8 @@ class TaskFile(BaseModel):
     seam_context: list[SeamEntry] = []
     execution_findings: list[ExecutionFinding] = []
     step_progress: list[StepProgress] = []
+    allowed_layers: list[str] = []
+    external_terminals: list[str] = []
 
     @field_validator("id")
     @classmethod
@@ -687,11 +697,96 @@ class SymbolsFile(BaseModel, frozen=True):
 
 
 # ---------------------------------------------------------------------------
-# Test plan (plans/test-plan.yaml)
+# L0 Catalog (catalog.toml)
 # ---------------------------------------------------------------------------
 
-_INV_ID_RE = re.compile(r"^INV-\d{3}$")
-_COMPONENT_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+class CatalogEntry(BaseModel, frozen=True):
+    """Base entry for all catalog categories."""
+
+    name: str
+    kind: str
+    description: str = ""
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        """Enforce identifier-safe entry names (lowercase letter start)."""
+        if not _CATALOG_NAME_RE.fullmatch(v):
+            msg = f"catalog entry name must match ^[a-z][a-z0-9_]*$, got '{v}'"
+            raise ValueError(msg)
+        return v
+
+
+class DataStoreEntry(CatalogEntry, frozen=True):
+    """Entry in the data_stores catalog category."""
+
+
+class ExternalSystemEntry(CatalogEntry, frozen=True):
+    """Entry in the external_systems catalog category."""
+
+    trust_boundary: bool = False
+
+
+class UserSurfaceEntry(CatalogEntry, frozen=True):
+    """Entry in the user_surfaces catalog category."""
+
+
+class NfrAxisEntry(CatalogEntry, frozen=True):
+    """Entry in the nfr_axes catalog category."""
+
+
+class Catalog(BaseModel, frozen=True):
+    """Top-level container for catalog.toml.
+
+    Each category maps entry_name -> entry. Entry names are unique
+    WITHIN a category; cross-category collisions are allowed (the
+    typed `<category>.<entry_name>` citation form makes them
+    distinguishable downstream).
+    """
+
+    data_stores: dict[str, DataStoreEntry] = {}
+    external_systems: dict[str, ExternalSystemEntry] = {}
+    user_surfaces: dict[str, UserSurfaceEntry] = {}
+    nfr_axes: dict[str, NfrAxisEntry] = {}
+
+    @model_validator(mode="after")
+    def check_entry_keys_match_names(self) -> "Catalog":
+        """Enforce that each dict key equals the entry's name field."""
+        categories: list[tuple[str, dict]] = [
+            ("data_stores", self.data_stores),
+            ("external_systems", self.external_systems),
+            ("user_surfaces", self.user_surfaces),
+            ("nfr_axes", self.nfr_axes),
+        ]
+        for category, entries in categories:
+            for key, entry in entries.items():
+                if key != entry.name:
+                    msg = (
+                        f"catalog key mismatch in {category}: "
+                        f"key '{key}' != entry.name '{entry.name}'"
+                    )
+                    raise ValueError(msg)
+        return self
+
+
+class CatalogKindsFile(BaseModel, frozen=True):
+    """Top-level container for catalog-kinds.toml and catalog-kinds.local.toml.
+
+    Each category maps to a list of allowed kind strings. Project-side
+    catalog-kinds.local.toml extends the harness defaults additively
+    (parser-side merge at Step 3.6d).
+    """
+
+    data_stores: list[str] = []
+    external_systems: list[str] = []
+    user_surfaces: list[str] = []
+    nfr_axes: list[str] = []
+
+
+# ---------------------------------------------------------------------------
+# Invariant taxonomy
+# ---------------------------------------------------------------------------
 
 
 class InvariantKind(StrEnum):
@@ -709,124 +804,6 @@ class InvariantKind(StrEnum):
     ADVERSARIAL = "adversarial"
 
 
-class TestInvariant(BaseModel, frozen=True):
-    """A single behavioral invariant scoped to a component contract.
-
-    ``method`` is optional and architect-supplied: when an
-    ``error_propagation`` invariant covers a specific component-level
-    raises entry, the architect may populate ``method`` from impl
-    knowledge to anchor the invariant to a method scope. No upstream
-    YAML supplies method context, so the field stays None unless the
-    architect chooses to populate it.
-    """
-
-    __test__: ClassVar[bool] = False
-
-    id: str
-    kind: InvariantKind
-    description: str
-    pass_criteria: str
-    method: str | None = None
-
-    @field_validator("id")
-    @classmethod
-    def validate_inv_id(cls, v: str) -> str:
-        """Enforce INV-NNN format."""
-        if not _INV_ID_RE.fullmatch(v):
-            msg = f"id must match INV-NNN format, got '{v}'"
-            raise ValueError(msg)
-        return v
-
-    @field_validator("method")
-    @classmethod
-    def validate_method_name(cls, v: str | None) -> str | None:
-        """Enforce lowercase Python-identifier method name when present."""
-        if v is None:
-            return v
-        if not _PY_IDENT_RE.fullmatch(v):
-            msg = (
-                f"method must be lowercase identifier-safe when present, "
-                f"got '{v}'"
-            )
-            raise ValueError(msg)
-        return v
-
-
-class TestPlanEntry(BaseModel, frozen=True):
-    """Per-component test authoring spec.
-
-    One entry per component contract. The downstream test author reads
-    this entry and produces one or more contract tests covering each
-    invariant. ``component`` matches the dict key in
-    ``TestPlanFile.entries`` (and the component name in
-    ``ComponentContractsFile.components``); the redundancy is
-    deliberate so a TestPlanEntry remains self-describing when passed
-    individually to downstream consumers.
-    """
-
-    __test__: ClassVar[bool] = False
-
-    component: str
-    invariants: list[TestInvariant]
-
-    @field_validator("component")
-    @classmethod
-    def validate_component_name(cls, v: str) -> str:
-        """Enforce identifier-safe component name."""
-        if not _COMPONENT_NAME_RE.fullmatch(v):
-            msg = f"component name must be identifier-safe, got '{v}'"
-            raise ValueError(msg)
-        return v
-
-    @field_validator("invariants")
-    @classmethod
-    def validate_non_empty_invariants(
-        cls, v: list[TestInvariant]
-    ) -> list[TestInvariant]:
-        """Reject empty invariants list.
-
-        An entry with zero invariants silently bypasses the
-        completeness gate -- the entry exists, so the component counts
-        as covered, but no behavioral claim is asserted. The entry
-        must be either populated or removed.
-        """
-        if not v:
-            msg = "invariants must contain at least one TestInvariant"
-            raise ValueError(msg)
-        return v
-
-
-class TestPlanFile(BaseModel):
-    """Top-level container for plans/test-plan.yaml.
-
-    ``entries`` is a component-keyed dict mirroring
-    ``ComponentContractsFile.components``: each key is a component name
-    and maps to one TestPlanEntry. The dict key is the source of truth
-    for naming; the model_validator below verifies the entry's own
-    ``component`` field matches its key, catching construction-bypass
-    drift.
-    """
-
-    __test__: ClassVar[bool] = False
-
-    validated: bool = False
-    validated_date: str | None = None
-    validated_note: str | None = None
-    entries: dict[str, TestPlanEntry] = {}
-
-    @model_validator(mode="after")
-    def check_entry_keys_match_components(self) -> "TestPlanFile":
-        """Enforce dict key == entry.component for every entry."""
-        for key, entry in self.entries.items():
-            if entry.component != key:
-                msg = (
-                    f"entries['{key}'].component is '{entry.component}'; "
-                    "dict key must match the entry's component field"
-                )
-                raise ValueError(msg)
-        return self
-
-
 # ---------------------------------------------------------------------------
 # Findings (.iocane/findings/<role>-<timestamp>.yaml)
 # ---------------------------------------------------------------------------
@@ -839,6 +816,8 @@ class FindingRole(StrEnum):
     GENERATOR = "generator"
     EVALUATOR = "evaluator"
     EVALUATOR_DESIGN = "evaluator_design"
+    WIRE_TEST_AUTHOR = "wire_test_author"
+    WIRE_TEST_CRITIC = "wire_test_critic"
 
 
 ROLE_TO_DEFECT_KINDS: dict[FindingRole, frozenset[str]] = {
@@ -869,6 +848,7 @@ class RootCauseLayer(StrEnum):
     YAML_CONTRACT = "yaml_contract"
     TEST_AUTHORSHIP = "test_authorship"
     IMPL = "impl"
+    WIRE_TESTS = "wire_tests"
 
 
 class FindingContext(BaseModel, frozen=True):
@@ -1004,3 +984,77 @@ class FindingFile(BaseModel, frozen=True):
             msg = "FindingFile must contain at least one Finding"
             raise ValueError(msg)
         return v
+
+
+class EvalReport(BaseModel, frozen=True, extra="forbid"):
+    """Critic verdict on a wire-tests Author-authored test file.
+
+    Three-state STATUS per `wire-tests-payload-contracts.md`:
+    - PASS iff all applicable axis booleans (per target_type) true
+    - FAIL iff any axis boolean false AND critique_notes non-empty
+    - AMBIGUOUS iff Critic cannot decide (booleans partial/null);
+      critique_notes must explain WHAT was ambiguous.
+    """
+
+    target_id: str
+    target_type: Literal["cdt", "ct"]
+    attempt: int = Field(ge=1)
+    status: Literal["PASS", "FAIL", "AMBIGUOUS"]
+    critique_notes: str = ""
+
+    # CDT axes (4) -- per `plan-B.md §-1.3` carries-over
+    payload_shape_covered: bool | None = None
+    invariants_asserted: bool | None = None
+    collaborator_mocks_speced: bool | None = None
+    raises_coverage_complete: bool | None = None
+
+    # CT axes (3) -- per `plan-B.md §-1.3` carries-over
+    seam_fan_coverage: bool | None = None
+    cdt_ct_mock_spec_consistent: bool | None = None
+    integration_path_asserted: bool | None = None
+
+    @model_validator(mode="after")
+    def _validate_status_axis_coupling(self) -> "EvalReport":
+        """Enforce STATUS/axis/critique_notes coupling per wire-tests-payload-contracts.md."""
+        cdt_axes = (
+            self.payload_shape_covered,
+            self.invariants_asserted,
+            self.collaborator_mocks_speced,
+            self.raises_coverage_complete,
+        )
+        ct_axes = (
+            self.seam_fan_coverage,
+            self.cdt_ct_mock_spec_consistent,
+            self.integration_path_asserted,
+        )
+        applicable = cdt_axes if self.target_type == "cdt" else ct_axes
+        non_applicable = ct_axes if self.target_type == "cdt" else cdt_axes
+
+        # Non-applicable axes must be None (CDT report doesn't set CT booleans)
+        if any(a is not None for a in non_applicable):
+            raise ValueError(
+                f"target_type={self.target_type!r} but non-applicable axes set; "
+                f"non-applicable axes must be None"
+            )
+
+        if self.status == "PASS":
+            if not all(a is True for a in applicable):
+                raise ValueError(
+                    "STATUS=PASS requires all applicable axis booleans True"
+                )
+        elif self.status == "FAIL":
+            if not any(a is False for a in applicable):
+                raise ValueError(
+                    "STATUS=FAIL requires at least one applicable axis False"
+                )
+            if not self.critique_notes.strip():
+                raise ValueError(
+                    "STATUS=FAIL requires non-empty critique_notes"
+                )
+        elif self.status == "AMBIGUOUS" and not self.critique_notes.strip():
+            raise ValueError(
+                "STATUS=AMBIGUOUS requires non-empty critique_notes "
+                "explaining what was ambiguous"
+            )
+
+        return self

@@ -36,10 +36,6 @@
             "type": "command"
           },
           {
-            "command": "bash .claude/hooks/reset-on-test-plan-write.sh",
-            "type": "command"
-          },
-          {
             "command": "bash .claude/hooks/backlog-id-assign.sh",
             "type": "command"
           },
