@@ -4,7 +4,8 @@
 
 ## Global (cross-workspace)
 
-<!-- Global lessons appended here by promote.sh on /lessons-retro-review approval. -->
+- When handing multi-item work off to follow-up sessions, write a per-session opening prompt that names the specific items in scope and lists pre-session decisions to confirm -- do not hand a fresh agent the full doc without framing context. _(2026-04-27)_
+- When sequencing follow-up sessions across multi-item work, scope each session to a bounded set of items rather than combining items to reduce session count -- correctness and elegance win over fewer sessions. _(2026-04-27)_
 
 ## Workspace-Specific Index
 

@@ -267,7 +267,7 @@ The grant covers ALL writes declared in the template. Grant templates live at `.
 | `/io-clarify` | Clarify PRD ambiguities and critique against quality rubric | `plans/PRD.md` |
 | `/io-adopt` | Adopt an existing codebase into Iocane with extracted current-state + draft PRD | `plans/current-state.md`, `plans/PRD.md` |
 | `/io-init` | Bootstrap project structure and stub roadmap from clarified PRD | `plans/roadmap.md`, `plans/backlog.yaml` |
-| `/io-specify` | Propose feature roadmap from clarified PRD; identify Trust Edges (Step B.5) and render Trust Edges / Security Boundaries section in roadmap; offer operator-invokable /challenge menu at Step E pre-approval | `plans/roadmap.md` |
+| `/io-specify` | Propose feature roadmap from clarified PRD; identify Trust Edges (Step B.5) and render Trust Edges / Security Boundaries section in roadmap; offer operator-invokable /challenge menu at Step E pre-approval; populate `catalog.toml` from PRD + roadmap (Step F) for greenfield/brownfield parity with `/io-adopt` Step 4b | `plans/roadmap.md`, `catalog.toml` |
 | `/io-architect` | Design CRC cards, component contracts, Interface Registry | `plans/project-spec.md`, `plans/component-contracts.yaml`, `plans/seams.yaml`, `src/*/CLAUDE.md` |
 | `/io-replan` | Propagate PRD deltas into roadmap/spec and route impacts | `plans/roadmap.md`, `plans/project-spec.md`, `plans/backlog.yaml` |
 | `/io-checkpoint` | Define atomic checkpoints and connectivity tests | `plans/plan.yaml`, `plans/backlog.yaml` (remediation: Routed annotation via script) |

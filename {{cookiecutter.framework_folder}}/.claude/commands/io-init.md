@@ -103,7 +103,7 @@ pyproject.toml scaffolded (runtime deps empty -- add with uv add).
 CLAUDE.md localized with project identity.
 plans/roadmap.md created (stub -- ready for /io-specify).
 plans/backlog.yaml initialized.
-catalog.toml seeded as DRAFT -- review entries before /io-clarify.
+catalog.toml seeded as DRAFT template (commented-out shape only) -- /io-specify Step F populates concrete entries from PRD and roadmap.
 
 Next step: Run /io-specify to generate the dependency-ordered feature roadmap from the clarified PRD.
 ```

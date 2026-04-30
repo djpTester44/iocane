@@ -127,6 +127,15 @@ component-contracts.yaml usage of the same name. Drift between the
 two files surfaces here because both are architect-authored at Step
 F-pre / Step H-2c.
 
+**Out of scope: `used_by` drift.** Referential integrity (every
+`used_by` entry resolves to a declared symbol or component) and
+reciprocity (every component citing a symbol via `responsibilities`
+or `raises` appears in that symbol's `used_by` list) are caught
+deterministically at Step G by `validate_symbols_coverage.py`. If
+the artifact set passes Step G, used_by integrity and reciprocity
+are guaranteed; this rubric category covers semantic kind /
+declared_in disagreement only.
+
 **Why it matters.** Symbol classification drives the test-author's
 import paths and assertion targets. A symbol declared as a function
 in symbols.yaml but used as a class constructor in
@@ -307,7 +316,7 @@ All eight slugs are retained under the Phase 1 R6-narrow trim pass
 |---|---|
 | `design_tautological_invariant` | KEEP -- A5 invariant-assertions axis does not reach spec-content quality |
 | `design_vague_raises_trigger` | KEEP -- A5 raises-coverage parity does not reach trigger specificity |
-| `design_symbol_classification_drift` | KEEP -- no A5/A6 cross-file symbol-classification axis |
+| `design_symbol_classification_drift` | KEEP -- semantic kind / declared_in disagreement; used_by drift owned by Step G validator (`validate_symbols_coverage.py`) |
 | `design_missing_adversarial_coverage` | INVARIANT-PINNED (D-03 alpha; non-trimmable in Phase 1) |
 | `design_duplicate_symbols` | KEEP -- no A5/A6 cross-artifact symbol-name drift axis |
 | `design_over_abstracted_param_type` | KEEP -- A5 payload-shape axis works within a type's bounds, not against abstraction level |

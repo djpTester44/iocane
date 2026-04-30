@@ -199,17 +199,55 @@ While waiting for approval, the operator may optionally invoke `/challenge` to s
 
 ---
 
-### Step F: STAMP AND ROUTE
+### Step F: POPULATE `catalog.toml`
 
-* After writing `roadmap.md`, output:
+* **Action:** Read `.claude/templates/catalog.toml` for the file shape.
+
+* **Action:** Read `.claude/catalog-kinds.toml` to learn the allowed `kind` values per category. The merged validation set is `.claude/catalog-kinds.toml` defaults UNIONED with `./catalog-kinds.local.toml` (project-additive extension; optional, gitignored). Entry-level `kind` validation runs at the parser. If a kind value needed for this project is absent from harness defaults, add it to `./catalog-kinds.local.toml` (do NOT edit `.claude/catalog-kinds.toml`; that file is harness-shipped and propagates to every consumer). Use the scaffold at `.claude/templates/catalog-kinds.local.toml`.
+
+* **Action:** Populate `catalog.toml` at the repo root from the input sources below. Use typed entry names (lowercase, identifier-safe) that match the project's domain language.
+
+  | Category | Source | Inference protocol |
+  |---|---|---|
+  | `data_stores` | `plans/PRD.md` (Tech Stack, Constraints, Data sections) | Persistence stores explicitly named or implied by the tech stack -- relational DB, document store, cache, search index, blob/object store, durable queue/log. Infer `kind` by store type; name from PRD prose (e.g., "primary_db", "session_cache"). |
+  | `external_systems` | `plans/PRD.md` (Tech Stack, Integrations, External Dependencies sections) + Step B.5 trust-edge analysis (in-session) | Third-party services or APIs the system calls -- payment, auth, analytics, search, AI/ML provider, etc. Infer `kind` by provider class or service category. Set `trust_boundary = false` by default (see Rule below). |
+  | `user_surfaces` | `plans/PRD.md` (Entrypoints, User-facing surfaces, CLI/API/UI sections) | Entrypoint patterns described in the PRD (CLI, web app, REST/GraphQL API, admin console, scheduled job entrypoint). One entry per distinct surface. |
+  | `nfr_axes` | `plans/PRD.md` Non-Functional Requirements section | NFR axes named in PRD prose (latency budgets, throughput targets, durability tiers, security boundaries, etc.) -- one entry per distinct axis. |
+
+* **Rule for `external_systems.trust_boundary`:** Default to `false` for ALL inferred entries. The flag is a structured-index optimization for the Phase 1 roadmap-tier trust-edge gate (`validate_trust_edge_chain.py`); it is NOT the source of truth for adversarial-edge declarations. The roadmap (`plans/roadmap.md` Trust Edges section, just written in Step E) remains authoritative. Per `decisions.md` D-03 + `00-framework-adoption.md` §4.5 row 4, Phase 3 implementation MUST NOT compete with the Phase 1 roadmap-tier gate. Operator review of the populated catalog (operator-owned, post-write, before `/io-architect`) is when entries get `trust_boundary = true` flipped to mirror the roadmap's already-declared trust edges.
+
+* **Rule:** Mark `catalog.toml` as a DRAFT in this step's output. The operator must review it before `/io-architect`. Inferred names, descriptions, and especially `trust_boundary` flags benefit from human judgment about domain language and adversarial-edge classification.
+
+* **Greenfield/brownfield parity:** This step provides greenfield parity with `/io-adopt` Step 4b SEED `catalog.toml`. Brownfield draws from `plans/current-state.md` (Configuration Sources + Wiring Snapshot); greenfield draws from `plans/PRD.md` plus the trust-edge analysis from Step B.5 (in-session). Both paths converge on a populated `catalog.toml` post-/io-specify, ready for `/io-architect` to populate `domain_concerns` citations.
+
+* **Validate (optional in-step; required at /io-architect Step G):** Run the catalog parser to confirm the populated file parses cleanly against the schema + kind enums:
+
+  ```bash
+  uv run python -c "
+  import sys; sys.path.insert(0, '.claude/scripts')
+  from catalog_parser import load_catalog
+  c = load_catalog('catalog.toml')
+  print(f'data_stores: {len(c.data_stores)}, external_systems: {len(c.external_systems)}, user_surfaces: {len(c.user_surfaces)}, nfr_axes: {len(c.nfr_axes)}')
+  "
+  ```
+
+* **Failure mode:** If validation fails, fix the catalog entries (or extend `./catalog-kinds.local.toml` if the offending kind is project-specific) and re-run before proceeding to Step G.
+
+---
+
+### Step G: STAMP AND ROUTE
+
+* After writing `roadmap.md` and populating `catalog.toml`, output:
 
 ```
 ROADMAP LOCKED.
+catalog.toml POPULATED (DRAFT -- operator review required before /io-architect).
 
 Features: [N]
 Dependency layers: [N]
+Catalog entries: data_stores=[N], external_systems=[N], user_surfaces=[N], nfr_axes=[N]
 
-Next step: Run /io-architect to define CRC cards and component contracts.
+Next step: Review catalog.toml entries, then run /io-architect to define CRC cards and component contracts.
 ```
 
 ---

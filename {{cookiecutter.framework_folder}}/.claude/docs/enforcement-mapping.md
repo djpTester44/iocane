@@ -50,7 +50,7 @@ Maps every harness constraint to its enforcement mechanism.
 | Constraint | Command | When |
 |------------|---------|------|
 | CRC budget caps (responsibilities, domain_concerns, features, composition-root fan-out) | `validate_crc_budget.py` | io-architect Step G [HARD GATE] |
-| Symbols coverage (every Protocol Raises type declared as exception_class) | `validate_symbols_coverage.py` | io-architect Step G [HARD GATE] |
+| Symbols coverage (raises types declared as exception_class; `used_by` referential integrity; `used_by` reciprocity for `Settings.X` citations and structured `raises[]`) | `validate_symbols_coverage.py` | io-architect Step G [HARD GATE] |
 | Symbol conflict detection (env_var + message_pattern) | `symbols_parser.detect_env_var_conflicts` / `detect_message_pattern_conflicts` | io-architect Step G [HARD GATE] |
 | Trust-edge cross-artifact chain (PRD keyword presence + roadmap Trust Edges section + contract raises adversarial coverage + Settings parameterization) | `validate_trust_edge_chain.py` | io-architect Step G [HARD GATE] |
 | Write-target collision detection | `check_write_target_overlap.py` (includes CT files owned by target_cp) | io-plan-batch Step C [HARD GATE] |

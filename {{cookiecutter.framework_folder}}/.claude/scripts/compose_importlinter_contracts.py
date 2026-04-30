@@ -18,10 +18,12 @@ Idempotent from the second run forward. Non-importlinter pyproject sections
 ([build-system], [project], [tool.ruff], etc.) are preserved via tomlkit's
 round-trip parser.
 
-Brownfield bootstrap: --bootstrap copies pyproject.toml from
-.claude/templates/pyproject.toml when the file does not exist. The
-"pyproject.toml exists but lacks [tool.importlinter] section" case is
-handled uniformly via strip-zero-or-more + always-append; no flag needed.
+Default invocation (no flags) is correct for any project that already has
+a pyproject.toml -- including projects whose pyproject.toml lacks a
+[tool.importlinter] section, which is handled uniformly via
+strip-zero-or-more + always-append. Pass --bootstrap ONLY in the explicit
+no-pyproject case: it copies pyproject.toml from
+.claude/templates/pyproject.toml when the file does not exist.
 """
 
 from __future__ import annotations
