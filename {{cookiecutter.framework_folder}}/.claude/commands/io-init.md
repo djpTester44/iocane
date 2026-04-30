@@ -6,7 +6,6 @@ description: Bootstrap the project structure and stub roadmap from a clarified P
 > **[CRITICAL] CONTEXT LOADING**
 >
 > 1. Load the planning rules: `view_file .claude/rules/planning.md`
-> 2. Load the Architecture Template: `view_file .claude/templates/project-spec.md`
 
 # WORKFLOW: IOCANE INITIALIZATION
 
@@ -95,85 +94,6 @@ bash .claude/scripts/scaffold-greenfield.sh \
 
 ---
 
-### Step C2: CREATE PLANS/ DIRECTORY STRUCTURE
-
-Create the following directory scaffolding if not already present:
-
-```
-plans/
-  PRD.md          (already exists — do not modify)
-  roadmap.md      (stub — created in Step D)
-  backlog.yaml      (create empty with standard header)
-  tasks/          (empty directory — populated by /io-plan-batch)
-```
-
-Do not create `plans/plan.yaml`. Checkpoint planning is handled by `/io-checkpoint` after contracts are locked. The `tasks/` directory is intentionally empty at this stage — `/io-plan-batch` populates it.
-
----
-
-### Step C3: MERGE .GITIGNORE ADDITIONS
-
-Covers both greenfield and brownfield: the canonical ignore patterns ship in `.claude/templates/gitignore-additions` and are merged into the repo-root `.gitignore` here. Idempotent -- safe to run on every `/io-init` invocation.
-
-- **Check:** Is `.claude/templates/gitignore-additions` present?
-- **If absent:** Skip this step. (Unexpected in a scaffolded repo, but non-blocking.)
-- **If `.gitignore` does not exist:** Copy `.claude/templates/gitignore-additions` to `.gitignore`:
-  ```bash
-  cp .claude/templates/gitignore-additions .gitignore
-  ```
-- **If `.gitignore` exists:** Append any lines from `.claude/templates/gitignore-additions` that are not already present in `.gitignore` (whole-line fixed-string match, preserving the user's ordering and comments):
-  ```bash
-  bash -c 'while IFS= read -r line; do grep -qxF -- "$line" .gitignore || printf "%s\n" "$line" >> .gitignore; done < .claude/templates/gitignore-additions'
-  ```
-- **Note:** Do NOT delete `.claude/templates/gitignore-additions` after merging. It is a persistent source for re-runs, not a transient staging file.
-- **On failure:** Log the error and continue. The step is non-blocking -- the user can merge the file by hand.
-
----
-
-### Step D: GENERATE STUB ROADMAP (`plans/roadmap.md`)
-
-- **Action:** Create `plans/roadmap.md` with the following stub structure.
-- **Purpose:** The stub establishes the document identity and PRD traceability. `/io-specify` will populate the feature entries.
-
-```markdown
-# Roadmap
-
-**PRD version:** [version or date from PRD header]
-**Status:** Draft — pending /io-specify
-
----
-
-## Features
-
-[To be populated by /io-specify]
-
----
-
-## Completion Map
-
-| Feature | Status |
-|---------|--------|
-| (none yet) | — |
-```
-
-- **Rule:** Do not populate feature entries here. That is `/io-specify`'s job.
-
----
-
-### Step E: CREATE EMPTY BACKLOG (`plans/backlog.yaml`)
-
-- **Action:** If `plans/backlog.yaml` does not exist, create it with the standard header:
-
-```yaml
-# Findings from /io-review and /gap-analysis. Append-only -- never delete entries.
-# Status values: open (active), resolved (closed), deferred (accepted debt).
-items: []
-```
-
-- **Rule:** If `plans/backlog.yaml` already exists (e.g., brownfield adoption), do not overwrite it.
-
----
-
 ### Step F: OUTPUT
 
 ```
@@ -183,6 +103,7 @@ pyproject.toml scaffolded (runtime deps empty -- add with uv add).
 CLAUDE.md localized with project identity.
 plans/roadmap.md created (stub -- ready for /io-specify).
 plans/backlog.yaml initialized.
+catalog.toml seeded as DRAFT -- review entries before /io-clarify.
 
 Next step: Run /io-specify to generate the dependency-ordered feature roadmap from the clarified PRD.
 ```
@@ -191,7 +112,6 @@ Next step: Run /io-specify to generate the dependency-ordered feature roadmap fr
 
 ## 3. CONSTRAINTS
 
-- This workflow does NOT generate `plans/project-spec.md`. That is `/io-architect`'s output.
 - This workflow does NOT generate `plans/plan.yaml` or any checkpoint plan. That is `/io-checkpoint`'s output.
 - Do not reference or create `execution-handoff-bundle.md` — that artifact is retired.
 - The stub `plans/roadmap.md` must not contain feature entries. `/io-specify` owns that content.

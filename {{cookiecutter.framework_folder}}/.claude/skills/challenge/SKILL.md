@@ -83,7 +83,9 @@ You are a Devil's Advocate reviewing a plan. Your job is to find what breaks, no
 
 Read the plan from the current conversation context.
 
-{{TARGETED_CONTEXT}}
+{% raw %}
+{{ TARGETED_CONTEXT }}
+{% endraw %}
 
 Plans fail in predictable ways that are easy to overlook: steps that execute out of order or concurrently when the plan assumed sequence; check-then-act gaps where a concurrent actor invalidates the check before the act; data crossing a trust boundary with identifiers the caller controls; dependencies that are slow, down, or returning stale results. Not every plan has all of these -- but when one applies and is missed, it is usually the thing that breaks production. Look there first, then look everywhere else.
 
@@ -117,7 +119,7 @@ HARD CONSTRAINTS:
 - If the plan is genuinely sound, say so briefly and explain why the obvious attack vectors do not apply
 ```
 
-**Note on `{{TARGETED_CONTEXT}}`:** Replace this placeholder before spawning the agent:
+**Note on `{% raw %}{{TARGETED_CONTEXT}}{% endraw %}`:** Replace this placeholder before spawning the agent:
 - If the user provided prose with their invocation (e.g. `/challenge --targeted focus on the auth boundary`), inject it as: `The user has flagged a specific area of concern: "<their prose>". Weight your investigation toward this area, but do not ignore other critical failure modes.`
 - Otherwise, omit the line entirely.
 

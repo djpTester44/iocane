@@ -40,6 +40,7 @@ Usage:
 """
 
 import argparse
+import difflib
 import logging
 import re
 import sys
@@ -97,6 +98,9 @@ _LITERAL_NUMBER_RE = re.compile(
 
 # Check 3 -- Settings.<symbol> reference in the vicinity of a literal.
 _SETTINGS_REF_RE = re.compile(r"\bSettings\.[A-Za-z_][A-Za-z0-9_.]*\b")
+
+# Check 2 -- pure feature-ID form (e.g. "F-01", "F-123").
+_FEATURE_ID_RE = re.compile(r"^F-\d+$", re.IGNORECASE)
 
 
 # ---------------------------------------------------------------------------
@@ -192,29 +196,41 @@ def _load_symbols_raw(symbols_path: Path) -> dict[str, dict[str, object]]:
 def _resolve_component_name(
     name: str,
     contracts: dict[str, dict[str, object]],
-) -> str | None:
-    """Resolve a Trust Edge component reference to a contracts key.
+) -> list[str]:
+    """Resolve a Trust Edge component reference to one or more contracts keys.
 
-    Trust Edge ``component`` fields may name a roadmap feature identifier
-    (e.g. "F-03") or a component name that maps to a contracts entry.
-    This function does exact-match first, then prefix/substring match as
-    a fallback for cases where the TE entry includes descriptive text
-    alongside the component name.
+    Accepts two pure forms only:
+      - Identifier-form: exact key match against contracts (e.g. "WebhookHandler").
+      - Feature-form: ``^F-\\d+$`` pattern matched against contract ``features``
+        lists (e.g. "F-01").
+
+    Mixed-form values (e.g. "F-01 — WebhookHandler") and substring matches
+    are rejected; both return an empty list.
 
     Args:
         name: Raw component string from the Trust Edge entry.
         contracts: Component contracts dict keyed by component name.
 
     Returns:
-        The matching contract key, or None if no match found.
+        List of matching contract keys. Empty = unresolved or rejected form.
+        Single element = one owner. Multiple elements = multi-owner feature.
     """
+    # Path A: exact identifier match.
     if name in contracts:
-        return name
-    # Prefix/word-boundary match -- handles "F-03 — PipelineValidator" etc.
-    for key in contracts:
-        if key in name or name in key:
-            return key
-    return None
+        return [name]
+    # Path B: feature-ID bridge (pure F-NN form only).
+    if _FEATURE_ID_RE.match(name):
+        name_upper = name.upper()
+        owners: list[str] = []
+        for key, contract in contracts.items():
+            features = contract.get("features")
+            if not isinstance(features, list):
+                continue
+            if name_upper in [f.upper() for f in features if isinstance(f, str)]:
+                owners.append(key)
+        return owners
+    # Mixed-form, substring, and all other forms are unresolved.
+    return []
 
 
 # ---------------------------------------------------------------------------
@@ -282,37 +298,86 @@ def check_chain(
 
     for te_name in te_components:
         resolved = _resolve_component_name(te_name, contracts)
-        if resolved is None:
-            violations.append(
-                f"Check 2 (chain): Trust Edge component '{te_name}' not found "
-                "in component-contracts.yaml. "
-                "Ensure the component name in the Trust Edge matches a contract entry."
+        if not resolved:
+            # Mixed-form detection: F-NN followed by any whitespace or
+            # punctuation separator and then more content. Covers space,
+            # hyphen, em-dash, en-dash, colon, slash, comma, etc.
+            mixed_match = re.match(
+                r"^(F-\d+)[\s\-–—:/,]+(.+)$", te_name, re.IGNORECASE
             )
+            if mixed_match:
+                feature_form = mixed_match.group(1).upper()
+                identifier_form = mixed_match.group(2).strip()
+                violations.append(
+                    f"Check 2 (chain): TE component '{te_name}' is mixed-form; "
+                    f"use either feature-form '{feature_form}' "
+                    f"or identifier-form '{identifier_form}'."
+                )
+            else:
+                # Build suggestion from nearest contract keys.
+                nearest = difflib.get_close_matches(
+                    te_name, list(contracts.keys()), n=3, cutoff=0.4
+                )
+                suggestion = ""
+                if nearest:
+                    suggestion += "; nearest contract keys: [" + ", ".join(nearest) + "]"
+                # For pure F-NN form that matched no feature owner, suggest nearest feature IDs.
+                if _FEATURE_ID_RE.match(te_name):
+                    all_features: list[str] = []
+                    for _c in contracts.values():
+                        _feats = _c.get("features")
+                        if isinstance(_feats, list):
+                            all_features.extend(f for f in _feats if isinstance(f, str))
+                    nearest_features = difflib.get_close_matches(
+                        te_name, all_features, n=3, cutoff=0.4
+                    )
+                    if nearest_features:
+                        suggestion += (
+                            "; nearest feature IDs: [" + ", ".join(nearest_features) + "]"
+                        )
+                violations.append(
+                    f"Check 2 (chain): Trust Edge component '{te_name}' not found "
+                    f"in component-contracts.yaml{suggestion}. "
+                    "Ensure the component name in the Trust Edge matches a contract entry."
+                )
             continue
 
-        contract = contracts[resolved]
-        raw_raises = contract.get("raises")
-        raises_list: list[object] = (
-            raw_raises if isinstance(raw_raises, list) else []
-        )
-
-        has_adversarial = any(
-            isinstance(entry, str) and _ADVERSARIAL_TRIGGER_RE.search(entry)
-            for entry in raises_list
-        )
-
-        if not has_adversarial:
-            violations.append(
-                f"Check 2 (chain): Component '{resolved}' is declared as a "
-                "Trust Edge boundary but its raises list contains no adversarial-"
-                "rejection entry (keywords: invalid, malformed, oversize, "
-                "traversal, forbidden, unauthorized, tamper, replay). "
-                "Add at least one raises entry covering adversarial rejection."
+        # STRICT multi-owner: ALL resolved owners must have adversarial coverage.
+        missing_coverage: list[str] = []
+        for owner_key in resolved:
+            contract = contracts[owner_key]
+            raw_raises = contract.get("raises")
+            raises_list: list[object] = (
+                raw_raises if isinstance(raw_raises, list) else []
             )
-            flagged.append(resolved)
-        else:
-            # Still flag for Check 3 even when chain passes.
-            flagged.append(resolved)
+            has_adversarial = any(
+                isinstance(entry, str) and _ADVERSARIAL_TRIGGER_RE.search(entry)
+                for entry in raises_list
+            )
+            if not has_adversarial:
+                missing_coverage.append(owner_key)
+
+        if missing_coverage:
+            if len(resolved) == 1:
+                violations.append(
+                    f"Check 2 (chain): Component '{resolved[0]}' is declared as a "
+                    "Trust Edge boundary but its raises list contains no adversarial-"
+                    "rejection entry (keywords: invalid, malformed, oversize, "
+                    "traversal, forbidden, unauthorized, tamper, replay). "
+                    "Add at least one raises entry covering adversarial rejection."
+                )
+            else:
+                violations.append(
+                    f"Check 2 (chain): Trust Edge '{te_name}' resolves to multiple "
+                    f"owners {resolved}; the following owners lack adversarial-"
+                    f"rejection raises: {missing_coverage}. "
+                    "Add at least one adversarial-rejection raises entry to each "
+                    "owner (keywords: invalid, malformed, oversize, traversal, "
+                    "forbidden, unauthorized, tamper, replay)."
+                )
+
+        # Flag all resolved owners for Check 3 regardless of chain outcome.
+        flagged.extend(resolved)
 
     return violations, flagged
 

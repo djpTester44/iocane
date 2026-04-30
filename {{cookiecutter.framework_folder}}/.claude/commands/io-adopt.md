@@ -48,9 +48,13 @@ description: Apply Iocane framework to an existing codebase with intelligent con
 #### 1d. Write CLAUDE.md
 
 * **Assumption:** `CLAUDE.md` is absent at this point -- the cookiecutter `pre_gen_project.py` hook archives any pre-existing `CLAUDE.md` to `OLD_CLAUDE.md` before the template is copied.
-* **Action:** Read `.claude/templates/CLAUDE.md.template`.
-* **Action:** Substitute `__PROJECT_NAME__` with `PROJECT_NAME` and `__PROJECT_DESCRIPTION__` with `PROJECT_DESCRIPTION`.
-* **Action:** Write the substituted template to `CLAUDE.md`.
+* **Action:** Run scaffold-claude-md.sh to write the harness-localized CLAUDE.md (unconditional overwrite per the Assumption above):
+
+  ```bash
+  bash .claude/scripts/scaffold-claude-md.sh \
+    --name "$PROJECT_NAME" \
+    --description "$PROJECT_DESCRIPTION"
+  ```
 * **Merge guidance:** If `OLD_CLAUDE.md` exists and contains project-specific content outside the `## System Context` section (custom rules, project-specific protocols, etc.), surface this in the Step 4 handoff for the user to manually merge. Do not attempt automated merging -- the judgment of what to preserve is the user's call.
 
 #### 1e. Bootstrap directories

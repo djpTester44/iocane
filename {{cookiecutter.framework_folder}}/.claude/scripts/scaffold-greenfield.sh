@@ -99,4 +99,56 @@ else
     fi
 fi
 
-echo "Next: add runtime dependencies with 'uv add <package>', then run /io-architect to populate [tool.importlinter.contracts]."
+# --- Scaffold plans/ directory structure (idempotent) ---
+mkdir -p plans/tasks
+echo "plans/ scaffolded (plans/tasks/ created; PRD.md preserved if present)."
+
+# --- Merge .gitignore additions (idempotent, non-blocking) ---
+GITIGNORE_TEMPLATE="$SCRIPT_DIR/../templates/gitignore-additions"
+if [ -f "$GITIGNORE_TEMPLATE" ]; then
+    if [ ! -f ".gitignore" ]; then
+        cp "$GITIGNORE_TEMPLATE" .gitignore
+        echo ".gitignore created from template."
+    else
+        # Append-missing only; preserve user ordering and comments.
+        while IFS= read -r line; do
+            grep -qxF -- "$line" .gitignore || printf "%s\n" "$line" >> .gitignore
+        done < "$GITIGNORE_TEMPLATE" || echo "WARNING: .gitignore merge failed; skipping (non-blocking)." >&2
+        echo ".gitignore merged with template additions."
+    fi
+fi
+
+# --- Scaffold plans/roadmap.md stub (idempotent) ---
+ROADMAP_STUB="$SCRIPT_DIR/../templates/roadmap.md.stub"
+if [ -f "plans/roadmap.md" ]; then
+    echo "plans/roadmap.md already exists -- skipping stub."
+elif [ -f "$ROADMAP_STUB" ]; then
+    cp "$ROADMAP_STUB" plans/roadmap.md
+    echo "plans/roadmap.md stub written."
+else
+    echo "WARNING: roadmap.md.stub template not found at $ROADMAP_STUB -- skipping." >&2
+fi
+
+# --- Initialize plans/backlog.yaml stub (idempotent) ---
+BACKLOG_STUB="$SCRIPT_DIR/../templates/backlog.yaml.stub"
+if [ -f "plans/backlog.yaml" ]; then
+    echo "plans/backlog.yaml already exists -- skipping init."
+elif [ -f "$BACKLOG_STUB" ]; then
+    cp "$BACKLOG_STUB" plans/backlog.yaml
+    echo "plans/backlog.yaml initialized."
+else
+    echo "WARNING: backlog.yaml.stub template not found at $BACKLOG_STUB -- skipping." >&2
+fi
+
+# --- Seed catalog.toml from template (idempotent; greenfield only) ---
+CATALOG_TEMPLATE="$SCRIPT_DIR/../templates/catalog.toml"
+if [ -f "catalog.toml" ]; then
+    echo "catalog.toml already exists -- skipping seed."
+elif [ -f "$CATALOG_TEMPLATE" ]; then
+    cp "$CATALOG_TEMPLATE" catalog.toml
+    echo "catalog.toml seeded from template (DRAFT -- operator review required before /io-clarify)."
+else
+    echo "WARNING: catalog.toml template not found at $CATALOG_TEMPLATE -- skipping." >&2
+fi
+
+echo "Next: run /io-specify to generate the dependency-ordered feature roadmap from the clarified PRD."

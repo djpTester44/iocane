@@ -1,11 +1,11 @@
 ---
 name: io-architect
-description: Design CRC cards, Protocols, cross-CP symbols, and component contract behavioral invariants. Tier 1 -- plan mode required. Highest-value gate in the workflow.
+description: Design CRC cards, Protocols, cross-CP symbols, and component contract behavioral invariants. Tier 1 -- human-approval gate required at Step I. Highest-value gate in the workflow.
 model: claude-opus-4-7
 effort: xhigh
 ---
 
-> **[CRITICAL] PLAN MODE**
+> **[CRITICAL] STEP I HUMAN-APPROVAL GATE**
 > This is the highest-value gate in the entire workflow.
 > Claude authors the full design as canonical YAML artifacts for human review.
 > Human approval at Step I is the Tier 1 / Tier 2 boundary -- nothing executes until sign-off.
@@ -114,9 +114,9 @@ For every component identified in Step B, design a CRC card using the format def
 **[HARD] CRC budget caps.** A single component that absorbs too many behaviors, too many features, or too much composition wiring stops being a reviewable unit. Each CRC must satisfy all three caps; a violation forces decomposition, not a rewording.
 
 - **Responsibility cap:** max 3 testable responsibilities per CRC. A component with 4+ responsibilities must be split.
-- **Feature fan-out cap:** max 2 roadmap features per CRC. A component serving 3+ features from `plans/roadmap.md` must be split along feature boundaries. **Every component that carries feature logic MUST declare the feature IDs** (e.g., `F-01`, `F-02`) it supports -- they are written to the `features:` field in Step F-3 and are what the budget validator reads. An empty `features:` is reserved for shared infrastructure that legitimately has no direct feature fan-out (e.g., `Settings`, loggers); the validator emits a non-blocking warning if a behavioral component (has declared responsibilities or is a composition root) leaves `features:` empty, so A.1b cannot be silently bypassed by forgetting to declare.
+- **Feature fan-out cap:** max 2 roadmap features per CRC. A component serving 3+ features from `plans/roadmap.md` must be split along feature boundaries. **Every component that carries feature logic MUST declare the feature IDs** (e.g., `F-01`, `F-02`) it supports -- they are written to the `features:` field in Step F-3 and are what the budget validator reads. An empty `features:` is reserved for shared infrastructure that legitimately has no direct feature fan-out (e.g., `Settings`, loggers); the validator emits a non-blocking warning if a behavioral component (has declared responsibilities) leaves `features:` empty, so A.1b cannot be silently bypassed by forgetting to declare.
 - **Composition-root decomposition:** a `composition_root: true` component with 3+ Layer-2/3 collaborators (domain + infrastructure, excluding other composition roots) must decompose into resource-scoped sub-components -- one router/handler/sub-app per resource, each wiring at most 2 Layer-2/3 collaborators.
-- **Composition roots are wiring entries, not behavioral contracts.** Components with `composition_root: true` are Layer 4 entries that wire collaborators rather than declare a behavioral surface; they are registered in `plans/component-contracts.yaml` for collaborator-graph and feature-fan-out tracking only and typically leave `responsibilities` and `raises` empty.
+- **Composition roots are wiring entries, not behavioral contracts.** Components with `composition_root: true` are Layer 4 entries that wire collaborators rather than declare a behavioral surface; they are registered in `plans/component-contracts.yaml` for collaborator-graph and feature-fan-out tracking only and leave `responsibilities`, `raises`, and `features` empty. Composition roots wire features at the collaborator graph level and are not feature owners; the trust-edge multi-owner check operates on feature IDs and will flag any composition root that carries them as missing adversarial raises -- which is structurally incoherent because composition roots have empty raises by design.
 
 These caps are mechanically enforced by `.claude/scripts/validate_crc_budget.py` at Step G as part of the deterministic batch.
 
@@ -125,6 +125,8 @@ These caps are mechanically enforced by `.claude/scripts/validate_crc_budget.py`
 ### Step F: WRITE ARTIFACTS
 
 On reaching Step F, execute the following sub-steps in strict sequence. Do NOT parallelize any of these sub-steps.
+
+The Step F authoring sequence MAY invoke Step G validators as authoring oracles before completing all sub-steps. Mid-author validator runs are diagnostic, not gate runs -- they do not satisfy Step G's mechanical-batch requirement, and the full Step G batch must still execute after F-7. Use mid-author runs to surface authoring errors early when revising downstream sub-steps would be expensive.
 
 **Step F-pre:** `bash: uv run python .claude/scripts/capability.py grant --template io-architect.H`
 

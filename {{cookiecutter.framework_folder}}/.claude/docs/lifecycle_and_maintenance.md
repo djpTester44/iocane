@@ -19,7 +19,7 @@ Execution follows a strict chronology. Design is locked before any code is writt
                         statement satisfies if none). Step E pre-approval sub-phase
                         offers an operator-invokable /challenge menu (D-05/D-06)
                         targeting declaration QUALITY. Human approves.
-  4. /io-architect    -- PLAN MODE -- produce full canonical set (component-contracts.yaml,
+  4. /io-architect    -- STEP I HUMAN-APPROVAL GATE -- produce full canonical set (component-contracts.yaml,
                         symbols.yaml, seams.yaml), human approves (contract
                         lock). Step F authors symbols.yaml before component-contracts.yaml
                         (F-3/F-4 ordering); Step G runs five deterministic gates including

@@ -60,13 +60,17 @@ Before proceeding, output the following metadata:
 * **Output:** For each boundary found, draft a Trust Edge entry using this structure:
 
 ```
-- component: [which roadmap feature / component touches this boundary]
+- component: [either a feature ID like `F-03`, or an identifier-form component name; the validator at /io-architect Step G accepts either form]
   attack_vectors:
     - [vector one — what an attacker or malformed input can do here]
     - [vector two — ...]
   thresholds_settings: [one or more Settings symbol names that parameterize limits/thresholds at this boundary; write "none declared" if no Settings symbol applies yet]
 ```
 
+* When a boundary surface spans multiple components, pick the form that matches the enforcement reality:
+  * **Feature-form (`F-NN`)** — when EVERY component owning the feature genuinely enforces an adversarial path at this boundary. The validator's STRICT multi-owner check at `/io-architect` Step G requires ALL owners to carry adversarial-rejection `raises` entries; if any owner is a pass-through, this form will fail the gate.
+  * **Identifier-form, split into `TE-NNa` / `TE-NNb`** — when only ONE component is the actual enforcer and others co-own the feature as pass-through (logging, rate-limiting, instrumentation). Author one TE per genuine-enforcer component; the `TE-NN` root indicates a shared boundary surface; each suffix isolates one component's enforcement responsibility.
+  * The `component:` field is singular by design — never pack multiple components into a single identifier-form TE entry.
 * If NO trust edges are found, explicitly output: "No trust edges identified — PRD describes no external-input or external-service boundaries."
 * These entries carry forward into the roadmap proposal (Step D) and are the authoring source for `validate_trust_edge_chain.py` Check 1 at `/io-architect` Step G. Weak or missing declarations are caught at the design tier; absent declarations are caught deterministically by the validator.
 
@@ -118,7 +122,7 @@ Propose the full content of `plans/roadmap.md` using this format:
      fail at /io-architect Step G. -->
 
 ### TE-01: [Boundary name]
-- **component:** [F-XX — which roadmap feature owns this boundary]
+- **component:** [either a feature ID like `F-03`, or an identifier-form component name; both forms accepted by the validator]
 - **attack_vectors:**
   - [vector one]
   - [vector two]
@@ -131,6 +135,25 @@ Propose the full content of `plans/roadmap.md` using this format:
      "No trust edges — this system accepts no external input and calls no external services." -->
 ```
 
+**Worked example — multi-component split:**
+
+When a single boundary surface has attack vectors that span multiple components, split into TE-NNa / TE-NNb suffix entries — one per component. The example below shows an "external connector endpoints" boundary split between an HTTP-transport owner and a log-redaction surface owner:
+
+```
+### TE-07a: External connector endpoints — HTTP transport
+- **component:** BoundaryComponentA
+- **attack_vectors:**
+  - SSRF / malicious URL
+  - oversize response body
+- **thresholds_settings:** `webhook_response_max_bytes`
+
+### TE-07b: External connector endpoints — log-redaction surface
+- **component:** BoundaryComponentB
+- **attack_vectors:**
+  - credential leak in log emission
+- **thresholds_settings:** `log_redaction_patterns`
+```
+
 **Rules for roadmap entries:**
 - Every feature must have at least one testable acceptance criterion.
 - Acceptance criteria must be observable at the system boundary — no internal implementation details.
@@ -139,7 +162,7 @@ Propose the full content of `plans/roadmap.md` using this format:
 
 **Rules for Trust Edges section:**
 - The section is mandatory in every roadmap. Either one or more `TE-NN` entries, OR the explicit "no trust edges" statement — never omit the section entirely.
-- `component` must name a roadmap feature by its `F-NN` identifier or a named component that maps to one.
+- `component` is either a feature ID (`F-NN`, matching a roadmap feature) or an identifier-form component name (e.g. `PipelineYamlParser`, matching a key in `plans/component-contracts.yaml`). The validator at `/io-architect` Step G accepts either form: feature-form resolves to all components whose contract `features:` field includes the cited feature; identifier-form resolves to that contract directly. Mixed forms (e.g. `F-01 — PipelineYamlParser`) are rejected — pick one.
 - `attack_vectors` must be free-text bullets — at least one per Trust Edge.
 - `thresholds_settings` must name at least one Settings symbol if the boundary has a configurable threshold; write "none declared" only if no threshold exists at this boundary.
 - Trust Edges sourced from Step B.5. If Step B.5 produced no entries, the "no trust edges" statement satisfies the requirement.

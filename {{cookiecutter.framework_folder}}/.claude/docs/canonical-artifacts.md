@@ -7,7 +7,7 @@ The architect-authored YAML triple plus the project-authored catalog. These are 
 | `plans/component-contracts.yaml` | `/io-architect` | What does each component contractually promise to do? |
 | `plans/seams.yaml` | `/io-architect` | How do components fit together, and where does the system meet the outside world? |
 | `plans/symbols.yaml` | `/io-architect` | Which identifiers must be spelled and typed identically across more than one CP? |
-| `catalog.toml` | `/io-adopt` (brownfield seeding) + operator review | Which bounded contexts (data_stores, external_systems, user_surfaces, nfr_axes) does the project span? |
+| `catalog.toml` | `/io-init` (greenfield seeding) + `/io-adopt` (brownfield seeding) + operator review | Which bounded contexts (data_stores, external_systems, user_surfaces, nfr_axes) does the project span? |
 | `tests/contracts/test_*.py` | `/io-wire-tests` (CDT Author spawn) | What does each contract surface require from the implementation? |
 | `tests/connectivity/test_*.py` | `/io-wire-tests` (CT Author spawn) | Does each seam integration point connect correctly end-to-end? |
 | `.iocane/wire-tests/eval_<id>.yaml` | `/io-wire-tests` (Critic spawn) | How well does the test implementation match its contract specification? |
@@ -103,7 +103,7 @@ Schema-mechanic detail (kind catalogue, `declared_in` zone rules, conflict detec
 - Behavioral prose (-> `component-contracts.yaml` `responsibilities`)
 - Trust-edge declarations as first-class authority (-> `roadmap.md` Trust Edges)
 
-**Authored by:** `/io-adopt` Step 4 (brownfield seeding from `current-state.md` + PRD NFRs); operator review before `/io-clarify` is mandatory. Greenfield seeding (at `/io-init` / PRD authoring time) is deferred to a future phase per `decisions.md` D-16.
+**Authored by:** `/io-adopt` Step 4 (brownfield seeding from `current-state.md` + PRD NFRs) or `/io-init` Step C via `scaffold-greenfield.sh` (greenfield template copy); operator review before `/io-clarify` is mandatory in both paths.
 
 **Read by:** `validate_crc_budget.py` (distinct-citation count for `MAX_DOMAIN_CONCERNS`); future `/io-architect` integration may consume the typed citations directly.
 

@@ -1,0 +1,3 @@
+# Findings from /io-review and /gap-analysis. Append-only -- never delete entries.
+# Status values: open (active), resolved (closed), deferred (accepted debt).
+items: []
