@@ -94,6 +94,50 @@ A grant is **live** iff:
 - `now < granted_at + min(declared_ttl, 86400)` (24h hard ceiling clamps
   buggy template authors).
 
+## [HARD] Parallel Fan-out Pattern
+
+Workflows that fan out parallel per-target subprocesses (currently
+`/io-wire-tests-cdt` and `/io-wire-tests-ct` via `xargs -P`) must NOT
+rely on the `.current-session-id` fallback for their grant ledger.
+Under fan-out, that file is shared mutable state -- any subprocess that
+triggers a `capability.py session-start` without `--subagent` will
+overwrite it, which corrupts every other subprocess's grant resolution
+mid-run.
+
+The discipline has three parts; all are required:
+
+1. **Orchestrator brackets its own run.** Mint a per-run `SESSION_ID`,
+   capture the parent SID from `.current-session-id` BEFORE any
+   subprocess work, then call `capability.py session-start
+   --session-id "$SESSION_ID" --subagent --parent-session-id
+   "$PARENT_SID" --source "<workflow>"` before fan-out and
+   `session-end --session-id "$SESSION_ID"` after the post-batch
+   barrier. Both calls fail-open (`|| true`); `sweep-orphans` cleans
+   stragglers within 24h.
+
+2. **Per-target grants thread `--session-id` explicitly.** Inside the
+   per-target subprocess, every `capability.py grant` and `revoke`
+   call passes `--session-id "$SESSION_ID"` (the orchestrator's
+   per-run SID, exported into the subprocess env). This pins the
+   grant to the orchestrator's session regardless of what other
+   writers touch `.current-session-id`. Grants additionally pass
+   `--subagent --parent-session-id "$PARENT_SID"` for audit
+   correctness (metadata only; does not affect file mutation).
+
+3. **Spawned `claude -p` subprocesses export `IOCANE_SUBAGENT=1`.** Any
+   spawn script that invokes `claude -p` to run a sub-agent (e.g.,
+   `spawn-test-author.sh`, `spawn-test-critic.sh`) must export
+   `IOCANE_SUBAGENT=1` alongside `IOCANE_PARENT_SESSION_ID`. The
+   sub-agent's `session-start.sh` hook reads this env var and passes
+   `--subagent` to `capability.py session-start`, which by
+   `cmd_session_start` skips the `.current-session-id` overwrite
+   (the file is reserved for the main interactive session pointer).
+
+Omitting any one of these three steps re-introduces the race: per-target
+grants fall back to a `.current-session-id` that sibling subprocesses
+are concurrently rewriting or unlinking, causing
+`resolve_session_id` to throw `RuntimeError: no session id` mid-fan-out.
+
 ## Authority vs Audit
 
 The **hot-path cache** (`active.txt`) is the authority -- hooks read only

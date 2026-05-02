@@ -315,19 +315,18 @@ class ExecutionFinding(BaseModel, frozen=True):
     severity: Severity
 
 
-class SeamEntry(BaseModel, frozen=True):
+class SeamEntry(BaseModel, frozen=True, extra="forbid"):
     """Seam context entry describing a component boundary.
 
-    Appendix A §A.3a: ``injected_contracts`` is the canonical field for
-    the contract-level DI graph. ``receives_di`` is a deprecated alias
-    carrying collaborator component names from pre-A.3 seams files;
-    readers migrating the graph to contract names should prefer
-    ``injected_contracts`` and fall back to ``receives_di`` only when
-    the new field is empty.
+    Appendix A §A.3a: ``injected_contracts`` enumerates the contract
+    Protocols this component receives via DI from a composition root.
+
+    ``extra="forbid"`` rejects unknown keys at load (e.g., legacy
+    ``receives_di`` from pre-D-32 seams files) instead of silently
+    dropping them.
     """
 
     component: str
-    receives_di: list[str] = []
     injected_contracts: list[str] = []
     key_failure_modes: list[str] = []
     external_terminal: str | None = None
@@ -364,7 +363,7 @@ CAP_COUNTED_LAYERS: frozenset[int] = (
 class SeamComponent(SeamEntry, frozen=True):
     """Full seam component with layer and backlog references.
 
-    Inherits component, receives_di, key_failure_modes, external_terminal
+    Inherits component, injected_contracts, key_failure_modes, external_terminal
     from SeamEntry. Adds layer placement and backlog cross-references.
     """
 

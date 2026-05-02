@@ -134,11 +134,19 @@ Issues the capability grant that authorizes the canonical-YAML write sequence (S
 
 **Re-grant on Step I in-place correction.** If the operator returns in-place corrections at Step I (cite component name + field; re-runs Step F -> G -> H once), explicitly re-invoke this F-pre command before re-entering Step F. The template's `ttl_seconds` is the crash-safety floor for a single architect attempt; Step J-2's template-matched revoke clears the grant at workflow end.
 
-**Step F-2:** Scaffold `src/` package directories from the Step D dependency-map reasoning:
+**Step F-2:** Scaffold `src/` package directories. Before creating any directory,
+read `.claude/references/layer-directory-map.md` to confirm the root for each
+layer. Rules:
 
-- For each registered package path, create the directory if it does not exist
-- Write a minimal `__init__.py` (empty or with a module docstring) to each new directory
-- Skip directories that already exist -- do not overwrite existing `__init__.py` files
+- A single-file component goes directly under its layer root (`src/domain/foo.py`),
+  not in its own subdirectory (`src/domain/foo/foo.py`). One-directory-per-component
+  is wrong when only one file lives in it.
+- Create a sub-directory only when multiple related files form a coherent sub-package
+  (e.g. `src/domain/connectors/` for several connector modules).
+- A top-level `src/<name>/` that is not one of the four layer roots is always wrong.
+- For each directory being created, write a minimal `__init__.py` (empty or with a
+  module docstring).
+- Skip directories that already exist -- do not overwrite existing `__init__.py` files.
 
 **Step F-3:** Author `plans/symbols.yaml` directly via the Write tool. The `validate-yaml.sh` PostToolUse hook validates against `SymbolsFile` schema on every write; failures surface with line context. Edit and re-save on failure.
 

@@ -14,7 +14,7 @@ description: Decompose roadmap features into atomic checkpoints with connectivit
 > 3. Load the component registry: `view_file plans/component-contracts.yaml`
 > 4. Load the Roadmap: `view_file plans/roadmap.md`
 > 5. Load the symbol registry: `symbols_parser.load_symbols('plans/symbols.yaml')`. Symbol names referenced by checkpoint scopes (component names) drive the `used_by_cps` backfill at Step G-symbols below.
-> 6. Load the Integration Seams reference via `seam_parser.load_seams('plans/seams.yaml')`. Use the `receives_di` graph (via `all_di_edges()`) to identify which component boundaries require connectivity tests: if CP-A builds a component and CP-B builds a component that injects it, a connectivity test is required at that seam. For components whose `component-contracts.yaml` entry has `composition_root: true`, also read `injected_contracts` -- Appendix A §A.3b populates that list with injected contract names, which drives the A.3c composition-root CT emission rule in Step D.
+> 6. Load the Integration Seams reference via `seam_parser.load_seams('plans/seams.yaml')`. Use the `injected_contracts` graph (via `all_di_edges()`) to identify which component boundaries require connectivity tests: if CP-A builds a component and CP-B builds a component that injects it, a connectivity test is required at that seam. For components whose `component-contracts.yaml` entry has `composition_root: true`, also read `injected_contracts` -- Appendix A §A.3b populates that list with injected contract names, which drives the A.3c composition-root CT emission rule in Step D.
 
 # WORKFLOW: IO-CHECKPOINT
 

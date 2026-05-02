@@ -132,7 +132,7 @@ For each component in scope, load seams via `seam_parser.load_seams('plans/seams
 
 **Check each field for drift:**
 
-- **receives_di:** Compare `__init__` parameters against the `receives_di` field. Flag any parameter added, removed, renamed, or re-typed since the last `/io-architect` run.
+- [Phase 5+ TODO: `receives_di` was removed from `SeamEntry` in Phase 4 per `decisions.md` D-32 (single canonical DI field is now `injected_contracts`). This check needs redesign -- options: (a) compare against contract names from `injected_contracts` (semantic shift); (b) compute collaborator component names from `component-contracts.yaml.collaborators` (alternate source); (c) retire the check if no longer valuable. Skipped until Phase 5+ designs this command's seam-validation surface.]
 - **external_terminal:** Scan the implementation for direct client instantiation (e.g., `httpx.AsyncClient()`, `boto3.client()`, `create_async_engine()`) that is not reflected in the `external_terminal` field.
 - **key_failure_modes:** Compare raised exception types in the implementation against the `key_failure_modes` field. Flag any new exception type not listed, or any listed exception no longer raised.
 

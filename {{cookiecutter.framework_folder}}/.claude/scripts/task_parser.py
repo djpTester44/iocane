@@ -64,8 +64,6 @@ def save_task(path: str, task: TaskFile) -> None:
         if "fixture_deps" in ct and not ct["fixture_deps"]:
             del ct["fixture_deps"]
     for seam in data.get("seam_context", []):
-        if "receives_di" in seam and not seam["receives_di"]:
-            del seam["receives_di"]
         if (
             "injected_contracts" in seam
             and not seam["injected_contracts"]

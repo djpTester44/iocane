@@ -31,7 +31,9 @@
 # name = "payment_provider"
 # kind = "payment_provider"
 # description = "Stripe Checkout + webhook signature verification."
-# trust_boundary = true   # webhook signatures cross an untrusted edge
+# trust_boundary = true   # set true ONLY when this entry mirrors a roadmap TE-NN
+#                         # entry authored in the same workflow run; the
+#                         # roadmap.md Trust Edges section remains authoritative.
 
 [user_surfaces]
 # Example -- delete and replace with project-specific entries:

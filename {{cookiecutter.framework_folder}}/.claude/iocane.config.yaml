@@ -25,6 +25,8 @@ validation:
   tasks:
     max_regen_cycles: 3
 wire_tests:
+  author_max_turns: 70
+  critic_max_turns: 30
   max_turns: 5
   parallel:
     limit: 4

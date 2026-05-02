@@ -72,6 +72,8 @@ The human is NOT required during orchestration scoring, task file generation, or
 
 **[CRITICAL] Scope Discipline** — NEVER exceed the explicit scope of the prompt or current workflow step. Helpfulness Ban: no proactive edits, features, or commands beyond what was requested. Assumption Ban: stop and ask if ambiguous. Revert Ban: no autonomous `git checkout` or reverts. Full details in `.claude/rules/scope-discipline.md` (loaded globally).
 
+**[CRITICAL] Verify Before Asserting** — Before stating a claim about state or recommending an action based on it, verify the underlying inference with a concrete check (`git diff`, file read, parser call). Verification threshold scales with destructiveness — recommendations to revert/reset/delete require evidence, not reasoning chains.
+
 1. Before EVERY phase (triage, architect, checkpoint, validate, batch), re-read CLAUDE.md and the relevant workflow .md file — never work from memory
 2. After each phase, write a one-line status to plans/validation-reports/chain-log.md with phase name, files modified, and pass/fail
 3. If any phase produces output that doesn't match the expected schema in the workflow doc (or schema referenced by it), STOP and report the deviation instead of improvising

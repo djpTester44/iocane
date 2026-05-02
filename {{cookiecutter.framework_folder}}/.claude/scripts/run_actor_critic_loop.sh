@@ -255,6 +255,7 @@ _revoke_caps() {
     if [ "$AUTHOR_CAP_GRANTED" -eq 1 ]; then
         local R=0
         if uv run python "${REPO}/.claude/scripts/capability.py" revoke \
+                --session-id "$SESSION_ID" \
                 --template "io-wire-tests.${TARGET_TYPE}"; then :
         else R=$?; fi
         [ "$R" -eq 0 ] && AUTHOR_CAP_GRANTED=0 || true
@@ -262,6 +263,7 @@ _revoke_caps() {
     if [ "$CRITIC_CAP_GRANTED" -eq 1 ]; then
         local R=0
         if uv run python "${REPO}/.claude/scripts/capability.py" revoke \
+                --session-id "$SESSION_ID" \
                 --template "io-wire-tests.critic"; then :
         else R=$?; fi
         [ "$R" -eq 0 ] && CRITIC_CAP_GRANTED=0 || true
@@ -306,6 +308,9 @@ fi
 
 GRANT_EXIT=0
 if uv run python "${REPO}/.claude/scripts/capability.py" grant \
+        --session-id "$SESSION_ID" \
+        --subagent \
+        --parent-session-id "$PARENT_SID" \
         --template "io-wire-tests.${TARGET_TYPE}"; then :
 else GRANT_EXIT=$?; fi
 if [ "$GRANT_EXIT" -ne 0 ]; then
@@ -316,6 +321,9 @@ AUTHOR_CAP_GRANTED=1
 
 GRANT_EXIT=0
 if uv run python "${REPO}/.claude/scripts/capability.py" grant \
+        --session-id "$SESSION_ID" \
+        --subagent \
+        --parent-session-id "$PARENT_SID" \
         --template "io-wire-tests.critic"; then :
 else GRANT_EXIT=$?; fi
 if [ "$GRANT_EXIT" -ne 0 ]; then
@@ -354,6 +362,44 @@ while [ "$ATTEMPT" -le "$MAX_TURNS" ]; do
     AUTHOR_WRITE_TARGET="${TEST_FILE}"
     _emit_spawn_log "author" "$ATTEMPT" "$AUTHOR_WRITE_TARGET" "$AUTHOR_EXIT"
 
+    if [ "$AUTHOR_EXIT" -eq 64 ]; then
+        # API error envelope (claude -p exit 0 + is_error=true). spawn-test-author
+        # surfaced 64. Halt cleanly without consuming a turn or archiving. Snapshot
+        # the actual api_error_status + result message inline so the finding is
+        # self-contained (file path is sid+attempt-suffixed, but inline detail
+        # removes the indirection cost for operator post-mortem).
+        _revoke_caps
+        _author_snapshot=$(uv run python -c "
+import json
+try:
+    d = json.loads(open('${REPO}/.iocane/wire-tests/author-result-${TARGET_ID}-attempt-${ATTEMPT}.json').read())
+    s = d.get('api_error_status', 'unknown')
+    m = (d.get('result') or '')[:200].replace(chr(10), ' ').replace(chr(13), '').replace(chr(34), chr(39))
+    print(f'api_error_status={s}; result snippet: {m}')
+except Exception:
+    print('snapshot extraction failed')
+" 2>/dev/null)
+        _emit_finding "api_error_envelope" \
+            "Author spawn returned API error envelope for ${TARGET_ID} at attempt ${ATTEMPT}" \
+            "${_author_snapshot}" \
+            "wire_tests" \
+            "Inspect api_error_status above. 429/529 -> wait for window reset; 401/403 -> fix credentials; 5xx -> retry after brief backoff. Re-run: bash .claude/scripts/io-wire-tests-${TARGET_TYPE}.sh --targets ${TARGET_ID}"
+        exit 64
+    fi
+    if [ "$AUTHOR_EXIT" -eq 65 ]; then
+        # Empty / unparseable result file -- claude -p partial-wrote then exited
+        # (network reset, server abort, or other mid-stream infra failure).
+        # Panic-stop kills are recorded separately in
+        # wire_test_panic_stop_audit-*.yaml -- this finding is for non-panic-stop
+        # infra failures only. Halt without consuming a turn or archiving.
+        _revoke_caps
+        _emit_finding "spawn_kill_or_infra_failure" \
+            "Author spawn killed mid-write or infra failure for ${TARGET_ID} at attempt ${ATTEMPT}" \
+            ".iocane/wire-tests/author-result-${TARGET_ID}-attempt-${ATTEMPT}.json is empty or unparseable" \
+            "wire_tests" \
+            "claude -p partial-wrote then exited (network reset / server abort / infra failure mid-stream). Panic-stop kills are recorded in .iocane/findings/wire_test_panic_stop_audit-*.yaml -- this finding is emitted only for non-panic-stop infra failures. Inspect run-log/${TARGET_ID}.log and re-run: bash .claude/scripts/io-wire-tests-${TARGET_TYPE}.sh --targets ${TARGET_ID}"
+        exit 65
+    fi
     if [ "$AUTHOR_EXIT" -ne 0 ]; then
         echo "ERROR: Author spawn failed (exit $AUTHOR_EXIT) for ${TARGET_ID} attempt ${ATTEMPT}" >&2
         _revoke_caps
@@ -370,6 +416,44 @@ while [ "$ATTEMPT" -le "$MAX_TURNS" ]; do
     CRITIC_WRITE_TARGET="${REPO}/.iocane/wire-tests/eval_${TARGET_ID}.yaml"
     _emit_spawn_log "critic" "$ATTEMPT" "$CRITIC_WRITE_TARGET" "$CRITIC_EXIT"
 
+    if [ "$CRITIC_EXIT" -eq 64 ]; then
+        # API error envelope (claude -p exit 0 + is_error=true). spawn-test-critic
+        # surfaced 64. Halt cleanly without consuming a turn or archiving. Snapshot
+        # the actual api_error_status + result message inline -- critic_<id>.json
+        # has NO attempt/sid suffix so the file overwrites between attempts;
+        # post-mortem MUST come from the finding text, not the cited path.
+        _revoke_caps
+        _critic_snapshot=$(uv run python -c "
+import json
+try:
+    d = json.loads(open('${REPO}/.iocane/wire-tests/critic_${TARGET_ID}.json').read())
+    s = d.get('api_error_status', 'unknown')
+    m = (d.get('result') or '')[:200].replace(chr(10), ' ').replace(chr(13), '').replace(chr(34), chr(39))
+    print(f'api_error_status={s}; result snippet: {m}')
+except Exception:
+    print('snapshot extraction failed')
+" 2>/dev/null)
+        _emit_finding "api_error_envelope" \
+            "Critic spawn returned API error envelope for ${TARGET_ID} at attempt ${ATTEMPT}" \
+            "${_critic_snapshot}" \
+            "wire_tests" \
+            "Inspect api_error_status above. 429/529 -> wait for window reset; 401/403 -> fix credentials; 5xx -> retry after brief backoff. Re-run: bash .claude/scripts/io-wire-tests-${TARGET_TYPE}.sh --targets ${TARGET_ID}"
+        exit 64
+    fi
+    if [ "$CRITIC_EXIT" -eq 65 ]; then
+        # Empty / unparseable result file -- claude -p partial-wrote then exited
+        # (network reset, server abort, or other mid-stream infra failure).
+        # Panic-stop kills are recorded separately in
+        # wire_test_panic_stop_audit-*.yaml -- this finding is for non-panic-stop
+        # infra failures only. Halt without consuming a turn or archiving.
+        _revoke_caps
+        _emit_finding "spawn_kill_or_infra_failure" \
+            "Critic spawn killed mid-write or infra failure for ${TARGET_ID} at attempt ${ATTEMPT}" \
+            ".iocane/wire-tests/critic_${TARGET_ID}.json is empty or unparseable" \
+            "wire_tests" \
+            "claude -p partial-wrote then exited (network reset / server abort / infra failure mid-stream). Panic-stop kills are recorded in .iocane/findings/wire_test_panic_stop_audit-*.yaml -- this finding is emitted only for non-panic-stop infra failures. Inspect run-log/${TARGET_ID}.log and re-run: bash .claude/scripts/io-wire-tests-${TARGET_TYPE}.sh --targets ${TARGET_ID}"
+        exit 65
+    fi
     if [ "$CRITIC_EXIT" -ne 0 ]; then
         echo "ERROR: Critic spawn failed (exit $CRITIC_EXIT) for ${TARGET_ID} attempt ${ATTEMPT}" >&2
         _revoke_caps
@@ -406,7 +490,7 @@ print(r.status)
         FAIL)
             if [ "$ATTEMPT" -lt "$MAX_TURNS" ]; then
                 # D-18: archive prior test file before retry spawn
-                local sid_archive_dir="${ARCHIVE_DIR}/${SESSION_ID}"
+                sid_archive_dir="${ARCHIVE_DIR}/${SESSION_ID}"
                 mkdir -p "$sid_archive_dir"
                 ARCHIVE_TARGET="${sid_archive_dir}/test_${TARGET_ID}-attempt-${ATTEMPT}.py"
                 if ! mv "$TEST_FILE" "$ARCHIVE_TARGET"; then
@@ -447,7 +531,7 @@ print(r.status)
         *)
             echo "WARN: unrecognised STATUS='${STATUS}' for ${TARGET_ID} attempt ${ATTEMPT}; treating as FAIL" >&2
             if [ "$ATTEMPT" -lt "$MAX_TURNS" ]; then
-                local sid_archive_dir="${ARCHIVE_DIR}/${SESSION_ID}"
+                sid_archive_dir="${ARCHIVE_DIR}/${SESSION_ID}"
                 mkdir -p "$sid_archive_dir"
                 ARCHIVE_TARGET="${sid_archive_dir}/test_${TARGET_ID}-attempt-${ATTEMPT}.py"
                 if ! mv "$TEST_FILE" "$ARCHIVE_TARGET" 2>/dev/null; then

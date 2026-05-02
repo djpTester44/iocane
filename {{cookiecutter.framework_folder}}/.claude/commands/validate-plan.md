@@ -230,9 +230,8 @@ If any checkpoint introduces a new collaborator:
 
 * Run `python extract_structure.py <file>` **only for checkpoints that introduce a new collaborator** -- do not run it for all implementation files. Load structural skeletons (signatures, decorators, docstrings) into context for those files only.
 * Verify the task description specifies injection via `__init__` parameter, not inline instantiation.
-* Use `find_by_component()` to locate the receiving component's seam entry and cross-reference the collaborator name against its `receives_di` list. If the collaborator is absent, flag `HARDCODED_DEPENDENCY` -- the collaborator is either undeclared or being wired outside the approved DI contract.
+* [Phase 5+ TODO: `receives_di` was removed from `SeamEntry` in Phase 4 per `decisions.md` D-32 (single canonical DI field is now `injected_contracts`). This check needs redesign -- options: (a) compare against contract names from `injected_contracts` (semantic shift); (b) compute collaborator component names from `component-contracts.yaml.collaborators` (alternate source); (c) retire the check if no longer valuable. Skipped until Phase 5+ designs this command's seam-validation surface.]
 * **Flag:** New collaborator described as instantiated inline = `HARDCODED_DEPENDENCY`
-* **Flag:** New collaborator not present in the component's `receives_di` entry in `plans/seams.yaml` = `HARDCODED_DEPENDENCY`
 * **Flag:** `os.environ` / `os.getenv` described outside Entrypoint layer = `ENV_LEAK`
 
 ---

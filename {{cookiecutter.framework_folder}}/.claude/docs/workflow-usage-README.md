@@ -39,9 +39,7 @@ Omit `-f --no-input` if you want cookiecutter to prompt for each variable intera
 
 ```
 Primary Path:
-/io-clarify -> /io-init -> /io-specify -> /io-architect -> /io-checkpoint -> /validate-plan -> /io-plan-batch -> /validate-tasks -> dispatch-agents.sh [per CP: io-execute (generator) -> evaluator] -> /io-review
-
-Test-authoring runs at state 3 entry via `/io-wire-tests-cdt` and `/io-wire-tests-ct` (see Wire-Tests Command Lifecycle below).
+/io-clarify -> /io-init -> /io-specify -> /io-architect -> /io-wire-tests-cdt -> /io-wire-tests-ct -> /io-checkpoint -> /validate-plan -> /io-plan-batch -> /validate-tasks -> dispatch-agents.sh [per CP: io-execute (generator) -> evaluator] -> /io-review
 
 
 Remediation Path (after /io-backlog-triage routes DESIGN/REFACTOR items):
@@ -75,7 +73,9 @@ Wire-tests are the empirical-validation site for component contracts (CDT) and s
 
 Wire-tests obey two configuration knobs in `.claude/iocane.config.yaml`:
 
-- `wire_tests.max_turns` -- per-target inner-loop bound (default 5).
+- `wire_tests.max_turns` -- per-target actor/critic cycle bound (default 5).
+- `wire_tests.author_max_turns` -- per-invocation turn budget for the Author agent (default 70).
+- `wire_tests.critic_max_turns` -- per-invocation turn budget for the Critic agent (default 30).
 - `wire_tests.parallel.limit` -- per-batch parallelism cap (default 4).
 
 ### State Surfaces

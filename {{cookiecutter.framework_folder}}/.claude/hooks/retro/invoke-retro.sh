@@ -91,7 +91,7 @@ log() {
 log "pipeline start sid=$PRIOR_SID manual=$MANUAL transcript=$PRIOR_TRANSCRIPT"
 
 log "pass1 begin -> $PASS1_OUT"
-timeout 300 claude -p "/lessons-pass1-extract $PRIOR_TRANSCRIPT $PASS1_OUT" \
+timeout 900 claude -p "/lessons-pass1-extract $PRIOR_TRANSCRIPT $PASS1_OUT" \
     --model claude-sonnet-4-6 \
     --output-format json \
     --allowedTools "Bash,Read,Write" \

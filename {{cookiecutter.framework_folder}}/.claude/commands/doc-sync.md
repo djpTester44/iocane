@@ -108,7 +108,7 @@ Full-project reconciliation of `plans/seams.yaml` against actual source code usi
 1. Read the component's `__init__` signature from its implementation file in `src/`.
 2. Use `find_by_component()` to locate the component's seam entry (or note the entry is missing).
 3. Check each field for drift:
-   - **receives_di:** Do `__init__` parameters match? Flag any added, removed, renamed, or re-typed.
+   - [Phase 5+ TODO: `receives_di` was removed from `SeamEntry` in Phase 4 per `decisions.md` D-32 (single canonical DI field is now `injected_contracts`). This check needs redesign -- options: (a) compare against contract names from `injected_contracts` (semantic shift); (b) compute collaborator component names from `component-contracts.yaml.collaborators` (alternate source); (c) retire the check if no longer valuable. Skipped until Phase 5+ designs this command's seam-validation surface.]
    - **external_terminal:** Scan for direct client instantiation (`httpx.AsyncClient()`, `boto3.client()`, `create_async_engine()`, etc.) not reflected in the field.
    - **key_failure_modes:** Compare raised exception types against listed failure modes.
 4. If the component has no implementation file yet (planned but unbuilt): skip it.

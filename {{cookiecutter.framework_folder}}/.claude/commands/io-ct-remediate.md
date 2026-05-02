@@ -83,10 +83,7 @@ Do NOT proceed without a fully-specified spec.
 
 Load seams via `seam_parser.load_seams('plans/seams.yaml')` and use `find_by_component()` to read the relevant seam entry for the CP-A -> CP-B boundary named in the CT spec.
 
-Use the `receives_di` and `key_failure_modes` fields to inform:
-
-- Fixture wiring (which dependencies are injected vs. local)
-- Error-case assertions (what failures are observable at the boundary)
+[Phase 5+ TODO: `receives_di` was removed from `SeamEntry` in Phase 4 per `decisions.md` D-32 (single canonical DI field is now `injected_contracts`). This check needs redesign -- options: (a) compare against contract names from `injected_contracts` (semantic shift); (b) compute collaborator component names from `component-contracts.yaml.collaborators` (alternate source); (c) retire the check if no longer valuable. Skipped until Phase 5+ designs this command's seam-validation surface.]
 
 ---
 

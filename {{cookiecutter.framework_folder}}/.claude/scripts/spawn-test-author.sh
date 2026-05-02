@@ -19,7 +19,7 @@ RETRY_ATTEMPT=""
 PRIOR_EVAL_PATH=""
 
 # Configuration defaults (overridable by env or config file)
-AUTHOR_MODEL="${AUTHOR_MODEL:-claude-haiku-4-5-20251001}"
+AUTHOR_MODEL="${AUTHOR_MODEL:-claude-sonnet-4-6}"
 AUTHOR_MAX_TURNS="${AUTHOR_MAX_TURNS:-70}"
 AUTHOR_TIMEOUT="${AUTHOR_TIMEOUT:-10m}"
 
@@ -103,16 +103,27 @@ fi
 
 # Attempt to load config if it exists; use env/defaults as fallback
 CONFIG_FILE="${IOCANE_REPO_ROOT}/.claude/iocane.config.yaml"
+
+_cfg_read() {
+    local key="$1"
+    local section="${key%%.*}"
+    local subkey="${key#*.}"
+    awk "/^${section}:/{found=1; next} found && /^[^ ]/{exit} found && /^  ${subkey}:/{print; exit}" "$CONFIG_FILE" 2>/dev/null \
+        | sed 's/^[^:]*:[[:space:]]*//' \
+        | sed 's/[[:space:]]*#.*//' \
+        | tr -d '\r' \
+        | head -1
+}
+
 if [ -f "$CONFIG_FILE" ]; then
-    # Extract tier3 model from YAML (simple grep; assumes consistent format)
-    TIER3_MODEL=$(grep -A1 "^models:" "$CONFIG_FILE" | grep "tier3:" | awk '{print $2}' || echo "")
-    if [ -n "$TIER3_MODEL" ]; then
-        AUTHOR_MODEL="$TIER3_MODEL"
+    # Extract tier2 model from YAML (simple grep; assumes consistent format)
+    TIER2_MODEL=$(grep -A2 "^models:" "$CONFIG_FILE" | grep "tier2:" | awk '{print $2}' || echo "")
+    if [ -n "$TIER2_MODEL" ]; then
+        AUTHOR_MODEL="$TIER2_MODEL"
     fi
-    # Extract agents.max_turns and timeout
-    AGENT_TURNS=$(grep "max_turns:" "$CONFIG_FILE" | head -1 | awk '{print $2}' || echo "")
-    if [ -n "$AGENT_TURNS" ]; then
-        AUTHOR_MAX_TURNS="$AGENT_TURNS"
+    _cfg_turns=$(_cfg_read "wire_tests.author_max_turns")
+    if [ -n "$_cfg_turns" ] && [ "$_cfg_turns" != "null" ]; then
+        AUTHOR_MAX_TURNS="$_cfg_turns"
     fi
     AGENT_TIMEOUT=$(grep "timeout:" "$CONFIG_FILE" | head -1 | awk '{print $2}' || echo "")
     if [ -n "$AGENT_TIMEOUT" ]; then
@@ -133,6 +144,7 @@ fi
 
 export IOCANE_REPO_ROOT
 export IOCANE_PARENT_SESSION_ID="$(cat "${IOCANE_REPO_ROOT}/.iocane/sessions/.current-session-id" 2>/dev/null || echo "")"
+export IOCANE_SUBAGENT=1
 
 case "$TARGET_TYPE" in
     cdt) export IOCANE_ROLE=test_author_cdt ;;
@@ -249,6 +261,43 @@ if echo "$AUTHOR_PROMPT" | timeout "$AUTHOR_TIMEOUT" claude -p \
     :
 else
     AUTHOR_EXIT=$?
+fi
+
+# --- Inspect result JSON to surface invisible failure modes ---
+#
+# claude -p returns exit 0 even when the response payload is an error envelope
+# (is_error=true, api_error_status=429 / 529 / 401 / etc.). Without this
+# inspection, an error envelope looks like a clean exit and the inner loop
+# happily proceeds to the Critic, which also errors; the eval YAML never lands;
+# the parser-failure path treats it as STATUS=FAIL and burns a retry cycle.
+# Two distinguishable failures are surfaced as dedicated exit codes:
+#
+#   64 -- API error envelope (any is_error=true response: 429 rate-limit,
+#         529 overloaded, auth errors, server errors, etc.). The inner loop
+#         snapshots api_error_status into the FindingFile.
+#   65 -- empty OR unparseable result file. Subprocess killed mid-write
+#         (panic-stop), partial-write before kill, or other infra failure.
+#
+# Otherwise AUTHOR_EXIT is preserved.
+if [ -f "$RESULT_FILE" ]; then
+    if [ ! -s "$RESULT_FILE" ]; then
+        AUTHOR_EXIT=65
+    else
+        _classify=$(uv run python -c "
+import json
+try:
+    d = json.loads(open('${RESULT_FILE}').read())
+except Exception:
+    print('UNPARSEABLE')
+    raise SystemExit(0)
+if d.get('is_error') is True:
+    print('API_ERROR')
+" 2>/dev/null)
+        case "$_classify" in
+            UNPARSEABLE) AUTHOR_EXIT=65 ;;
+            API_ERROR)   AUTHOR_EXIT=64 ;;
+        esac
+    fi
 fi
 
 exit "$AUTHOR_EXIT"

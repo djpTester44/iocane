@@ -32,7 +32,7 @@ Schema shape and field-level validators live in `.claude/scripts/schemas.py`. Th
 **Does not belong:**
 
 - Layer assignments (integration-graph facts -> `seams.yaml`)
-- DI wiring (-> `seams.yaml` `receives_di`)
+- DI wiring (-> `seams.yaml` `injected_contracts`)
 - External-system terminals (-> `seams.yaml` `external_terminal`)
 - Cross-CP shared identifiers (-> `symbols.yaml`)
 
@@ -48,7 +48,7 @@ Schema shape and field-level validators live in `.claude/scripts/schemas.py`. Th
 **Belongs:**
 
 - Layer assignment (1=Foundation, 2=Utility, 3=Domain, 4=Entrypoint)
-- DI declarations (`receives_di` for collaborator names; `injected_contracts` additionally for composition roots)
+- DI declarations (`injected_contracts` -- Protocol names injected from a composition root)
 - Failure-mode catalogue per component (`key_failure_modes`)
 - External terminals (`external_terminal`) -- network, filesystem, queues, third-party APIs
 - CT coverage gaps (`missing_ct_seams`) surfaced by `/io-review`
@@ -96,7 +96,7 @@ Schema-mechanic detail (kind catalogue, `declared_in` zone rules, conflict detec
 
 - Four categories: `data_stores`, `external_systems`, `user_surfaces`, `nfr_axes`
 - One entry per concrete bounded context the project spans
-- `external_systems` entries carry an optional `trust_boundary: bool` flag (structured-index optimization for the Phase 1 roadmap-tier trust-edge gate; NOT authority -- the `roadmap.md` Trust Edges section remains source of truth)
+- `external_systems` entries carry an optional `trust_boundary: bool` flag. The flag is a forward-looking structured-index mirror of the `roadmap.md` Trust Edges section, agent-set during catalog population to mirror `TE-NN` entries authored in the same workflow run (true when the entry's name resolves to the owning component or backing service of a roadmap TE; false otherwise). The flag is a structured-index optimization for the Phase 1 roadmap-tier trust-edge gate; it is NOT authority -- the `roadmap.md` Trust Edges section remains source of truth, and `validate_trust_edge_chain.py` does not read the flag.
 
 **Does not belong:**
 

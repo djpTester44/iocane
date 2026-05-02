@@ -90,6 +90,7 @@ fi
 export IOCANE_REPO_ROOT
 export IOCANE_ROLE=test_critic
 export IOCANE_PARENT_SESSION_ID="$(cat "$IOCANE_REPO_ROOT/.iocane/sessions/.current-session-id" 2>/dev/null || echo "")"
+export IOCANE_SUBAGENT=1
 
 # ============================================================================
 # Architect-Mode Gate
@@ -116,10 +117,10 @@ if [ -z "$AGENT_TIMEOUT" ] || [ "$AGENT_TIMEOUT" = "null" ]; then
     AGENT_TIMEOUT="10m"
 fi
 
-# Wire-tests specific max turns (per-target Critic is fast; use config wire_tests.max_turns if present)
-CRITIC_MAX_TURNS=$(_cfg_read "wire_tests.max_turns")
+# Per-agent turn budget for the Critic invocation (distinct from wire_tests.max_turns, which governs loop cycles).
+CRITIC_MAX_TURNS=$(_cfg_read "wire_tests.critic_max_turns")
 if [ -z "$CRITIC_MAX_TURNS" ] || [ "$CRITIC_MAX_TURNS" = "null" ]; then
-    CRITIC_MAX_TURNS="5"
+    CRITIC_MAX_TURNS="30"
 fi
 
 # ============================================================================
@@ -235,6 +236,42 @@ if echo "$CRITIC_PROMPT" | timeout "$AGENT_TIMEOUT" claude -p \
     :
 else
     CRITIC_EXIT=$?
+fi
+
+# --- Inspect result JSON to surface invisible failure modes ---
+#
+# claude -p returns exit 0 even when the response payload is an error envelope
+# (is_error=true, api_error_status=429 / 529 / 401 / etc.). Surface error
+# envelopes and empty/unparseable result files as dedicated exit codes so the
+# inner loop can branch instead of treating absent eval YAML as STATUS=FAIL.
+#
+#   64 -- API error envelope (any is_error=true response: 429 rate-limit,
+#         529 overloaded, auth errors, server errors, etc.). The inner loop
+#         snapshots api_error_status into the FindingFile.
+#   65 -- empty OR unparseable result file. Subprocess killed mid-write
+#         (panic-stop), partial-write before kill, or other infra failure.
+#
+# Otherwise CRITIC_EXIT is preserved.
+CRITIC_RESULT_FILE="$OUTPUT_DIR/critic_${TARGET_ID}.json"
+if [ -f "$CRITIC_RESULT_FILE" ]; then
+    if [ ! -s "$CRITIC_RESULT_FILE" ]; then
+        CRITIC_EXIT=65
+    else
+        _classify=$(uv run python -c "
+import json
+try:
+    d = json.loads(open('${CRITIC_RESULT_FILE}').read())
+except Exception:
+    print('UNPARSEABLE')
+    raise SystemExit(0)
+if d.get('is_error') is True:
+    print('API_ERROR')
+" 2>/dev/null)
+        case "$_classify" in
+            UNPARSEABLE) CRITIC_EXIT=65 ;;
+            API_ERROR)   CRITIC_EXIT=64 ;;
+        esac
+    fi
 fi
 
 # ============================================================================

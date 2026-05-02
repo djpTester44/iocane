@@ -32,7 +32,7 @@ source: null
 execution_notes: "[Any checkpoint-specific guidance not captured in contract or acceptance criteria. null if none.]"
 seam_context:
   - component: "[ComponentName]"
-    receives_di:
+    injected_contracts:
       - "[ProtocolName]"
     key_failure_modes:
       - "[failure mode]"

@@ -48,10 +48,8 @@ def save_seams(path: str, seams: SeamsFile) -> None:
             data["components"],
             key=lambda c: (c.get("layer", 0), c.get("component", "")),
         )
-    # Strip empty lists for readability; always drop receives_di
-    # (deprecated alias; injected_contracts is canonical).
+    # Strip empty lists for readability.
     for comp in data.get("components", []):
-        comp.pop("receives_di", None)
         for key in _STRIPPABLE_LISTS:
             if key in comp and not comp[key]:
                 del comp[key]
@@ -90,7 +88,7 @@ def all_di_edges(seams: SeamsFile) -> list[tuple[str, str]]:
     """Return all DI edges as (component, dependency) tuples."""
     edges: list[tuple[str, str]] = []
     for comp in seams.components:
-        for dep in comp.receives_di:
+        for dep in comp.injected_contracts:
             edges.append((comp.component, dep))
     return edges
 

@@ -205,7 +205,7 @@ For each REFACTOR item in the batch, set context:
 
 If failure modes or DI receivers changed. Use `seam_parser.update_component()` and `save_seams()`.
 
-**Appendix A §A.3b.** If an item modifies a component whose `component-contracts.yaml` entry has `composition_root: true`, also update `injected_contracts` to enumerate every Protocol injected (Protocol class names from `interfaces/*.pyi`, not collaborator component names). The `receives_di` field is retained as a deprecated collaborator-level alias; new code must populate `injected_contracts` on composition roots so `/io-checkpoint` Step D can emit one CT per injected Protocol.
+**Appendix A §A.3b.** If an item modifies a component whose `component-contracts.yaml` entry has `composition_root: true`, also update `injected_contracts` to enumerate every Protocol injected (Protocol class names from `interfaces/*.pyi`, not collaborator component names). `/io-checkpoint` Step D emits one CT per injected Protocol.
 
 ### F.3: Write CRC card changes
 
